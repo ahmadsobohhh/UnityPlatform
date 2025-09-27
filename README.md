@@ -6,7 +6,7 @@ To get things setup, you'll need to have unity installed, the git-repo cloned an
 
 # Unity Installation:
 
-Go to unity.com/download to install unity. It's a very simply wizard. 
+Go to https://unity.com/download to install unity. It's a very simply wizard. 
 
 Create an account or sign-in.
 
