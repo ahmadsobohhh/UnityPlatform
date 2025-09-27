@@ -14,7 +14,7 @@ Unity-Hub should be installed and connected to your account.
 
 # Git-Repo Clone
 
-Go to https://github.com/ImagineQuest/Front-End click <code> (the green button) then open with Github-desktop. 
+Go to https://github.com/ImagineQuest/Front-End click < code > (the green button) then open with Github-desktop. 
 
 If you don't have github desktop, I recommend getting it ;)
 
