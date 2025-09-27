@@ -56,5 +56,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "ImagineQuest.sln"
+    "dotnet.defaultSolution": "Front-End.sln"
 }
