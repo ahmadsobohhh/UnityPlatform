@@ -1,5 +1,4 @@
-﻿
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
@@ -11,23 +10,39 @@ public class ThemeApplier : MonoBehaviour
     public TMP_Text title;       // assign "User Login" text
     public RectTransform form;   // the "Form" container (with VerticalLayoutGroup)
 
-    void OnEnable() => Apply();
-    void OnValidate() => Apply();
+    private void OnEnable() => Apply();
+    private void OnValidate() => Apply();
 
     public void Apply()
     {
         if (!theme) return;
+
+        // Background + title
         if (background) background.color = theme.background;
-        if (title) { title.color = theme.titleText; title.fontSize = 40; title.alignment = TextAlignmentOptions.Center; }
+        if (title)
+        {
+            title.color = theme.titleText;
+            title.fontSize = 40;
+            title.alignment = TextAlignmentOptions.Center;
+        }
 
-        // auto-apply to children that have style components
-        foreach (var s in GetComponentsInChildren<StyleInput>(true)) { s.theme = theme; s.OnValidate(); }
-        foreach (var s in GetComponentsInChildren<StyleButton>(true)) { s.theme = theme; s.OnValidate(); }
+        // Push theme to child stylers
+        foreach (var s in GetComponentsInChildren<StyleInput>(true))
+        {
+            s.theme = theme;
+            s.Apply();
+        }
+        foreach (var s in GetComponentsInChildren<StyleButton>(true))
+        {
+            s.theme = theme;
+            s.Apply();
+        }
 
-        // form width hint for inputs
+        // Optional width hint for the form container
         if (form)
         {
-            var le = form.GetComponent<LayoutElement>() ?? form.gameObject.AddComponent<LayoutElement>();
+            var le = form.GetComponent<LayoutElement>();
+            if (!le) le = form.gameObject.AddComponent<LayoutElement>();
             le.preferredWidth = theme.formWidth;
         }
     }
