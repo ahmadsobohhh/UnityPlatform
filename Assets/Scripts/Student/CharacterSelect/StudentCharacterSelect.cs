@@ -7,19 +7,17 @@ using Firebase.Firestore;
 
 public class StudentCharacterSelect : MonoBehaviour
 {
-    [Header("Character Slots (in order: Character1 → Character8)")]
-    public List<GameObject> characterSlots;  // Each character GameObject (with Image component)
-    public GameObject joinGUI;               // Shown when selecting empty slot
-    public GameObject classInfo;             // Shown when selecting existing class slot
+    [Header("Character Slots (Character1 → Character8)")]
+    public List<GameObject> characterSlots;  // Drag all Character GameObjects
+    public GameObject joinGUI;
+    public GameObject classInfo;
 
     [Header("Colors")]
-    public Color normalColor = Color.white; 
-    public Color dimColor = new Color(0.3f, 0.3f, 0.3f); // darker for unused
+    public Color normalColor = Color.white;
+    public Color dimColor = new Color(55, 55, 0); // darker for unused
 
     private FirebaseAuth auth;
     private FirebaseFirestore db;
-
-    // Tracks how many classroom slots are filled
     private int classroomCount = 0;
 
     void Start()
@@ -42,7 +40,7 @@ public class StudentCharacterSelect : MonoBehaviour
             yield break;
         }
 
-        // Example path: users/{uid}/classrooms
+        // 🔍 Fetch the student's classrooms
         var classroomsRef = db.Collection("users").Document(user.UserId).Collection("classrooms");
         var task = classroomsRef.GetSnapshotAsync();
         yield return new WaitUntil(() => task.IsCompleted);
@@ -64,20 +62,20 @@ public class StudentCharacterSelect : MonoBehaviour
 
     private void ApplySlotColors()
     {
-        // Darken unused slots
         for (int i = 0; i < characterSlots.Count; i++)
         {
             Image slotImage = characterSlots[i].GetComponent<Image>();
             if (slotImage == null) continue;
 
-            // If there are no classrooms and this isn’t Character1, darken it
+            // Set color brightness based on number of classrooms
             if (classroomCount == 0)
             {
+                // No classrooms: only Character1 bright, others dim
                 slotImage.color = (i == 0) ? normalColor : dimColor;
             }
             else
             {
-                // Example: 3 classrooms -> slots 1,2,3 bright, rest dark
+                // Example: 3 classrooms → 1–3 bright, rest dim
                 slotImage.color = (i < classroomCount) ? normalColor : dimColor;
             }
         }
@@ -85,21 +83,26 @@ public class StudentCharacterSelect : MonoBehaviour
 
     private void AssignSlotListeners()
     {
-        // Clear previous listeners
+        // Clear existing listeners
         foreach (GameObject slot in characterSlots)
         {
-            Button b = slot.GetComponent<Button>();
-            if (b != null) b.onClick.RemoveAllListeners();
+            Button btn = slot.GetComponent<Button>();
+            if (btn != null) btn.onClick.RemoveAllListeners();
         }
 
-        // Assign new ones
         for (int i = 0; i < characterSlots.Count; i++)
         {
-            int index = i; // local copy for closure
-            Button button = characterSlots[index].GetComponent<Button>();
-            if (button == null) continue;
+            int index = i;
+            Button btn = characterSlots[index].GetComponent<Button>();
+            if (btn == null) continue;
 
-            button.onClick.AddListener(() => OnSlotSelected(index));
+            // Determine if this slot is active (bright)
+            bool isActiveSlot = (classroomCount == 0 && index == 0) || (classroomCount > 0 && index < classroomCount);
+
+            if (isActiveSlot)
+                btn.onClick.AddListener(() => OnSlotSelected(index));
+            else
+                btn.interactable = false; // disable completely for dimmed slots
         }
     }
 
@@ -107,18 +110,37 @@ public class StudentCharacterSelect : MonoBehaviour
     {
         Debug.Log($"Clicked Character {index + 1}");
 
-        // If the clicked slot index < classroomCount → it's a used slot
+        // Existing class
         if (index < classroomCount && classroomCount > 0)
         {
             classInfo.SetActive(true);
             joinGUI.SetActive(false);
             Debug.Log("Opened ClassInfo (existing classroom).");
         }
-        else
+        // Empty slot (only allowed when index == 0 and no classrooms yet)
+        else if (classroomCount == 0 && index == 0)
         {
             joinGUI.SetActive(true);
             classInfo.SetActive(false);
-            Debug.Log("Opened JoinGUI (empty slot).");
+            Debug.Log("Opened JoinGUI (first character creation).");
+        }
+    }
+
+    void Update()
+    {
+        // If JoinGUI is active, detect click outside
+        if (joinGUI.activeSelf && Input.GetMouseButtonDown(0))
+        {
+            // Convert mouse position to world point
+            Vector3 mousePos = Input.mousePosition;
+
+            // Check if click was inside the JoinGUI rect
+            RectTransform rect = joinGUI.GetComponent<RectTransform>();
+            if (rect != null && !RectTransformUtility.RectangleContainsScreenPoint(rect, mousePos, null))
+            {
+                // Hide JoinGUI when clicked outside
+                joinGUI.SetActive(false);
+            }
         }
     }
 }
