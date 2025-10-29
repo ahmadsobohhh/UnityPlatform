@@ -4,14 +4,17 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "Unity.TextMeshPro"
+        "Unity.TextMeshPro",
+        "GameRuntime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": true,
+    "overrideReferences": false,
     "precompiledReferences": [
-        "nunit.framework.dll"
+        "nunit.framework.dll",
+        "Firebase.App.dll",
+        "Firebase.Auth.dll"
     ],
     "autoReferenced": false,
     "defineConstraints": [
