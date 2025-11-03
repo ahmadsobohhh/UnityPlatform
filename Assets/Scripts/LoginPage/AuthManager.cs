@@ -164,7 +164,7 @@ public class AuthManager : MonoBehaviour
 
             // 🎯 Redirect based on role
             if (role == "teacher")
-                SceneManager.LoadScene("TeacherHome");
+                SceneManager.LoadScene("TeacherClassSelect");
             else
                 SceneManager.LoadScene("StudentCharacterSelect");
         }
