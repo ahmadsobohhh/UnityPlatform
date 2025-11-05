@@ -9,6 +9,11 @@ using UnityEngine.SceneManagement;
 
 public class TeacherClassManager : MonoBehaviour
 {
+    [Header("Panels")]
+    [SerializeField] private GameObject classListPanel;
+    [SerializeField] private GameObject editPanel;
+    [SerializeField] private GameObject createClassPanel;
+
     [Header("List UI")]
     [SerializeField] private Transform classListContainer;     // your ClassList (Grid/Vertical container)
     [SerializeField] private GameObject classListItemPrefab;   // prefab with children: "ClassName" (TMP_Text), "ClassCode" (TMP_Text)
@@ -20,13 +25,21 @@ public class TeacherClassManager : MonoBehaviour
     [SerializeField] private TMP_Text pageLabel;               // optional
     [SerializeField] private int pageSize = 6;
 
-    [Header("Create Class")]
-    [SerializeField] private TMP_InputField classNameInput;    // your input field in the Create panel
+    [Header("Create Class Panel")]
+    [SerializeField] private TMP_InputField createClassNameInput;    // input field in CreateClassPanel
+    [SerializeField] private Button createConfirmBtn;                // CreateBtn in CreateClassPanel
     [SerializeField] private int codeLength = 6;
 
-    [Header("Buttons")]
-    [SerializeField] private Button createBtn;   // Your "Create Class" button
-    [SerializeField] private Button editBtn;     // Your "Edit" button
+    [Header("Edit Panel")]
+    [SerializeField] private TMP_Text editTitleLabel;       // "Edit class:" label
+    [SerializeField] private TMP_InputField editNameInput;   // input field for class name
+    [SerializeField] private Button editConfirmBtn;          // confirm edit
+    [SerializeField] private Button deleteConfirmBtn;        // delete class
+
+    [Header("List Panel Buttons")]
+    [SerializeField] private Button joinBtn;     // JoinBtn
+    [SerializeField] private Button createBtn;   // createBtn (shows create panel)
+    [SerializeField] private Button editBtn;     // editBtn (shows edit panel)
 
     [Header("Selection Visuals")]
     [SerializeField] private Color unselectedColor = new Color(1f, 1f, 1f, 1f);
@@ -58,16 +71,68 @@ public class TeacherClassManager : MonoBehaviour
 
     void Start()
     {
+        // Wire up buttons
+        if (joinBtn) joinBtn.onClick.AddListener(JoinSelected);
+        if (createBtn) createBtn.onClick.AddListener(ShowCreatePanel);
+        if (editBtn) editBtn.onClick.AddListener(ShowEditPanel);
+        if (createConfirmBtn) createConfirmBtn.onClick.AddListener(OnConfirmCreate);
+        if (editConfirmBtn) editConfirmBtn.onClick.AddListener(OnConfirmEdit);
+        if (deleteConfirmBtn) deleteConfirmBtn.onClick.AddListener(OnConfirmDelete);
+        if (prevPageBtn) prevPageBtn.onClick.AddListener(PrevPage);
+        if (nextPageBtn) nextPageBtn.onClick.AddListener(NextPage);
+
+        // Start with list panel visible
+        ShowListPanel();
         StartCoroutine(LoadClasses());
     }
 
-    // --- PUBLIC: wire these in the Inspector to your buttons ---
-    public void CreateClass_FromInput()        => StartCoroutine(CreateClassRoutine(classNameInput?.text));
-    public void RefreshClassList()             => StartCoroutine(LoadClasses());
-    public void NextPage()                     { _pageIndex++; RenderPage(); }
-    public void PrevPage()                     { _pageIndex = Mathf.Max(0, _pageIndex - 1); RenderPage(); }
+    // --- Panel Management ---
+    private void ShowListPanel()
+    {
+        if (classListPanel) classListPanel.SetActive(true);
+        if (editPanel) editPanel.SetActive(false);
+        if (createClassPanel) createClassPanel.SetActive(false);
+    }
 
-    // Navigate to TeacherClass for the selected class
+    private void ShowEditPanel()
+    {
+        if (string.IsNullOrEmpty(_selectedClassId))
+        {
+            Debug.LogWarning("No class selected to edit.");
+            return;
+        }
+
+        var row = GetSelectedRow();
+        if (editTitleLabel) editTitleLabel.text = $"Edit class: {row.name}";
+        if (editNameInput) editNameInput.text = row.name;
+
+        if (classListPanel) classListPanel.SetActive(false);
+        if (editPanel) editPanel.SetActive(true);
+        if (createClassPanel) createClassPanel.SetActive(false);
+    }
+
+    private void ShowCreatePanel()
+    {
+        if (createClassNameInput) createClassNameInput.text = "";
+
+        if (classListPanel) classListPanel.SetActive(false);
+        if (editPanel) editPanel.SetActive(false);
+        if (createClassPanel) createClassPanel.SetActive(true);
+    }
+
+    // --- Button Callbacks ---
+    public void NextPage()
+    {
+        _pageIndex++;
+        RenderPage();
+    }
+
+    public void PrevPage()
+    {
+        _pageIndex = Mathf.Max(0, _pageIndex - 1);
+        RenderPage();
+    }
+
     public void JoinSelected()
     {
         if (string.IsNullOrEmpty(_selectedClassId))
@@ -84,24 +149,28 @@ public class TeacherClassManager : MonoBehaviour
         SceneManager.LoadScene("TeacherClass");
     }
 
-    // Call from your rename modal's Save button, or directly
-    public void RenameSelected(string newNameRaw)
+    private void OnConfirmCreate()
     {
-        if (string.IsNullOrEmpty(_selectedClassId)) { Debug.LogWarning("No class selected."); return; }
-        StartCoroutine(RenameRoutine(_selectedClassId, newNameRaw));
+        StartCoroutine(CreateClassRoutine(createClassNameInput?.text));
     }
 
-    // Helper if you want to wire a TMP_InputField directly
-    public void RenameSelected_FromInput(TMP_InputField input)
+    private void OnConfirmEdit()
     {
-        var txt = input ? input.text : null;
-        RenameSelected(txt);
+        if (string.IsNullOrEmpty(_selectedClassId))
+        {
+            Debug.LogWarning("No class selected.");
+            return;
+        }
+        StartCoroutine(RenameRoutine(_selectedClassId, editNameInput?.text));
     }
 
-    // Call from your delete confirm button
-    public void DeleteSelected()
+    private void OnConfirmDelete()
     {
-        if (string.IsNullOrEmpty(_selectedClassId)) { Debug.LogWarning("No class selected."); return; }
+        if (string.IsNullOrEmpty(_selectedClassId))
+        {
+            Debug.LogWarning("No class selected.");
+            return;
+        }
         StartCoroutine(DeleteRoutine(_selectedClassId));
     }
 
@@ -146,8 +215,8 @@ public class TeacherClassManager : MonoBehaviour
         yield return new WaitUntil(() => mapTask.IsCompleted);
         if (mapTask.IsFaulted || mapTask.IsCanceled) { Debug.LogError(mapTask.Exception); yield break; }
 
-        // Clear input (optional) and refresh
-        if (classNameInput) classNameInput.text = "";
+        // Go back to list and refresh
+        ShowListPanel();
         yield return StartCoroutine(LoadClasses());
     }
 
@@ -198,20 +267,20 @@ public class TeacherClassManager : MonoBehaviour
             if (!stillThere) { _selectedClassId = null; _selectedIndex = -1; }
         }
 
-        // reset button states
-        if (string.IsNullOrEmpty(_selectedClassId))
-        {
-            if (createBtn) createBtn.gameObject.SetActive(true);
-            if (editBtn)   editBtn.gameObject.SetActive(false);
-        }
-        else
-        {
-            if (createBtn) createBtn.gameObject.SetActive(false);
-            if (editBtn)   editBtn.gameObject.SetActive(true);
-        }
+        // Update button visibility based on selection
+        UpdateButtonVisibility();
 
         _pageIndex = Mathf.Clamp(_pageIndex, 0, Mathf.Max(0, Mathf.CeilToInt(_all.Count / (float)pageSize) - 1));
         RenderPage();
+    }
+
+    private void UpdateButtonVisibility()
+    {
+        bool hasSelection = !string.IsNullOrEmpty(_selectedClassId);
+        
+        if (joinBtn) joinBtn.gameObject.SetActive(hasSelection);
+        if (createBtn) createBtn.gameObject.SetActive(true); // Always visible
+        if (editBtn) editBtn.gameObject.SetActive(hasSelection);
     }
 
     private void RenderPage()
@@ -240,7 +309,7 @@ public class TeacherClassManager : MonoBehaviour
 
             // Ensure an Image to tint for highlight
             var bg = go.GetComponent<Image>();
-            if (!bg) bg = go.AddComponent<Image>(); // gives us a targetGraphic
+            if (!bg) bg = go.AddComponent<Image>();
             bg.raycastTarget = true;
 
             // Ensure a Button to receive clicks
@@ -268,19 +337,17 @@ public class TeacherClassManager : MonoBehaviour
                 ClassSelection.CurrentClassName = capturedName;
                 ClassSelection.CurrentClassCode = capturedCode;
 
-                if (createBtn) createBtn.gameObject.SetActive(false);
-                if (editBtn)   editBtn.gameObject.SetActive(true);
-
+                UpdateButtonVisibility();
                 RenderPage(); // re-tint all tiles with new selection
             });
         }
 
         if (prevPageBtn) prevPageBtn.interactable = (_pageIndex > 0);
         if (nextPageBtn) nextPageBtn.interactable = (_pageIndex < pageCount - 1);
-        if (pageLabel)   pageLabel.text = $"{_pageIndex + 1}/{pageCount}";
+        if (pageLabel) pageLabel.text = $"Page {_pageIndex + 1} of {pageCount}";
     }
 
-    // --- Firestore ops: rename/delete both global + index ---
+    // --- Rename ---
     private IEnumerator RenameRoutine(string classId, string newNameRaw)
     {
         var user = auth.CurrentUser;
@@ -302,11 +369,20 @@ public class TeacherClassManager : MonoBehaviour
 
         yield return new WaitUntil(() => t1.IsCompleted && t2.IsCompleted);
 
-        if (t1.IsFaulted || t2.IsFaulted) { Debug.LogError("Rename failed."); yield break; }
+        if (t1.IsFaulted || t2.IsFaulted) 
+        { 
+            Debug.LogError("Rename failed: " + (t1.Exception ?? t2.Exception)); 
+            yield break; 
+        }
 
+        Debug.Log("Class renamed successfully.");
+        
+        // Go back to list and refresh
+        ShowListPanel();
         yield return StartCoroutine(LoadClasses());
     }
 
+    // --- Delete ---
     private IEnumerator DeleteRoutine(string classId)
     {
         var user = auth.CurrentUser;
@@ -320,11 +396,26 @@ public class TeacherClassManager : MonoBehaviour
 
         yield return new WaitUntil(() => del1.IsCompleted && del2.IsCompleted);
 
-        if (del1.IsFaulted || del2.IsFaulted) { Debug.LogError("Delete failed."); yield break; }
+        if (del1.IsFaulted || del2.IsFaulted)
+        {
+            Debug.LogError("Delete failed: " + (del1.Exception ?? del2.Exception));
+            yield break;
+        }
+
+        Debug.Log("Class deleted successfully.");
 
         _selectedClassId = null;
         _selectedIndex = -1;
+
+        // Go back to list and refresh
+        ShowListPanel();
         yield return StartCoroutine(LoadClasses());
+    }
+    
+    public void SignOut()
+    {
+        auth.SignOut();
+        SceneManager.LoadScene("WelcomePage");
     }
 
     // --- helpers ---
