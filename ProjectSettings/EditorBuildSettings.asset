@@ -18,14 +18,11 @@ EditorBuildSettings:
     path: Assets/Scenes/TeacherPages/TeacherClassSelect.unity
     guid: bf65c1a3dd78b12488d8c52d7930c825
   - enabled: 1
-    path: Assets/Scenes/StudentPages/StudentHome.unity
-    guid: 7b51d0e8ae1b3014193d15ee6ac9bf2b
-  - enabled: 1
-    path: Assets/Scenes/TeacherPages/TeacherHome.unity
-    guid: 72c897c54f364064ab8042bf998208f7
-  - enabled: 1
     path: Assets/Scenes/TeacherPages/TeacherClass.unity
     guid: ed944b5f7491fac4bb7518bfdf1cc4b8
+  - enabled: 1
+    path: Assets/Scenes/StudentPages/StudentClass.unity
+    guid: dabf59a0e0f04884d9d88ee0bd218829
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0
