@@ -47,9 +47,10 @@ public class AuthManager : MonoBehaviour
     // Firestore
     public FirebaseFirestore db;
 
-    // NEW: single place to normalize usernames (trim + lowercase)
+    // Where we normalize usernames (trim + lowercase)
     private static string Key(string s) => string.IsNullOrWhiteSpace(s) ? "" : s.Trim().ToLowerInvariant();
 
+    // Initialize Firebase
     void Awake()
     {
         //Check that all of the necessary dependencies for Firebase are present on the system
@@ -68,6 +69,7 @@ public class AuthManager : MonoBehaviour
         });
     }
 
+    // Initialize the Firebase database and auth object
     private void InitializeFirebase()
     {
         Debug.Log("Setting up Firebase Auth/Firestore");
@@ -88,6 +90,7 @@ public class AuthManager : MonoBehaviour
         StartCoroutine(Register());
     }
 
+    /* Coroutine for logging in a user */
     private IEnumerator Login(string identifier, string _password)
     {
         string input = identifier.Trim();
@@ -97,17 +100,17 @@ public class AuthManager : MonoBehaviour
         if (!input.Contains("@"))
         {
             string key = Key(input); // normalize
-            Debug.Log("[Login] Username lookup key: " + key); // NEW: debug
+            Debug.Log("[Login] Username lookup key: " + key); // debug log
 
-            var nameMapTask = db.Collection("usernames").Document(key).GetSnapshotAsync();
-            yield return new WaitUntil(() => nameMapTask.IsCompleted);
+            var nameMapTask = db.Collection("usernames").Document(key).GetSnapshotAsync(); // Lookup username
+            yield return new WaitUntil(() => nameMapTask.IsCompleted); // wait for task to complete
 
+            // Error handling
             if (nameMapTask.IsFaulted || nameMapTask.IsCanceled)
             {
                 warningLoginText.text = "Network or permissions error.";
                 yield break;
             }
-
             if (!nameMapTask.Result.Exists)
             {
                 warningLoginText.text = "Username not found.";
@@ -118,9 +121,10 @@ public class AuthManager : MonoBehaviour
             email = nameMapTask.Result.GetValue<string>("email");
         }
 
-        var loginTask = auth.SignInWithEmailAndPasswordAsync(email, _password);
-        yield return new WaitUntil(() => loginTask.IsCompleted);
+        var loginTask = auth.SignInWithEmailAndPasswordAsync(email, _password); // Attempt login
+        yield return new WaitUntil(() => loginTask.IsCompleted); // wait for task to complete
 
+        // Handle errors
         if (loginTask.Exception != null)
         {
             Debug.LogWarning($"Failed to login task with {loginTask.Exception}");
@@ -142,47 +146,53 @@ public class AuthManager : MonoBehaviour
             yield break;
         }
 
+        // Login successful
         User = loginTask.Result.User;
         warningLoginText.text = "";
         confirmLoginText.text = "Logged In";
         Debug.LogFormat("User signed in successfully: {0} ({1})", User.DisplayName, User.Email);
         
-        // 🔍 Fetch the role from Firestore
+        // Fetch the role from Firestore
         var userDocTask = db.Collection("users").Document(User.UserId).GetSnapshotAsync();
-        yield return new WaitUntil(() => userDocTask.IsCompleted);
+        yield return new WaitUntil(() => userDocTask.IsCompleted); // wait for task to complete
 
+        // Error handling
         if (userDocTask.IsFaulted || userDocTask.IsCanceled)
         {
             Debug.LogError("Failed to fetch user data.");
             yield break;
         }
 
+        // Check if document exists and get role
         if (userDocTask.Result.Exists)
         {
-            string role = userDocTask.Result.GetValue<string>("role");
+            string role = userDocTask.Result.GetValue<string>("role"); // get role
             Debug.Log("User role: " + role);
 
-            // 🎯 Redirect based on role
+            // Redirect based on role
             if (role == "teacher")
                 SceneManager.LoadScene("TeacherClassSelect");
             else
                 SceneManager.LoadScene("StudentCharacterSelect");
         }
+        // Document does not exist
         else
         {
             Debug.LogWarning("User document not found!");
         }
     }
 
+    /* Coroutine for registering a new user */
     private IEnumerator Register()
     {
-        bool isTeacher = isTeacherToggle != null && isTeacherToggle.isOn;
+        bool isTeacher = isTeacherToggle != null && isTeacherToggle.isOn; // Check if registering as teacher
 
+        // Separate flows for teacher and student
         if (isTeacher)
         {
             // === TEACHER FLOW ===
             string unameRaw = TusernameRegisterField.text;
-            string unameKey = Key(unameRaw);              // NEW: normalized key for IDs
+            string unameKey = Key(unameRaw);              // normalized key for IDs
             string uname    = unameRaw.Trim();           // keep original-casing for displayName
             string fname    = TfirstnameRegisterField.text.Trim();
             string lname    = TlastnameRegisterField.text.Trim();
@@ -197,26 +207,29 @@ public class AuthManager : MonoBehaviour
             if (pass != pass2)                  { TwarningRegisterText.text = "Passwords do not match"; yield break; }
 
             // Enforce unique username (via usernames collection)
-            Debug.Log("[Register] Checking usernames/" + unameKey); // NEW: debug
-            var nameCheckTask = db.Collection("usernames").Document(unameKey).GetSnapshotAsync();
-            yield return new WaitUntil(() => nameCheckTask.IsCompleted);
+            Debug.Log("[Register] Checking usernames/" + unameKey); // debug
+            var nameCheckTask = db.Collection("usernames").Document(unameKey).GetSnapshotAsync(); // check username
+            yield return new WaitUntil(() => nameCheckTask.IsCompleted); // wait for task to complete
+            
+            // check if username exists
             if (nameCheckTask.Result.Exists)
             {
                 TwarningRegisterText.text = "Username already taken";
                 yield break;
             }
 
-            // Create Auth user with REAL email for teachers
+            // Create user with email and password
             var regTask = auth.CreateUserWithEmailAndPasswordAsync(email, pass);
             yield return new WaitUntil(() => regTask.IsCompleted);
-
+            
+            // Handle errors
             if (regTask.Exception != null)
             {
                 HandleAuthError(regTask.Exception, TwarningRegisterText);
                 yield break;
             }
 
-            var user = regTask.Result.User;
+            var user = regTask.Result.User; // newly created user
 
             // Set display name to username
             var profileTask = user.UpdateUserProfileAsync(new UserProfile { DisplayName = uname });
@@ -233,41 +246,45 @@ public class AuthManager : MonoBehaviour
                 { "role", "teacher" }
             };
 
+            // Write to users collection
             Debug.Log("[Register] Writing users/" + user.UserId);
             var userDocTask = db.Collection("users").Document(user.UserId).SetAsync(profile);
 
-            Debug.Log("[Register] Writing usernames/" + unameKey); // NEW: use normalized key
-            var mapDocTask  = db.Collection("usernames").Document(unameKey).SetAsync(new Dictionary<string, object>
+            // Write to usernames collection
+            Debug.Log("[Register] Writing usernames/" + unameKey); // use normalized key
+            var mapDocTask  = db.Collection("usernames").Document(unameKey).SetAsync(new Dictionary<string, object> // mapping doc
             {
                 { "uid", user.UserId },
                 { "email", email },
                 { "role", "teacher" }
             });
-
+            // wait for both writes to complete
             yield return new WaitUntil(() => userDocTask.IsCompleted && mapDocTask.IsCompleted);
 
             TwarningRegisterText.text = "";
-            // e.g. back to login
+            
+            // implement back to login
             // UIManager.instance.LoginScreen();
         }
         else
         {
             // === STUDENT FLOW ===
             string unameRaw = usernameRegisterField.text;
-            string unameKey = Key(unameRaw);             // NEW: normalized key for IDs/emails
+            string unameKey = Key(unameRaw);             // normalized key for IDs/emails
             string uname    = unameRaw.Trim();           // keep original-casing for display
             string fname    = firstnameRegisterField.text.Trim();
             string lname    = lastnameRegisterField.text.Trim();
             string pass     = passwordRegisterField.text;
             string pass2    = passwordRegisterVerifyField.text;
 
+            // Basic validation
             if (string.IsNullOrEmpty(unameKey)) { warningRegisterText.text = "Missing Username"; yield break; }
             if (string.IsNullOrEmpty(pass))     { warningRegisterText.text = "Missing Password"; yield break; }
             if (pass != pass2)                  { warningRegisterText.text = "Passwords do not match"; yield break; }
 
             // Enforce unique username
-            Debug.Log("[Register] Checking usernames/" + unameKey); // NEW: debug
-            var nameCheckTask = db.Collection("usernames").Document(unameKey).GetSnapshotAsync();
+            Debug.Log("[Register] Checking usernames/" + unameKey); // debug
+            var nameCheckTask = db.Collection("usernames").Document(unameKey).GetSnapshotAsync(); // check username
             yield return new WaitUntil(() => nameCheckTask.IsCompleted);
             if (nameCheckTask.Result.Exists)
             {
@@ -276,18 +293,19 @@ public class AuthManager : MonoBehaviour
             }
 
             // Use a synthetic email for students since no email field is provided
-            string syntheticEmail = unameKey + "@students.example"; // NEW: reserved TLD
+            string syntheticEmail = unameKey + "@students.example";
 
-            var regTask = auth.CreateUserWithEmailAndPasswordAsync(syntheticEmail, pass);
+            var regTask = auth.CreateUserWithEmailAndPasswordAsync(syntheticEmail, pass); // create user
             yield return new WaitUntil(() => regTask.IsCompleted);
 
+            // Handle errors
             if (regTask.Exception != null)
             {
                 HandleAuthError(regTask.Exception, warningRegisterText);
                 yield break;
             }
 
-            var user = regTask.Result.User;
+            var user = regTask.Result.User; // newly created user
 
             // Set display name to username
             var profileTask = user.UpdateUserProfileAsync(new UserProfile { DisplayName = uname });
@@ -305,24 +323,26 @@ public class AuthManager : MonoBehaviour
             };
 
             Debug.Log("[Register] Writing users/" + user.UserId);
-            var userDocTask = db.Collection("users").Document(user.UserId).SetAsync(profile);
+            var userDocTask = db.Collection("users").Document(user.UserId).SetAsync(profile); // write profile
 
-            Debug.Log("[Register] Writing usernames/" + unameKey); // NEW: use normalized key
-            var mapDocTask  = db.Collection("usernames").Document(unameKey).SetAsync(new Dictionary<string, object>
+            Debug.Log("[Register] Writing usernames/" + unameKey); // use normalized key
+            var mapDocTask  = db.Collection("usernames").Document(unameKey).SetAsync(new Dictionary<string, object> // mapping doc
             {
                 { "uid", user.UserId },
                 { "email", syntheticEmail },
                 { "role", "student" }
             });
 
-            yield return new WaitUntil(() => userDocTask.IsCompleted && mapDocTask.IsCompleted);
+            yield return new WaitUntil(() => userDocTask.IsCompleted && mapDocTask.IsCompleted); // wait for writes
 
-            warningRegisterText.text = "";
-            // e.g. back to login
+            warningRegisterText.text = ""; // clear warning
+
+            // implement back to login
             // UIManager.instance.LoginScreen();
         }
     }
 
+    /* Handle authentication errors and display appropriate messages */
     private void HandleAuthError(System.AggregateException ex, TMP_Text uiLabel)
     {
         Debug.LogWarning($"Auth error: {ex}");

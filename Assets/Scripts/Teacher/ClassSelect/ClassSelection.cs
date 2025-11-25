@@ -1,3 +1,4 @@
+/* Static class to hold selected class info between scenes */
 public static class ClassSelection
 {
     public static string CurrentClassId;

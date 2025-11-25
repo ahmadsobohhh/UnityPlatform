@@ -15,14 +15,14 @@ public class TeacherClassManager : MonoBehaviour
     [SerializeField] private GameObject createClassPanel;
 
     [Header("List UI")]
-    [SerializeField] private Transform classListContainer;     // your ClassList (Grid/Vertical container)
+    [SerializeField] private Transform classListContainer;     // ClassList (Grid/Vertical container)
     [SerializeField] private GameObject classListItemPrefab;   // prefab with children: "ClassName" (TMP_Text), "ClassCode" (TMP_Text)
-    [SerializeField] private GameObject emptyListGraphic;      // optional "You have no classes"
+    [SerializeField] private GameObject emptyListGraphic;      // "You have no classes"
 
     [Header("Pagination")]
     [SerializeField] private Button prevPageBtn;
     [SerializeField] private Button nextPageBtn;
-    [SerializeField] private TMP_Text pageLabel;               // optional
+    [SerializeField] private TMP_Text pageLabel;
     [SerializeField] private int pageSize = 6;
 
     [Header("Create Class Panel")]
@@ -86,7 +86,9 @@ public class TeacherClassManager : MonoBehaviour
         StartCoroutine(LoadClasses());
     }
 
-    // --- Panel Management ---
+    // Panel Management
+
+    // Show class list panel
     private void ShowListPanel()
     {
         if (classListPanel) classListPanel.SetActive(true);
@@ -94,6 +96,7 @@ public class TeacherClassManager : MonoBehaviour
         if (createClassPanel) createClassPanel.SetActive(false);
     }
 
+    // Show edit panel for selected class
     private void ShowEditPanel()
     {
         if (string.IsNullOrEmpty(_selectedClassId))
@@ -111,6 +114,7 @@ public class TeacherClassManager : MonoBehaviour
         if (createClassPanel) createClassPanel.SetActive(false);
     }
 
+    // Show create class panel
     private void ShowCreatePanel()
     {
         if (createClassNameInput) createClassNameInput.text = "";
@@ -120,7 +124,7 @@ public class TeacherClassManager : MonoBehaviour
         if (createClassPanel) createClassPanel.SetActive(true);
     }
 
-    // --- Button Callbacks ---
+    // Button Callbacks
     public void NextPage()
     {
         _pageIndex++;
@@ -133,6 +137,7 @@ public class TeacherClassManager : MonoBehaviour
         RenderPage();
     }
 
+    // Join selected class
     public void JoinSelected()
     {
         if (string.IsNullOrEmpty(_selectedClassId))
@@ -149,6 +154,7 @@ public class TeacherClassManager : MonoBehaviour
         SceneManager.LoadScene("TeacherClass");
     }
 
+    // Confirm create/edit/delete
     private void OnConfirmCreate()
     {
         StartCoroutine(CreateClassRoutine(createClassNameInput?.text));
@@ -174,18 +180,21 @@ public class TeacherClassManager : MonoBehaviour
         StartCoroutine(DeleteRoutine(_selectedClassId));
     }
 
-    // --- Create class ---
+    // Create class
     private IEnumerator CreateClassRoutine(string classNameRaw)
     {
+        // Get current user
         var user = auth.CurrentUser;
         if (user == null) { Debug.LogError("No signed-in user."); yield break; }
 
+        // Validate class name
         string className = (classNameRaw ?? "").Trim();
         if (string.IsNullOrEmpty(className)) { Debug.LogWarning("Class name empty."); yield break; }
 
         // Ensure unique join code
         string code = null;
         bool unique = false;
+        // Try generating codes until we find a unique one
         while (!unique)
         {
             code = GenerateCode(codeLength);
@@ -220,6 +229,7 @@ public class TeacherClassManager : MonoBehaviour
         yield return StartCoroutine(LoadClasses());
     }
 
+    // Generate random join code
     private string GenerateCode(int len)
     {
         const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -229,18 +239,20 @@ public class TeacherClassManager : MonoBehaviour
         return sb.ToString();
     }
 
-    // --- Load + render ---
+    // Load + render 
     private IEnumerator LoadClasses()
     {
         var user = auth.CurrentUser;
         if (user == null) yield break;
 
+        // Get class index for current user
         var q = db.Collection("users").Document(user.UserId).Collection("classes");
         var task = q.GetSnapshotAsync();
         yield return new WaitUntil(() => task.IsCompleted);
         if (task.IsFaulted || task.IsCanceled) { Debug.LogError(task.Exception); yield break; }
 
         _all.Clear();
+        // Populate from index
         foreach (var d in task.Result)
         {
             string id   = d.ContainsField("id")   ? d.GetValue<string>("id")   : d.Id;
@@ -274,6 +286,7 @@ public class TeacherClassManager : MonoBehaviour
         RenderPage();
     }
 
+    // Update Join/Edit button visibility based on selection
     private void UpdateButtonVisibility()
     {
         bool hasSelection = !string.IsNullOrEmpty(_selectedClassId);
@@ -283,23 +296,27 @@ public class TeacherClassManager : MonoBehaviour
         if (editBtn) editBtn.gameObject.SetActive(hasSelection);
     }
 
+    // Render current page of class list
     private void RenderPage()
     {
-        foreach (Transform c in classListContainer) Destroy(c.gameObject);
+        foreach (Transform c in classListContainer) Destroy(c.gameObject); // clear existing
 
+        // Show "no classes" graphic if needed
         bool hasAny = _all.Count > 0;
         if (emptyListGraphic) emptyListGraphic.SetActive(!hasAny);
 
-        int pageCount = Mathf.Max(1, Mathf.CeilToInt(_all.Count / (float)pageSize));
-        _pageIndex = Mathf.Clamp(_pageIndex, 0, pageCount - 1);
+        int pageCount = Mathf.Max(1, Mathf.CeilToInt(_all.Count / (float)pageSize)); // at least 1 page 
+        _pageIndex = Mathf.Clamp(_pageIndex, 0, pageCount - 1); // clamp page index
 
+        // Render items for current page
         int start = _pageIndex * pageSize;
         int end   = Mathf.Min(start + pageSize, _all.Count);
 
+        // Instantiate class items
         for (int i = start; i < end; i++)
         {
             var row = _all[i];
-            var go = Instantiate(classListItemPrefab, classListContainer);
+            var go = Instantiate(classListItemPrefab, classListContainer); // create item
 
             // Bind texts
             var nameTxt = go.transform.Find("ClassName")?.GetComponent<TMP_Text>();
@@ -327,7 +344,10 @@ public class TeacherClassManager : MonoBehaviour
             var capturedName = row.name;
             var capturedCode = row.code;
 
+            // Clear previous listeners
             btn.onClick.RemoveAllListeners();
+
+            // Add new listener
             btn.onClick.AddListener(() =>
             {
                 _selectedClassId = capturedId;
@@ -347,7 +367,7 @@ public class TeacherClassManager : MonoBehaviour
         if (pageLabel) pageLabel.text = $"Page {_pageIndex + 1} of {pageCount}";
     }
 
-    // --- Rename ---
+    // Rename class
     private IEnumerator RenameRoutine(string classId, string newNameRaw)
     {
         var user = auth.CurrentUser;
@@ -382,7 +402,7 @@ public class TeacherClassManager : MonoBehaviour
         yield return StartCoroutine(LoadClasses());
     }
 
-    // --- Delete ---
+    // Delete class
     private IEnumerator DeleteRoutine(string classId)
     {
         var user = auth.CurrentUser;
@@ -412,13 +432,14 @@ public class TeacherClassManager : MonoBehaviour
         yield return StartCoroutine(LoadClasses());
     }
     
+    // Sign out and return to WelcomePage
     public void SignOut()
     {
         auth.SignOut();
         SceneManager.LoadScene("WelcomePage");
     }
 
-    // --- helpers ---
+    // helpers
     private ClassRow GetSelectedRow()
     {
         if (string.IsNullOrEmpty(_selectedClassId)) return default;
