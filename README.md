@@ -1,5 +1,7 @@
 Welcome to the unity face of the ImagineQuest Platform. 
 
+This repo holds the game in its entirety (front-end and back-end). 
+
 To get things setup, you'll need to have unity installed, the git-repo cloned and connect the repo to your unity project.
 
 # Unity Installation:
