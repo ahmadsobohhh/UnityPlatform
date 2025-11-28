@@ -1,5 +1,3 @@
-# Front-End
-
 Welcome to the unity face of the ImagineQuest Platform. 
 
 To get things setup, you'll need to have unity installed, the git-repo cloned and connect the repo to your unity project.
@@ -14,7 +12,7 @@ Unity-Hub should be installed and connected to your account.
 
 # Git-Repo Clone
 
-Go to https://github.com/ImagineQuest/Front-End click < code > (the green button) then open with Github-desktop. 
+Go to https://github.com/ImagineQuest/Unity click < code > (the green button) then open with Github-desktop. 
 
 If you don't have github desktop, I recommend getting it ;)
 
