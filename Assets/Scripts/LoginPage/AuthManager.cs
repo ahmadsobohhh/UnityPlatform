@@ -261,7 +261,9 @@ public class AuthManager : MonoBehaviour
             // wait for both writes to complete
             yield return new WaitUntil(() => userDocTask.IsCompleted && mapDocTask.IsCompleted);
 
-            TwarningRegisterText.text = "";
+            // Show success message
+            if (TwarningRegisterText != null)
+                TwarningRegisterText.text = "Account successfully created!";
             
             // implement back to login
             // UIManager.instance.LoginScreen();
@@ -335,7 +337,9 @@ public class AuthManager : MonoBehaviour
 
             yield return new WaitUntil(() => userDocTask.IsCompleted && mapDocTask.IsCompleted); // wait for writes
 
-            warningRegisterText.text = ""; // clear warning
+            // Show success message
+            if (warningRegisterText != null)
+                warningRegisterText.text = "Account successfully created!";
 
             // implement back to login
             // UIManager.instance.LoginScreen();

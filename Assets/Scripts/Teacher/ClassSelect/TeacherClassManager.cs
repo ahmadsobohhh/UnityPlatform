@@ -350,15 +350,30 @@ public class TeacherClassManager : MonoBehaviour
             // Add new listener
             btn.onClick.AddListener(() =>
             {
-                _selectedClassId = capturedId;
-                _selectedIndex = capturedI;
+                // If this card is already selected → unselect it
+                if (_selectedClassId == capturedId)
+                {
+                    _selectedClassId = null;
+                    _selectedIndex   = -1;
 
-                ClassSelection.CurrentClassId = capturedId;
-                ClassSelection.CurrentClassName = capturedName;
-                ClassSelection.CurrentClassCode = capturedCode;
+                    // Optional: clear global selection too
+                    ClassSelection.CurrentClassId   = null;
+                    ClassSelection.CurrentClassName = null;
+                    ClassSelection.CurrentClassCode = null;
+                }
+                else
+                {
+                    // Otherwise select this card
+                    _selectedClassId = capturedId;
+                    _selectedIndex   = capturedI;
+
+                    ClassSelection.CurrentClassId   = capturedId;
+                    ClassSelection.CurrentClassName = capturedName;
+                    ClassSelection.CurrentClassCode = capturedCode;
+                }
 
                 UpdateButtonVisibility();
-                RenderPage(); // re-tint all tiles with new selection
+                RenderPage(); // re-tint all tiles with new selection state
             });
         }
 
