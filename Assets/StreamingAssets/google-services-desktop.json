@@ -1,14 +1,13 @@
 {
   "project_info": {
-    "project_number": "767644360531",
-    "firebase_url": "https://imaginequest-unity-default-rtdb.firebaseio.com",
-    "project_id": "imaginequest-unity",
-    "storage_bucket": "imaginequest-unity.firebasestorage.app"
+    "project_number": "242331198334",
+    "project_id": "capstone-d51c2",
+    "storage_bucket": "capstone-d51c2.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:767644360531:android:a37988f24e02a094398ba6",
+        "mobilesdk_app_id": "1:242331198334:android:86e48fdd197f454c53c92f",
         "android_client_info": {
           "package_name": "com.DefaultCompany.ImagineQuest"
         }
@@ -16,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBad2OudtdKFp6VKZLotIUFYrN7Nd6rahQ"
+          "current_key": "AIzaSyCboKMrE9v52KuYe0Xa6Czi8OLSMzHOMi0"
         }
       ],
       "services": {
