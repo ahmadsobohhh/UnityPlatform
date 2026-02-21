@@ -210,6 +210,13 @@ public class AuthManager : MonoBehaviour
             Debug.Log("[Register] Checking usernames/" + unameKey); // debug
             var nameCheckTask = db.Collection("usernames").Document(unameKey).GetSnapshotAsync(); // check username
             yield return new WaitUntil(() => nameCheckTask.IsCompleted); // wait for task to complete
+
+            if (nameCheckTask.IsFaulted || nameCheckTask.IsCanceled)
+            {
+                Debug.LogError("[Register] Failed checking username: " + nameCheckTask.Exception);
+                TwarningRegisterText.text = "Firestore permissions blocked signup.";
+                yield break;
+            }
             
             // check if username exists
             if (nameCheckTask.Result.Exists)
@@ -261,6 +268,13 @@ public class AuthManager : MonoBehaviour
             // wait for both writes to complete
             yield return new WaitUntil(() => userDocTask.IsCompleted && mapDocTask.IsCompleted);
 
+            if (userDocTask.IsFaulted || userDocTask.IsCanceled || mapDocTask.IsFaulted || mapDocTask.IsCanceled)
+            {
+                Debug.LogError("[Register] Failed writing teacher profile/map docs.");
+                TwarningRegisterText.text = "Account created, but profile save failed (rules).";
+                yield break;
+            }
+
             // Show success message
             if (TwarningRegisterText != null)
                 TwarningRegisterText.text = "Account successfully created!";
@@ -288,6 +302,14 @@ public class AuthManager : MonoBehaviour
             Debug.Log("[Register] Checking usernames/" + unameKey); // debug
             var nameCheckTask = db.Collection("usernames").Document(unameKey).GetSnapshotAsync(); // check username
             yield return new WaitUntil(() => nameCheckTask.IsCompleted);
+
+            if (nameCheckTask.IsFaulted || nameCheckTask.IsCanceled)
+            {
+                Debug.LogError("[Register] Failed checking username: " + nameCheckTask.Exception);
+                warningRegisterText.text = "Firestore permissions blocked signup.";
+                yield break;
+            }
+
             if (nameCheckTask.Result.Exists)
             {
                 warningRegisterText.text = "Username already taken";
@@ -336,6 +358,13 @@ public class AuthManager : MonoBehaviour
             });
 
             yield return new WaitUntil(() => userDocTask.IsCompleted && mapDocTask.IsCompleted); // wait for writes
+
+            if (userDocTask.IsFaulted || userDocTask.IsCanceled || mapDocTask.IsFaulted || mapDocTask.IsCanceled)
+            {
+                Debug.LogError("[Register] Failed writing student profile/map docs.");
+                warningRegisterText.text = "Account created, but profile save failed (rules).";
+                yield break;
+            }
 
             // Show success message
             if (warningRegisterText != null)
