@@ -19,6 +19,9 @@ public class TeacherClassManager : MonoBehaviour
     [SerializeField] private GameObject classListItemPrefab;   // prefab with children: "ClassName" (TMP_Text), "ClassCode" (TMP_Text)
     [SerializeField] private GameObject emptyListGraphic;      // "You have no classes"
 
+    [Header("Class Details UI")]
+    [SerializeField] private TMP_Text classInviteCodeText;
+
     [Header("Pagination")]
     [SerializeField] private Button prevPageBtn;
     [SerializeField] private Button nextPageBtn;
