@@ -35,6 +35,6 @@ public class StudentAvatarSelect : MonoBehaviour
           .Document(user.UserId)
           .UpdateAsync(updates);
 
-        SceneManager.LoadScene("StudentCharacterSelect");
+        SceneManager.LoadScene("StudentJoinClassWCode");
     }
 }
