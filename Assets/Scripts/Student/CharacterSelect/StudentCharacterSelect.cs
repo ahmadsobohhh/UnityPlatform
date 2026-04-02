@@ -129,7 +129,7 @@ public class StudentCharacterSelect : MonoBehaviour
         var now = Timestamp.GetCurrentTimestamp(); // current timestamp
 
         // 2) Index under the student: /users/{uid}/classrooms/{classId}
-        var studentIdxRef = db.Collection("users").Document(user.UserId).Collection("classrooms").Document(classId);
+        var studentIdxRef = db.Collection("users").Document(user.UserId).Collection("classes").Document(classId);
         var studentIdxData = new Dictionary<string, object> { // data fields
             { "id", classId },
             { "name", className },
@@ -185,7 +185,7 @@ public class StudentCharacterSelect : MonoBehaviour
         }
 
         // Fetch the student's classrooms (order by joinedAt so slot order is stable)
-        var classroomsRef = db.Collection("users").Document(user.UserId).Collection("classrooms").OrderBy("joinedAt");
+        var classroomsRef = db.Collection("users").Document(user.UserId).Collection("classes").OrderBy("joinedAt");
         var task = classroomsRef.GetSnapshotAsync();
         yield return new WaitUntil(() => task.IsCompleted);
 
@@ -328,7 +328,7 @@ public class StudentCharacterSelect : MonoBehaviour
         if (user == null) yield break;
 
         // 1) Try to read quick info from student's index (name, code)
-        var idxRef = db.Collection("users").Document(user.UserId).Collection("classrooms").Document(classId);
+        var idxRef = db.Collection("users").Document(user.UserId).Collection("classes").Document(classId);
         var idxTask = idxRef.GetSnapshotAsync();
         yield return new WaitUntil(() => idxTask.IsCompleted);
 

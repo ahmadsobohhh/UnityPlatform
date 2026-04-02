@@ -315,7 +315,7 @@ public class AuthManager : MonoBehaviour
                 if (userDocTask.Result.ContainsField("avatarChosen"))
                     avatarChosen = userDocTask.Result.GetValue<bool>("avatarChosen");
                 if (avatarChosen)
-                    SceneManager.LoadScene("StudentCharacterSelect");
+                    SceneManager.LoadScene("StudentHub");
                 else
                     SceneManager.LoadScene("StudentAvatarSelect");
                     
