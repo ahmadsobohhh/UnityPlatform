@@ -2,6 +2,9 @@ using Firebase.Auth;
 using Firebase.Firestore;
 using UnityEngine;
 using TMPro;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using System.Threading.Tasks;
 
 public class StudentClassLoader : MonoBehaviour
 {
@@ -9,24 +12,35 @@ public class StudentClassLoader : MonoBehaviour
     public GameObject classButtonPrefab;
     public GameObject noClassesText;
 
+    public string classSceneName = "StudentClass";
+
     FirebaseFirestore db;
     FirebaseAuth auth;
 
-    void Start()
+    async void Start()
     {
         db = FirebaseFirestore.DefaultInstance;
         auth = FirebaseAuth.DefaultInstance;
 
+        await Task.Delay(100);
         LoadClasses();
     }
 
     async void LoadClasses()
     {
-        var user = auth.CurrentUser;
+        if (classContainer == null)
+        {
+            Debug.LogError("classContainer NOT assigned");
+            return;
+        }
 
-        // ✅ Always assume no classes first (show text by default)
-        if (noClassesText != null)
-            noClassesText.SetActive(true);
+        if (classButtonPrefab == null)
+        {
+            Debug.LogError("classButtonPrefab NOT assigned");
+            return;
+        }
+
+        var user = auth.CurrentUser;
 
         if (user == null)
         {
@@ -41,7 +55,7 @@ public class StudentClassLoader : MonoBehaviour
                 .Collection("classes")
                 .GetSnapshotAsync();
 
-            // Clear existing buttons
+            // Clear old buttons
             foreach (Transform child in classContainer)
             {
                 Destroy(child.gameObject);
@@ -50,29 +64,38 @@ public class StudentClassLoader : MonoBehaviour
             if (snapshot.Count == 0)
             {
                 Debug.Log("No classes found");
+
                 if (noClassesText != null)
                     noClassesText.SetActive(true);
+
                 return;
             }
 
-            
             if (noClassesText != null)
                 noClassesText.SetActive(false);
 
             foreach (var doc in snapshot.Documents)
             {
-                CreateClassButton(doc.GetValue<string>("className"));
+                string className = doc.ContainsField("name")
+                    ? doc.GetValue<string>("name")
+                    : "Unnamed Class";
+
+                string classCode = doc.ContainsField("code")
+                    ? doc.GetValue<string>("code")
+                    : "";
+
+                string classId = doc.Id;
+
+                CreateClassButton(className, classId, classCode);
             }
         }
         catch (System.Exception e)
         {
             Debug.LogError("Failed to load classes: " + e.Message);
 
-            // Keep text visible as fallback
             if (noClassesText != null)
                 noClassesText.SetActive(true);
 
-            // Clear UI just in case
             foreach (Transform child in classContainer)
             {
                 Destroy(child.gameObject);
@@ -80,9 +103,36 @@ public class StudentClassLoader : MonoBehaviour
         }
     }
 
-    void CreateClassButton(string className)
+    void CreateClassButton(string className, string classId, string classCode)
     {
-        GameObject button = Instantiate(classButtonPrefab, classContainer);
-        button.GetComponentInChildren<TMP_Text>().text = className;
+        GameObject buttonObj = Instantiate(classButtonPrefab, classContainer);
+
+        TMP_Text text = buttonObj.GetComponentInChildren<TMP_Text>();
+        if (text != null)
+            text.text = className;
+        else
+            Debug.LogError("TMP_Text missing on prefab");
+
+        Button btn = buttonObj.GetComponent<Button>();
+        if (btn != null)
+        {
+            btn.onClick.RemoveAllListeners(); // 🔥 prevents duplicate listeners
+
+            btn.onClick.AddListener(() =>
+            {
+                Debug.Log("Opening class: " + className);
+
+                PlayerPrefs.SetString("SelectedClassId", classId);
+                PlayerPrefs.SetString("SelectedClassName", className);
+                PlayerPrefs.SetString("SelectedClassCode", classCode);
+                PlayerPrefs.Save();
+
+                SceneManager.LoadScene(classSceneName);
+            });
+        }
+        else
+        {
+            Debug.LogError("Button component missing on prefab");
+        }
     }
 }

@@ -3,6 +3,7 @@ using Firebase.Firestore;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 public class StudentAvatarSelect : MonoBehaviour
 {
@@ -15,7 +16,7 @@ public class StudentAvatarSelect : MonoBehaviour
         auth = FirebaseAuth.DefaultInstance;
     }
 
-    public void SelectAvatar(string avatarId)
+    public async void SelectAvatar(string avatarId)
     {
         var user = auth.CurrentUser;
 
@@ -31,10 +32,19 @@ public class StudentAvatarSelect : MonoBehaviour
             { "avatarChosen", true }
         };
 
-        db.Collection("users")
-          .Document(user.UserId)
-          .UpdateAsync(updates);
+        try
+        {
+            await db.Collection("users")
+                .Document(user.UserId)
+                .UpdateAsync(updates);
 
-        SceneManager.LoadScene("StudentHub");
+            Debug.Log("Avatar saved successfully.");
+
+            SceneManager.LoadScene("StudentHub");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError("Failed to save avatar: " + e);
+        }
     }
 }

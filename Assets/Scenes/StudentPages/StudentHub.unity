@@ -583,8 +583,8 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1424885936}
-        m_TargetAssemblyTypeName: StudentCharacterSelect, GameRuntime
+      - m_Target: {fileID: 1670359636}
+        m_TargetAssemblyTypeName: SignOutManager, GameRuntime
         m_MethodName: SignOut
         m_Mode: 1
         m_Arguments:
@@ -836,8 +836,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4281479730
-  m_fontColor: {r: 0.19607843, g: 0.19607843, b: 0.19607843, a: 1}
+    rgba: 4292335832
+  m_fontColor: {r: 0.8470589, g: 0.8470589, b: 0.8431373, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -854,8 +854,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 24
-  m_fontSizeBase: 24
+  m_fontSize: 30
+  m_fontSizeBase: 30
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -1280,72 +1280,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1407258813}
   m_CullTransparentMesh: 1
---- !u!1 &1424885935
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1424885937}
-  - component: {fileID: 1424885936}
-  m_Layer: 0
-  m_Name: CharacterSelectManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1424885936
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1424885935}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 811087ec5869e4345ba31b505b94d765, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::StudentCharacterSelect
-  characterSlots:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  joinGUI: {fileID: 1009584785}
-  classInfo: {fileID: 0}
-  normalColor: {r: 1, g: 1, b: 1, a: 1}
-  dimColor: {r: 0.31132078, g: 0.31132078, b: 0.31132078, a: 1}
-  joinCodeInput: {fileID: 1716611536}
-  joinConfirmButton: {fileID: 23587791}
-  joinStatusLabel: {fileID: 0}
-  classInfoNameText: {fileID: 0}
-  classInfoLevelText: {fileID: 0}
-  classInfoXpText: {fileID: 0}
-  classInfoGoldText: {fileID: 0}
-  classInfoJoinButton: {fileID: 0}
-  classInfoCloseButton: {fileID: 0}
---- !u!4 &1424885937
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1424885935}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 593.77576, y: 255.04344, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1463951958
 GameObject:
   m_ObjectHideFlags: 0
@@ -1473,6 +1407,50 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RectMask2D
   m_Padding: {x: -8, y: -5, z: -8, w: -5}
   m_Softness: {x: 0, y: 0}
+--- !u!1 &1670359635
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1670359637}
+  - component: {fileID: 1670359636}
+  m_Layer: 0
+  m_Name: SignOutManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1670359636
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1670359635}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4f03b7755972a946a522ffdb6605da9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: GameRuntime::SignOutManager
+--- !u!4 &1670359637
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1670359635}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1693597700
 GameObject:
   m_ObjectHideFlags: 0
@@ -1780,6 +1758,7 @@ RectTransform:
   - {fileID: 2132703241}
   - {fileID: 1009584786}
   - {fileID: 457281163}
+  - {fileID: 1911491639}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -1802,6 +1781,7 @@ MonoBehaviour:
   classContainer: {fileID: 1693597701}
   classButtonPrefab: {fileID: 0}
   noClassesText: {fileID: 0}
+  classSceneName: StudentClass
 --- !u!1 &1716611534
 GameObject:
   m_ObjectHideFlags: 0
@@ -2225,6 +2205,7 @@ MonoBehaviour:
   classContainer: {fileID: 1693597701}
   classButtonPrefab: {fileID: 6553819655723399215, guid: 7802849fbbfb46f4796b28c5005f9bda, type: 3}
   noClassesText: {fileID: 1315931364}
+  classSceneName: StudentClass
 --- !u!4 &1911491639
 Transform:
   m_ObjectHideFlags: 0
@@ -2233,12 +2214,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1911491637}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -960, y: -540, z: 0}
+  m_LocalScale: {x: 0.75, y: 0.75, z: 0.75}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 1702762937}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2003748239
 GameObject:
@@ -2414,7 +2395,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 850, y: -475}
-  m_SizeDelta: {x: 160, y: 30}
+  m_SizeDelta: {x: 160, y: 70}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2132703242
 MonoBehaviour:
@@ -2492,8 +2473,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
-  m_Type: 1
+  m_Sprite: {fileID: 21300000, guid: 2be7b70e984b51444aca9c12ae4723a7, type: 3}
+  m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -2517,6 +2498,5 @@ SceneRoots:
   - {fileID: 634180452}
   - {fileID: 1702762937}
   - {fileID: 216188071}
-  - {fileID: 1424885937}
-  - {fileID: 1911491639}
   - {fileID: 179452081}
+  - {fileID: 1670359637}

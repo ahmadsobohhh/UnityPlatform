@@ -43,16 +43,151 @@ public class AuthManager : MonoBehaviour
     public TMP_InputField TpasswordRegisterVerifyField;
     public Toggle isTeacherToggle;
     public TMP_Text TwarningRegisterText;
+    private Toggle studentRoleToggle;
+    private ToggleGroup roleToggleGroup;
+    private bool roleListenersBound;
+    private GameObject studentSignupPanel;
+    private GameObject teacherSignupPanel;
 
     // Firestore
     public FirebaseFirestore db;
 
     // Where we normalize usernames (trim + lowercase)
     private static string Key(string s) => string.IsNullOrWhiteSpace(s) ? "" : s.Trim().ToLowerInvariant();
+    private IEnumerator Start()
+    {
+        ResolveSignupPanels();
+        ApplySignupPanelState();
+        yield return null;
+    }
+
+    private void ResolveSignupPanels()
+    {
+        if (studentSignupPanel == null)
+            studentSignupPanel = FindSceneObjectIncludingInactive("StudentUI");
+        if (teacherSignupPanel == null)
+            teacherSignupPanel = FindSceneObjectIncludingInactive("TeacherUI");
+    }
+
+    private static GameObject FindSceneObjectIncludingInactive(string objectName)
+    {
+        if (string.IsNullOrEmpty(objectName))
+            return null;
+
+        GameObject activeObj = GameObject.Find(objectName);
+        if (activeObj != null)
+            return activeObj;
+
+        Transform[] allTransforms = Resources.FindObjectsOfTypeAll<Transform>();
+        for (int i = 0; i < allTransforms.Length; i++)
+        {
+            Transform t = allTransforms[i];
+            if (t == null || t.hideFlags != HideFlags.None)
+                continue;
+            if (!t.gameObject.scene.IsValid())
+                continue;
+            if (t.name == objectName)
+                return t.gameObject;
+        }
+        return null;
+    }
+
+    private void ApplySignupPanelState()
+    {
+        ResolveSignupPanels();
+
+        bool teacherSelected = isTeacherToggle != null && isTeacherToggle.isOn;
+        bool studentSelected = studentRoleToggle != null && studentRoleToggle.isOn;
+        if (studentRoleToggle == null)
+            studentSelected = !teacherSelected;
+
+        if (teacherSignupPanel != null)
+            teacherSignupPanel.SetActive(teacherSelected);
+        if (studentSignupPanel != null)
+            studentSignupPanel.SetActive(studentSelected);
+    }
+
+    private void EnsureRoleToggleExclusivity()
+    {
+        if (isTeacherToggle == null || isTeacherToggle.transform.parent == null)
+        {
+            return;
+        }
+
+        Toggle[] toggles = isTeacherToggle.transform.parent.GetComponentsInChildren<Toggle>(true);
+        studentRoleToggle = null;
+        for (int i = 0; i < toggles.Length; i++)
+        {
+            if (toggles[i] != null && toggles[i] != isTeacherToggle)
+            {
+                studentRoleToggle = toggles[i];
+                break;
+            }
+        }
+
+        GameObject groupHost = isTeacherToggle.transform.parent.gameObject;
+        roleToggleGroup = groupHost.GetComponent<ToggleGroup>();
+        if (roleToggleGroup == null)
+        {
+            roleToggleGroup = groupHost.AddComponent<ToggleGroup>();
+        }
+        roleToggleGroup.allowSwitchOff = false;
+
+        for (int i = 0; i < toggles.Length; i++)
+        {
+            Toggle t = toggles[i];
+            if (t == null) continue;
+            t.group = roleToggleGroup;
+        }
+
+        // Normalize startup state in case multiple toggles were on before grouping.
+        if (studentRoleToggle != null && isTeacherToggle.isOn && studentRoleToggle.isOn)
+        {
+            studentRoleToggle.SetIsOnWithoutNotify(false);
+        }
+        else if (!isTeacherToggle.isOn && (studentRoleToggle == null || !studentRoleToggle.isOn))
+        {
+            if (studentRoleToggle != null)
+                studentRoleToggle.SetIsOnWithoutNotify(true);
+            else
+                isTeacherToggle.SetIsOnWithoutNotify(true);
+        }
+
+        if (!roleListenersBound)
+        {
+            isTeacherToggle.onValueChanged.AddListener(OnTeacherToggleChanged);
+            if (studentRoleToggle != null)
+            {
+                studentRoleToggle.onValueChanged.AddListener(OnStudentToggleChanged);
+            }
+            roleListenersBound = true;
+        }
+
+        ApplySignupPanelState();
+    }
+
+    private void OnTeacherToggleChanged(bool isOn)
+    {
+        if (isOn && studentRoleToggle != null && studentRoleToggle.isOn)
+        {
+            studentRoleToggle.SetIsOnWithoutNotify(false);
+        }
+        ApplySignupPanelState();
+    }
+
+    private void OnStudentToggleChanged(bool isOn)
+    {
+        if (isOn && isTeacherToggle != null && isTeacherToggle.isOn)
+        {
+            isTeacherToggle.SetIsOnWithoutNotify(false);
+        }
+        ApplySignupPanelState();
+    }
 
     // Initialize Firebase
     void Awake()
     {
+        EnsureRoleToggleExclusivity();
         //Check that all of the necessary dependencies for Firebase are present on the system
         FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(task =>
         {
