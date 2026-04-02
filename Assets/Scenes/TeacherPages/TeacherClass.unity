@@ -204,7 +204,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 1659846012}
         m_TargetAssemblyTypeName: TeacherClassManager, GameRuntime
-        m_MethodName: SignOut
+        m_MethodName: CreateGame_NoOp
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -753,7 +753,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'edit list '
+  m_text: Back
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 125cb55b44b24c4393181402bc6200e6, type: 2}
   m_sharedMaterial: {fileID: 2100000, guid: 125cb55b44b24c4393181402bc6200e6, type: 2}
@@ -1002,7 +1002,7 @@ GameObject:
   - component: {fileID: 1529578486}
   - component: {fileID: 1529578485}
   m_Layer: 5
-  m_Name: SignoutBtn (1)
+  m_Name: BackBtn
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1023,11 +1023,11 @@ RectTransform:
   - {fileID: 947113818}
   m_Father: {fileID: 618860034}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0}
-  m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: -329, y: 65}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 74, y: -26}
   m_SizeDelta: {x: 124.1777, y: 64.307}
-  m_Pivot: {x: 0.5, y: 0}
+  m_Pivot: {x: 0.5, y: 1}
 --- !u!114 &1529578485
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1074,7 +1074,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 1659846012}
         m_TargetAssemblyTypeName: TeacherClassManager, GameRuntime
-        m_MethodName: SignOut
+        m_MethodName: BackToClassSelect
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -1157,7 +1157,8 @@ MonoBehaviour:
   classListContainer: {fileID: 0}
   classListItemPrefab: {fileID: 0}
   emptyListGraphic: {fileID: 0}
-  classInviteCodeText: {fileID: 0}
+  classInviteCodeText: {fileID: 489801811}
+  studentsListText: {fileID: 521427143}
   prevPageBtn: {fileID: 0}
   nextPageBtn: {fileID: 0}
   pageLabel: {fileID: 0}

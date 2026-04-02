@@ -79,6 +79,17 @@ public class JointClassManager : MonoBehaviour
 
             string userId = user.UserId;
 
+            string firstName = "";
+            string lastName = "";
+
+            // Read student profile so class members can store display-friendly names.
+            var userDoc = await db.Collection("users").Document(userId).GetSnapshotAsync();
+            if (userDoc.Exists)
+            {
+                if (userDoc.ContainsField("firstName")) firstName = userDoc.GetValue<string>("firstName");
+                if (userDoc.ContainsField("lastName")) lastName = userDoc.GetValue<string>("lastName");
+            }
+
             // ✅ Add class to user's classes
             await db.Collection("users")
                 .Document(userId)
@@ -97,7 +108,9 @@ public class JointClassManager : MonoBehaviour
                 .Document(userId)
                 .SetAsync(new Dictionary<string, object>
                 {
-                    { "joinedAt", Timestamp.GetCurrentTimestamp() }
+                    { "joinedAt", Timestamp.GetCurrentTimestamp() },
+                    { "firstName", firstName ?? "" },
+                    { "lastName", lastName ?? "" }
                 });
 
             Debug.Log("Successfully joined class!");

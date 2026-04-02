@@ -4,6 +4,7 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 public class StudentClassLoader : MonoBehaviour
@@ -74,6 +75,7 @@ public class StudentClassLoader : MonoBehaviour
             if (noClassesText != null)
                 noClassesText.SetActive(false);
 
+            var classIds = new List<string>();
             foreach (var doc in snapshot.Documents)
             {
                 string className = doc.ContainsField("name")
@@ -85,9 +87,12 @@ public class StudentClassLoader : MonoBehaviour
                     : "";
 
                 string classId = doc.Id;
+                classIds.Add(classId);
 
                 CreateClassButton(className, classId, classCode);
             }
+
+            _ = RepairMemberNames(user.UserId, classIds);
         }
         catch (System.Exception e)
         {
@@ -100,6 +105,45 @@ public class StudentClassLoader : MonoBehaviour
             {
                 Destroy(child.gameObject);
             }
+        }
+    }
+
+    async Task RepairMemberNames(string userId, List<string> classIds)
+    {
+        try
+        {
+            var userDoc = await db.Collection("users").Document(userId).GetSnapshotAsync();
+            if (!userDoc.Exists) return;
+
+            string firstName = userDoc.ContainsField("firstName") ? userDoc.GetValue<string>("firstName") : "";
+            string lastName = userDoc.ContainsField("lastName") ? userDoc.GetValue<string>("lastName") : "";
+
+            if (string.IsNullOrEmpty(firstName) && string.IsNullOrEmpty(lastName)) return;
+
+            var nameData = new Dictionary<string, object>
+            {
+                { "firstName", firstName },
+                { "lastName", lastName }
+            };
+
+            foreach (string classId in classIds)
+            {
+                var memberRef = db.Collection("classes").Document(classId).Collection("members").Document(userId);
+                var memberDoc = await memberRef.GetSnapshotAsync();
+
+                if (!memberDoc.Exists) continue;
+
+                bool hasFirst = memberDoc.ContainsField("firstName") && !string.IsNullOrEmpty(memberDoc.GetValue<string>("firstName"));
+                bool hasLast = memberDoc.ContainsField("lastName") && !string.IsNullOrEmpty(memberDoc.GetValue<string>("lastName"));
+
+                if (hasFirst && hasLast) continue;
+
+                await memberRef.UpdateAsync(nameData);
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("RepairMemberNames failed (non-critical): " + e.Message);
         }
     }
 

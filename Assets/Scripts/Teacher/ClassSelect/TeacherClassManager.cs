@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -21,6 +22,7 @@ public class TeacherClassManager : MonoBehaviour
 
     [Header("Class Details UI")]
     [SerializeField] private TMP_Text classInviteCodeText;
+    [SerializeField] private TMP_Text studentsListText;
 
     [Header("Pagination")]
     [SerializeField] private Button prevPageBtn;
@@ -84,9 +86,228 @@ public class TeacherClassManager : MonoBehaviour
         if (prevPageBtn) prevPageBtn.onClick.AddListener(PrevPage);
         if (nextPageBtn) nextPageBtn.onClick.AddListener(NextPage);
 
-        // Start with list panel visible
-        ShowListPanel();
-        StartCoroutine(LoadClasses());
+        // This script is shared by Class Select and Teacher Class scenes.
+        // If list refs exist, run list mode; otherwise render selected class details mode.
+        bool isClassSelectMode = classListContainer != null;
+        if (isClassSelectMode)
+        {
+            ShowListPanel();
+            StartCoroutine(LoadClasses());
+        }
+        else
+        {
+            EnsureBackButtonWiring();
+            EnsureEditListButton();
+            StartCoroutine(LoadSelectedClassDetailsRoutine());
+        }
+    }
+
+    private void EnsureBackButtonWiring()
+    {
+        GameObject backObj = GameObject.Find("BackBtn");
+        if (backObj == null)
+            return;
+
+        var btn = backObj.GetComponent<Button>();
+        if (btn == null)
+            return;
+
+        btn.onClick.RemoveAllListeners();
+        btn.onClick.AddListener(BackToClassSelect);
+    }
+
+    private void EnsureEditListButton()
+    {
+        if (GameObject.Find("EditListBtn") != null)
+            return;
+
+        GameObject backObj = GameObject.Find("BackBtn");
+        if (backObj == null)
+            return;
+
+        Transform parent = backObj.transform.parent;
+        if (parent == null)
+            return;
+
+        GameObject editListObj = Instantiate(backObj, parent);
+        editListObj.name = "EditListBtn";
+
+        var rect = editListObj.GetComponent<RectTransform>();
+        if (rect != null)
+        {
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.anchoredPosition = new Vector2(-329f, 65f);
+        }
+
+        var text = editListObj.GetComponentInChildren<TMP_Text>();
+        if (text != null)
+            text.text = "edit list";
+
+        var btn = editListObj.GetComponent<Button>();
+        if (btn != null)
+        {
+            // Disable inherited persistent listeners (e.g. BackToClassSelect from BackBtn clone)
+            for (int i = 0; i < btn.onClick.GetPersistentEventCount(); i++)
+                btn.onClick.SetPersistentListenerState(i, UnityEngine.Events.UnityEventCallState.Off);
+            btn.onClick.RemoveAllListeners();
+            btn.onClick.AddListener(EditList_NoOp);
+        }
+    }
+
+    private IEnumerator LoadSelectedClassDetailsRoutine()
+    {
+        string classId = ClassSelection.CurrentClassId;
+        string classCode = ClassSelection.CurrentClassCode;
+
+        if (classInviteCodeText)
+            classInviteCodeText.text = string.IsNullOrEmpty(classCode) ? "Class: [Class Code]" : $"Class: {classCode}";
+
+        if (studentsListText)
+            studentsListText.text = "Loading students...";
+
+        if (string.IsNullOrEmpty(classId))
+        {
+            if (studentsListText) studentsListText.text = "No class selected.";
+            yield break;
+        }
+
+        // Refresh class code from Firestore in case static selection was lost or stale.
+        var classTask = db.Collection("classes").Document(classId).GetSnapshotAsync();
+        yield return new WaitUntil(() => classTask.IsCompleted);
+
+        if (!classTask.IsFaulted && !classTask.IsCanceled && classTask.Result.Exists && classTask.Result.ContainsField("code"))
+        {
+            classCode = classTask.Result.GetValue<string>("code");
+            ClassSelection.CurrentClassCode = classCode;
+        }
+
+        if (classInviteCodeText)
+            classInviteCodeText.text = string.IsNullOrEmpty(classCode) ? "Class: [No Code]" : $"Class: {classCode}";
+
+        var membersTask = db.Collection("classes").Document(classId).Collection("members").GetSnapshotAsync();
+        yield return new WaitUntil(() => membersTask.IsCompleted);
+
+        if (membersTask.IsFaulted || membersTask.IsCanceled)
+        {
+            Debug.LogError("Failed to load class members: " + membersTask.Exception);
+            if (studentsListText) studentsListText.text = "Failed to load students.";
+            yield break;
+        }
+
+        var memberNames = new List<string>();
+        foreach (var memberDoc in membersTask.Result.Documents)
+        {
+            string uid = memberDoc.Id;
+
+            string memberFirst = memberDoc.ContainsField("firstName") ? memberDoc.GetValue<string>("firstName") : "";
+            string memberLast = memberDoc.ContainsField("lastName") ? memberDoc.GetValue<string>("lastName") : "";
+            string memberFull = NormalizeHumanName(($"{memberFirst} {memberLast}").Trim());
+            if (!string.IsNullOrEmpty(memberFull))
+            {
+                memberNames.Add(memberFull);
+                continue;
+            }
+
+            var userTask = db.Collection("users").Document(uid).GetSnapshotAsync();
+            yield return new WaitUntil(() => userTask.IsCompleted);
+
+            if (userTask.IsFaulted || userTask.IsCanceled)
+            {
+                memberNames.Add("Unknown Student");
+                continue;
+            }
+
+            if (!userTask.Result.Exists)
+            {
+                memberNames.Add("Unknown Student");
+                continue;
+            }
+
+            string displayName = FormatDisplayName(userTask.Result, uid);
+            memberNames.Add(displayName);
+        }
+
+        if (studentsListText)
+        {
+            if (memberNames.Count == 0)
+            {
+                studentsListText.text = "No students have joined yet.";
+            }
+            else
+            {
+                var sb = new StringBuilder();
+                for (int i = 0; i < memberNames.Count; i++)
+                {
+                    sb.Append(i + 1).Append(". ").Append(memberNames[i]);
+                    if (i < memberNames.Count - 1) sb.AppendLine();
+                }
+                studentsListText.text = sb.ToString();
+            }
+        }
+    }
+
+    private string FormatDisplayName(DocumentSnapshot userDoc, string fallbackUid)
+    {
+        string firstName = NormalizeHumanName(GetFirstNonEmptyField(userDoc, "firstName", "firstname", "first_name"));
+        string lastName = NormalizeHumanName(GetFirstNonEmptyField(userDoc, "lastName", "lastname", "last_name"));
+        string username = NormalizeHumanName(GetFirstNonEmptyField(userDoc, "username", "displayName", "name"));
+        string fullNameField = NormalizeHumanName(GetFirstNonEmptyField(userDoc, "fullName", "full_name"));
+
+        string fullName = ($"{firstName} {lastName}").Trim();
+        if (!string.IsNullOrEmpty(fullName)) return fullName;
+        if (!string.IsNullOrEmpty(fullNameField)) return fullNameField;
+        if (!string.IsNullOrEmpty(username)) return username;
+        return "Unknown Student";
+    }
+
+    private string GetFirstNonEmptyField(DocumentSnapshot doc, params string[] fieldNames)
+    {
+        for (int i = 0; i < fieldNames.Length; i++)
+        {
+            string field = fieldNames[i];
+            if (!doc.ContainsField(field)) continue;
+
+            string value = doc.GetValue<string>(field);
+            if (!string.IsNullOrWhiteSpace(value))
+                return value.Trim();
+        }
+
+        return "";
+    }
+
+    private string NormalizeHumanName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "";
+
+        string trimmed = value.Trim();
+        if (LooksLikeIdentifier(trimmed))
+            return "";
+
+        return trimmed;
+    }
+
+    private bool LooksLikeIdentifier(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        // Firebase-like IDs/user IDs are usually long, compact, and have no spaces.
+        if (value.Length < 16 || value.Contains(" "))
+            return false;
+
+        for (int i = 0; i < value.Length; i++)
+        {
+            char c = value[i];
+            bool isAlphaNum = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+            bool isAllowed = isAlphaNum || c == '_' || c == '-';
+            if (!isAllowed)
+                return false;
+        }
+
+        return true;
     }
 
     // Panel Management
@@ -457,10 +678,27 @@ public class TeacherClassManager : MonoBehaviour
         SceneManager.LoadScene("WelcomePage");
     }
 
+    public void BackToClassSelect()
+    {
+        SceneManager.LoadScene("TeacherClassSelect");
+    }
+
+    public void EditList_NoOp()
+    {
+        // Intentionally does nothing for now.
+    }
+
+    // Placeholder for Create Game button until gameplay creation flow is implemented.
+    public void CreateGame_NoOp()
+    {
+        // Intentionally left blank.
+    }
+
     // helpers
     private ClassRow GetSelectedRow()
     {
         if (string.IsNullOrEmpty(_selectedClassId)) return default;
         return _all.Find(r => r.id == _selectedClassId);
     }
+
 }
