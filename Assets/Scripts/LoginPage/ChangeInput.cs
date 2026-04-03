@@ -1,42 +1,59 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using TMPro;
 
-/* This script allows navigation between input fields using the Tab key*/
 public class ChangeInput : MonoBehaviour
 {
-    EventSystem system;
-    public Selectable firstInput; // First input field to select on start
-    public Button submitButton; // Button to invoke on Enter key press
-    
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    [SerializeField] private Button submitButton;
+
+    private TMP_InputField[] fields;
+    private bool wasFocused;
+
+    private void OnEnable()
     {
-        system = EventSystem.current;
-        firstInput.Select(); // Select the first input field on start
+        fields = GetComponentsInChildren<TMP_InputField>(true);
+
+        if (fields.Length > 0)
+            fields[0].Select();
     }
 
-    // Update is called once per frame
-    void Update()
+    private void Update()
     {
-        // Navigate between input fields using Tab and Shift+Tav
-        // Shift+Tab to go to the previous input field
-        if (Input.GetKeyDown(KeyCode.Tab) && Input.GetKey(KeyCode.LeftShift))
+        if (fields == null || fields.Length == 0) return;
+
+        int current = GetCurrentIndex();
+
+        if (Input.GetKeyDown(KeyCode.Tab))
         {
-            Selectable previous = system.currentSelectedGameObject.GetComponent<Selectable>().FindSelectableOnUp();
-            if (previous != null)
+            if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
             {
-                previous.Select();
+                int prev = current <= 0 ? fields.Length - 1 : current - 1;
+                fields[prev].Select();
+            }
+            else
+            {
+                int next = current >= fields.Length - 1 ? 0 : current + 1;
+                fields[next].Select();
             }
         }
-        // Tab to go to the next input field
-        else if (Input.GetKeyDown(KeyCode.Tab))
+        else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
         {
-            Selectable next = system.currentSelectedGameObject.GetComponent<Selectable>().FindSelectableOnDown();
-            if (next != null)
-            {
-                next.Select();
-            }
+            if (submitButton != null)
+                submitButton.onClick.Invoke();
         }
+    }
+
+    private int GetCurrentIndex()
+    {
+        var selected = EventSystem.current?.currentSelectedGameObject;
+        if (selected == null) return -1;
+
+        for (int i = 0; i < fields.Length; i++)
+        {
+            if (fields[i].gameObject == selected)
+                return i;
+        }
+        return -1;
     }
 }

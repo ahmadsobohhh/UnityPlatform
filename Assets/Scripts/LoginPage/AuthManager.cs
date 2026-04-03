@@ -421,12 +421,10 @@ public class AuthManager : MonoBehaviour
                 yield break;
             }
 
-            // Show success message
             if (TwarningRegisterText != null)
                 TwarningRegisterText.text = "Account successfully created!";
-            
-            // implement back to login
-            // UIManager.instance.LoginScreen();
+
+            SceneManager.LoadScene("TeacherClassSelect");
         }
         else
         {
@@ -514,14 +512,10 @@ public class AuthManager : MonoBehaviour
                 yield break;
             }
 
-            // Show success message
             if (warningRegisterText != null)
                 warningRegisterText.text = "Account successfully created!";
-                
-            SceneManager.LoadScene("StudentAvatarSelect");
 
-            // implement back to login
-            // UIManager.instance.LoginScreen();
+            SceneManager.LoadScene("StudentAvatarSelect");
         }
     }
 

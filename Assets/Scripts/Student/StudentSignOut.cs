@@ -10,6 +10,6 @@ public class SignOutManager : MonoBehaviour
 
         Debug.Log("User signed out");
 
-        SceneManager.LoadScene("Login"); 
+        SceneManager.LoadScene("WelcomePage");
     }
 }

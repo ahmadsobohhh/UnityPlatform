@@ -1,26 +1,38 @@
 using UnityEngine;
 
-/*This script creates a parallax effect for the background. 
-    In this case, the clouds move based on our mouse movements.*/
 public class MenuParallax : MonoBehaviour
 {
-    public float offsetMultiplier = 1f; // Adjust this value to control the intensity of the parallax effect
-    public float smoothTime = 0.3f; // Smoothing time for the movement
+    [Header("Mouse Parallax")]
+    public float offsetMultiplier = 1f;
+    public float smoothTime = 0.3f;
 
-    private Vector2 startPosition; // Initial background position
-    private Vector3 velocity; // Velocity reference for SmoothDamp
+    [Header("Auto Drift")]
+    public bool autoDrift = true;
+    public float driftSpeed = 0.15f;
+    public float driftAmount = 8f;
+
+    private Vector2 startPosition;
+    private Vector3 velocity;
 
     private void Start()
     {
-        startPosition = transform.position; // Store the initial position of the background on start
+        startPosition = transform.position;
     }
 
     private void Update()
     {
-        // Get mouse position in viewport coordinates (0 to 1)
-        Vector2 offset = Camera.main.ScreenToViewportPoint(Input.mousePosition); 
-        
-        // Smoothly move the background based on mouse position
-        transform.position = Vector3.SmoothDamp(transform.position, startPosition + (offset * offsetMultiplier), ref velocity, smoothTime); 
+        Vector2 mouseOffset = Vector2.zero;
+        if (Camera.main != null)
+            mouseOffset = Camera.main.ScreenToViewportPoint(Input.mousePosition);
+
+        Vector2 drift = Vector2.zero;
+        if (autoDrift)
+        {
+            float t = Time.time * driftSpeed;
+            drift = new Vector2(Mathf.Sin(t) * driftAmount, Mathf.Cos(t * 0.7f) * driftAmount * 0.5f);
+        }
+
+        Vector2 target = startPosition + (mouseOffset * offsetMultiplier) + drift;
+        transform.position = Vector3.SmoothDamp(transform.position, target, ref velocity, smoothTime);
     }
 }

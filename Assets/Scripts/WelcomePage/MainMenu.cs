@@ -1,17 +1,33 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class MainMenu : MonoBehaviour
 {
-    // Clicking "Begin" takes the user to the Login scene
     public void Play()
     {
-        SceneManager.LoadScene("Login");
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowLogin();
     }
-    
-    // Clicking "Exit" quits the app
+
     public void Quit()
     {
         Application.Quit();
+    }
+
+    public void ShowRegister()
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowRegister();
+    }
+
+    public void ShowLogin()
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowLogin();
+    }
+
+    public void BackToMenu()
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowMainMenu();
     }
 }
