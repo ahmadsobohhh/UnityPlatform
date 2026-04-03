@@ -252,6 +252,55 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 398479}
   m_CullTransparentMesh: 1
+--- !u!1 &43852943
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 43852945}
+  - component: {fileID: 43852944}
+  m_Layer: 0
+  m_Name: AudioManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &43852944
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 43852943}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7b5a7d9565c602f4ba2bae623314881b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: GameRuntime::AudioManager
+  backgroundMusic: {fileID: 8300000, guid: 1a384874ceccb1144af8aa7390635982, type: 3}
+  defaultMusicVolume: 0.5
+  defaultEffectsVolume: 0.5
+  buttonHoverClip: {fileID: 8300000, guid: b3f8053d6fecafc41962dbbdc22edf43, type: 3}
+  buttonClickClip: {fileID: 8300000, guid: 8220d4ef8fa7a3d4d8d840e00e3d3068, type: 3}
+--- !u!4 &43852945
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 43852943}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &71946632
 GameObject:
   m_ObjectHideFlags: 0
@@ -3213,3 +3262,4 @@ SceneRoots:
   - {fileID: 1381753406}
   - {fileID: 806333595}
   - {fileID: 1118102919}
+  - {fileID: 43852945}
