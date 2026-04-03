@@ -40,7 +40,7 @@ public class StudentAvatarSelect : MonoBehaviour
 
             Debug.Log("Avatar saved successfully.");
 
-            SceneManager.LoadScene("StudentHub");
+            SceneTransition.LoadScene("StudentHub");
         }
         catch (System.Exception e)
         {

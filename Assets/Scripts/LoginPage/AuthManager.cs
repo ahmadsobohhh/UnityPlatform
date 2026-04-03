@@ -307,7 +307,7 @@ public class AuthManager : MonoBehaviour
             // Redirect based on role
             if (role == "teacher")
             {
-                SceneManager.LoadScene("TeacherClassSelect");
+                SceneTransition.LoadScene("TeacherClassSelect");
             }
             else
             {   
@@ -315,9 +315,9 @@ public class AuthManager : MonoBehaviour
                 if (userDocTask.Result.ContainsField("avatarChosen"))
                     avatarChosen = userDocTask.Result.GetValue<bool>("avatarChosen");
                 if (avatarChosen)
-                    SceneManager.LoadScene("StudentHub");
+                    SceneTransition.LoadScene("StudentHub");
                 else
-                    SceneManager.LoadScene("StudentAvatarSelect");
+                    SceneTransition.LoadScene("StudentAvatarSelect");
                     
         }
         }
@@ -424,7 +424,7 @@ public class AuthManager : MonoBehaviour
             if (TwarningRegisterText != null)
                 TwarningRegisterText.text = "Account successfully created!";
 
-            SceneManager.LoadScene("TeacherClassSelect");
+            SceneTransition.LoadScene("TeacherClassSelect");
         }
         else
         {
@@ -515,7 +515,7 @@ public class AuthManager : MonoBehaviour
             if (warningRegisterText != null)
                 warningRegisterText.text = "Account successfully created!";
 
-            SceneManager.LoadScene("StudentAvatarSelect");
+            SceneTransition.LoadScene("StudentAvatarSelect");
         }
     }
 
