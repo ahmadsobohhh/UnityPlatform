@@ -9,57 +9,110 @@ using System.Threading.Tasks;
 
 public class StudentClassLoader : MonoBehaviour
 {
-    [Header("References")]
+    static Sprite _solidUiSprite;
+
+    [Header("References (auto-found if left empty)")]
     public Transform classContainer;
-    public GameObject classButtonPrefab;
     public GameObject noClassesText;
 
     [Header("Scene")]
     public string classSceneName = "StudentClass";
 
-    [Header("Card Style (when no prefab)")]
-    [SerializeField] private Vector2 cardSize = new Vector2(0, 70);
-    [SerializeField] private Color cardBgColor = new Color(1f, 1f, 1f, 0.06f);
-    [SerializeField] private Color cardTextColor = new Color(0.92f, 0.88f, 0.80f, 1f);
-    [SerializeField] private Color cardSubtextColor = new Color(0.70f, 0.65f, 0.55f, 0.8f);
-    [SerializeField] private Color dividerColor = new Color(1f, 1f, 1f, 0.08f);
+    [Header("Class row look")]
+    [SerializeField] private float rowHeight = 100f;
+    [SerializeField] private Color rowFill = new Color(0.97f, 0.94f, 0.86f, 1f);
+    [SerializeField] private Color rowFillHighlight = new Color(1f, 0.98f, 0.92f, 1f);
+    [SerializeField] private Color rowFillPressed = new Color(0.9f, 0.86f, 0.76f, 1f);
+    [SerializeField] private Color accentBarColor = new Color(0.72f, 0.52f, 0.28f, 1f);
+    [SerializeField] private Color outlineColor = new Color(0.32f, 0.22f, 0.14f, 0.85f);
+    [SerializeField] private Color titleColor = new Color(0.22f, 0.14f, 0.08f, 1f);
+    [SerializeField] private Color subtitleColor = new Color(0.42f, 0.32f, 0.22f, 0.92f);
+    [SerializeField] private Color chevronColor = new Color(0.55f, 0.4f, 0.26f, 0.75f);
+    [SerializeField] private Color shadowColor = new Color(0f, 0f, 0f, 0.22f);
+    [SerializeField] private Color probeRowFill = new Color(0.88f, 0.94f, 0.86f, 1f);
+    [SerializeField] private Color probeAccentColor = new Color(0.35f, 0.58f, 0.32f, 1f);
 
     [Header("Font")]
     public TMP_FontAsset cardFont;
 
-    private static readonly string[] ShipIcons = { "\u2693", "\u2694", "\u2606", "\u2658", "\u265F", "\u2620" };
-
-    FirebaseFirestore db;
-    FirebaseAuth auth;
-    private StudentHubAnimator hubAnimator;
+    private FirebaseFirestore db;
+    private FirebaseAuth auth;
 
     async void Start()
     {
+        var all = FindObjectsByType<StudentClassLoader>(FindObjectsSortMode.InstanceID);
+        if (all.Length > 1 && all[0] != this)
+        {
+            Debug.LogWarning("[StudentClassLoader] Duplicate instance detected — disabling this one.");
+            Destroy(this);
+            return;
+        }
+
         db = FirebaseFirestore.DefaultInstance;
         auth = FirebaseAuth.DefaultInstance;
-        hubAnimator = FindObjectOfType<StudentHubAnimator>();
 
-        await Task.Delay(100);
+        if (classContainer == null)
+        {
+            var go = GameObject.Find("ClassContainer");
+            if (go != null)
+                classContainer = go.transform;
+        }
+
+        if (noClassesText == null)
+        {
+            var go = GameObject.Find("NoClassesText");
+            if (go != null)
+                noClassesText = go;
+        }
+
+        if (classContainer != null)
+            EnsureLayoutSetup();
+
+        await Task.Delay(150);
         LoadClasses();
+    }
+
+    private void EnsureLayoutSetup()
+    {
+        var vlg = classContainer.GetComponent<VerticalLayoutGroup>();
+        if (vlg == null)
+        {
+            vlg = classContainer.gameObject.AddComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset(24, 24, 16, 16);
+            vlg.spacing = 12f;
+            vlg.childAlignment = TextAnchor.UpperCenter;
+        }
+
+        vlg.childControlWidth = true;
+        vlg.childControlHeight = true;
+        vlg.childForceExpandWidth = true;
+        vlg.childForceExpandHeight = false;
+
+        var csf = classContainer.GetComponent<ContentSizeFitter>();
+        if (csf == null)
+            csf = classContainer.gameObject.AddComponent<ContentSizeFitter>();
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
     }
 
     async void LoadClasses()
     {
         if (classContainer == null)
         {
-            Debug.LogError("classContainer NOT assigned");
+            Debug.LogError("[StudentClassLoader] classContainer is null and could not be auto-found.");
             return;
         }
 
         var user = auth.CurrentUser;
         if (user == null)
         {
-            Debug.LogError("No user logged in.");
+            Debug.LogError("[StudentClassLoader] No user logged in.");
             return;
         }
 
         try
         {
+            Debug.Log($"[StudentClassLoader] Loading classes for user {user.UserId}");
+
             var snapshot = await db.Collection("users")
                 .Document(user.UserId)
                 .Collection("classes")
@@ -70,17 +123,28 @@ public class StudentClassLoader : MonoBehaviour
 
             if (snapshot.Count == 0)
             {
-                Debug.Log("No classes found");
                 if (noClassesText != null)
-                    noClassesText.SetActive(true);
+                    noClassesText.SetActive(false);
+
+                CreateClassRow(
+                    "No classes yet",
+                    "Use Join Class below to add one",
+                    isProbe: true,
+                    className: "",
+                    classId: "",
+                    classCode: "",
+                    clickable: false);
+
+                RebuildAndAnimate();
                 return;
             }
+
+            Debug.Log($"[StudentClassLoader] Found {snapshot.Count} class(es).");
 
             if (noClassesText != null)
                 noClassesText.SetActive(false);
 
             var classIds = new List<string>();
-            int index = 0;
             foreach (var doc in snapshot.Documents)
             {
                 string className = doc.ContainsField("name")
@@ -94,22 +158,19 @@ public class StudentClassLoader : MonoBehaviour
                 string classId = doc.Id;
                 classIds.Add(classId);
 
-                if (classButtonPrefab != null)
-                    CreateClassButton(className, classId, classCode);
-                else
-                    CreateParchmentCard(className, classId, classCode, index);
+                string subtitle = string.IsNullOrEmpty(classCode)
+                    ? "Tap to open"
+                    : $"Code · {classCode}";
 
-                index++;
+                CreateClassRow(className, subtitle, isProbe: false, className, classId, classCode, clickable: true);
             }
 
-            if (hubAnimator != null)
-                hubAnimator.AnimateCards();
-
+            RebuildAndAnimate();
             _ = RepairMemberNames(user.UserId, classIds);
         }
         catch (System.Exception e)
         {
-            Debug.LogError("Failed to load classes: " + e.Message);
+            Debug.LogError("[StudentClassLoader] Failed to load classes: " + e);
 
             if (noClassesText != null)
                 noClassesText.SetActive(true);
@@ -117,6 +178,215 @@ public class StudentClassLoader : MonoBehaviour
             foreach (Transform child in classContainer)
                 Destroy(child.gameObject);
         }
+    }
+
+    private void RebuildAndAnimate()
+    {
+        var rt = classContainer as RectTransform;
+        if (rt == null) rt = classContainer.GetComponent<RectTransform>();
+        if (rt != null)
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
+
+        var scroll = classContainer.GetComponentInParent<ScrollRect>();
+        if (scroll != null)
+            scroll.verticalNormalizedPosition = 1f;
+
+        ForceClassRowsVisible();
+    }
+
+    /// <summary>
+    /// Hub entrance animations use CanvasGroups; rows must never stay at alpha 0.
+    /// Also un-fades parent panels (e.g. ContentPanel) so the list is not multiplied to invisible.
+    /// </summary>
+    void ForceClassRowsVisible()
+    {
+        classContainer.gameObject.SetActive(true);
+        foreach (var cg in classContainer.GetComponentsInParent<CanvasGroup>(true))
+        {
+            cg.alpha = 1f;
+            cg.interactable = true;
+            cg.blocksRaycasts = true;
+        }
+
+        foreach (Transform child in classContainer)
+        {
+            child.gameObject.SetActive(true);
+            var g = child.GetComponent<CanvasGroup>();
+            if (g != null)
+            {
+                g.alpha = 1f;
+                g.interactable = true;
+                g.blocksRaycasts = true;
+            }
+        }
+    }
+
+    void CreateClassRow(
+        string title,
+        string subtitle,
+        bool isProbe,
+        string className,
+        string classId,
+        string classCode,
+        bool clickable)
+    {
+        var row = new GameObject(isProbe ? "EmptyState_ClassRow" : $"ClassBox_{classId}");
+        row.transform.SetParent(classContainer, false);
+
+        var rect = row.AddComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(0, rowHeight);
+
+        var layout = row.AddComponent<LayoutElement>();
+        layout.preferredHeight = rowHeight;
+        layout.flexibleWidth = 1;
+
+        var img = row.AddComponent<Image>();
+        img.sprite = GetSolidUiSprite();
+        img.type = Image.Type.Simple;
+        img.color = isProbe ? probeRowFill : rowFill;
+
+        var shadow = row.AddComponent<Shadow>();
+        shadow.effectColor = shadowColor;
+        shadow.effectDistance = new Vector2(0f, -3f);
+
+        var outline = row.AddComponent<Outline>();
+        outline.effectColor = outlineColor;
+        outline.effectDistance = new Vector2(1.5f, -1.5f);
+
+        if (clickable && !string.IsNullOrEmpty(classId))
+        {
+            var btn = row.AddComponent<Button>();
+            btn.transition = Selectable.Transition.ColorTint;
+            btn.targetGraphic = img;
+            var cb = ColorBlock.defaultColorBlock;
+            cb.normalColor = Color.white;
+            cb.highlightedColor = Color.white;
+            cb.pressedColor = Color.white;
+            cb.selectedColor = Color.white;
+            cb.disabledColor = new Color(1f, 1f, 1f, 0.55f);
+            cb.colorMultiplier = 1f;
+            cb.fadeDuration = 0.08f;
+            btn.colors = cb;
+            string cn = className, cid = classId, cc = classCode;
+            btn.onClick.AddListener(() => OpenClass(cn, cid, cc));
+
+            var normal = isProbe ? probeRowFill : rowFill;
+            img.color = normal;
+            var trigger = row.AddComponent<StudentClassRowButtonColors>();
+            trigger.Bind(img, normal, rowFillHighlight, rowFillPressed);
+        }
+
+        var rowGroup = row.AddComponent<CanvasGroup>();
+        rowGroup.alpha = 1f;
+        rowGroup.interactable = true;
+        rowGroup.blocksRaycasts = true;
+
+        const float accentW = 6f;
+        var accentGo = new GameObject("Accent");
+        accentGo.transform.SetParent(row.transform, false);
+        var accentRt = accentGo.AddComponent<RectTransform>();
+        accentRt.anchorMin = new Vector2(0f, 0f);
+        accentRt.anchorMax = new Vector2(0f, 1f);
+        accentRt.pivot = new Vector2(0f, 0.5f);
+        accentRt.offsetMin = new Vector2(3f, 6f);
+        accentRt.offsetMax = new Vector2(3f + accentW, -6f);
+        var accentImg = accentGo.AddComponent<Image>();
+        accentImg.sprite = GetSolidUiSprite();
+        accentImg.color = isProbe ? probeAccentColor : accentBarColor;
+        accentImg.raycastTarget = false;
+
+        if (clickable)
+        {
+            var chevronGo = new GameObject("Chevron");
+            chevronGo.transform.SetParent(row.transform, false);
+            var chevRt = chevronGo.AddComponent<RectTransform>();
+            chevRt.anchorMin = new Vector2(1f, 0f);
+            chevRt.anchorMax = new Vector2(1f, 1f);
+            chevRt.pivot = new Vector2(1f, 0.5f);
+            chevRt.sizeDelta = new Vector2(40f, 0f);
+            chevRt.anchoredPosition = new Vector2(-10f, 0f);
+            var chev = chevronGo.AddComponent<TextMeshProUGUI>();
+            chev.text = "\u203A";
+            chev.fontSize = 40f;
+            chev.fontStyle = FontStyles.Normal;
+            chev.color = chevronColor;
+            chev.alignment = TextAlignmentOptions.MidlineRight;
+            chev.raycastTarget = false;
+            chev.enableAutoSizing = false;
+            ApplyCardFont(chev);
+        }
+
+        var textBlock = new GameObject("TextBlock");
+        textBlock.transform.SetParent(row.transform, false);
+        var tbRt = textBlock.AddComponent<RectTransform>();
+        tbRt.anchorMin = Vector2.zero;
+        tbRt.anchorMax = Vector2.one;
+        float textLeft = 3f + accentW + 12f;
+        float textRight = clickable ? 46f : 16f;
+        tbRt.offsetMin = new Vector2(textLeft, 10f);
+        tbRt.offsetMax = new Vector2(-textRight, -10f);
+
+        var vlg = textBlock.AddComponent<VerticalLayoutGroup>();
+        vlg.spacing = 2f;
+        vlg.childAlignment = TextAnchor.UpperLeft;
+        vlg.childControlWidth = true;
+        vlg.childControlHeight = true;
+        vlg.childForceExpandWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.padding = new RectOffset(0, 0, 2, 0);
+
+        var titleGo = new GameObject("Title");
+        titleGo.transform.SetParent(textBlock.transform, false);
+        var titleLe = titleGo.AddComponent<LayoutElement>();
+        titleLe.preferredHeight = 38f;
+        titleLe.flexibleHeight = 0f;
+        var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
+        titleTmp.text = title;
+        titleTmp.fontSize = 26f;
+        titleTmp.fontStyle = FontStyles.Bold;
+        titleTmp.color = titleColor;
+        titleTmp.alignment = TextAlignmentOptions.Left;
+        titleTmp.enableWordWrapping = false;
+        titleTmp.overflowMode = TextOverflowModes.Ellipsis;
+        titleTmp.raycastTarget = false;
+        ApplyCardFont(titleTmp);
+
+        var subGo = new GameObject("Subtitle");
+        subGo.transform.SetParent(textBlock.transform, false);
+        var subLe = subGo.AddComponent<LayoutElement>();
+        subLe.preferredHeight = 24f;
+        subLe.flexibleHeight = 0f;
+        var subTmp = subGo.AddComponent<TextMeshProUGUI>();
+        subTmp.text = subtitle;
+        subTmp.fontSize = 17f;
+        subTmp.fontStyle = FontStyles.Normal;
+        subTmp.color = subtitleColor;
+        subTmp.alignment = TextAlignmentOptions.Left;
+        subTmp.enableWordWrapping = false;
+        subTmp.overflowMode = TextOverflowModes.Ellipsis;
+        subTmp.raycastTarget = false;
+        ApplyCardFont(subTmp);
+    }
+
+    void ApplyCardFont(TextMeshProUGUI tmp)
+    {
+        if (cardFont != null)
+            tmp.font = cardFont;
+    }
+
+    /// <summary>Unity UI Image draws nothing when sprite is null; use a 1×1 white sprite and tint with color.</summary>
+    static Sprite GetSolidUiSprite()
+    {
+        if (_solidUiSprite != null)
+            return _solidUiSprite;
+
+        var tex = Texture2D.whiteTexture;
+        _solidUiSprite = Sprite.Create(
+            tex,
+            new Rect(0, 0, tex.width, tex.height),
+            new Vector2(0.5f, 0.5f),
+            100f);
+        return _solidUiSprite;
     }
 
     async Task RepairMemberNames(string userId, List<string> classIds)
@@ -152,138 +422,13 @@ public class StudentClassLoader : MonoBehaviour
         }
         catch (System.Exception e)
         {
-            Debug.LogWarning("RepairMemberNames failed (non-critical): " + e.Message);
+            Debug.LogWarning("[StudentClassLoader] RepairMemberNames failed (non-critical): " + e.Message);
         }
-    }
-
-    void CreateClassButton(string className, string classId, string classCode)
-    {
-        GameObject buttonObj = Instantiate(classButtonPrefab, classContainer);
-
-        TMP_Text text = buttonObj.GetComponentInChildren<TMP_Text>();
-        if (text != null)
-            text.text = className;
-        else
-            Debug.LogError("TMP_Text missing on prefab");
-
-        Button btn = buttonObj.GetComponent<Button>();
-        if (btn != null)
-        {
-            btn.onClick.RemoveAllListeners();
-            btn.onClick.AddListener(() => OpenClass(className, classId, classCode));
-        }
-    }
-
-    void CreateParchmentCard(string className, string classId, string classCode, int index)
-    {
-        var cardGO = new GameObject($"ClassCard_{classId}");
-        cardGO.transform.SetParent(classContainer, false);
-
-        var cardRect = cardGO.AddComponent<RectTransform>();
-        var layout = cardGO.AddComponent<LayoutElement>();
-        layout.preferredHeight = 70;
-        layout.flexibleWidth = 1;
-
-        var cardImg = cardGO.AddComponent<Image>();
-        cardImg.color = (index % 2 == 0) ? cardBgColor : new Color(cardBgColor.r, cardBgColor.g, cardBgColor.b, cardBgColor.a * 0.5f);
-
-        var btn = cardGO.AddComponent<Button>();
-        btn.transition = Selectable.Transition.None;
-        btn.onClick.AddListener(() => OpenClass(className, classId, classCode));
-
-        cardGO.AddComponent<ClassCardHover>();
-        cardGO.AddComponent<CanvasGroup>();
-
-        // Icon
-        var iconGO = new GameObject("Icon");
-        iconGO.transform.SetParent(cardGO.transform, false);
-        var iconRect = iconGO.AddComponent<RectTransform>();
-        iconRect.anchorMin = new Vector2(0, 0);
-        iconRect.anchorMax = new Vector2(0, 1);
-        iconRect.pivot = new Vector2(0, 0.5f);
-        iconRect.anchoredPosition = new Vector2(12, 0);
-        iconRect.sizeDelta = new Vector2(44, 44);
-        var iconTMP = iconGO.AddComponent<TextMeshProUGUI>();
-        iconTMP.text = ShipIcons[index % ShipIcons.Length];
-        iconTMP.fontSize = 26;
-        iconTMP.color = new Color(0.85f, 0.75f, 0.55f, 0.7f);
-        iconTMP.alignment = TextAlignmentOptions.Center;
-        iconTMP.raycastTarget = false;
-        if (cardFont != null) iconTMP.font = cardFont;
-
-        // Class name
-        var nameGO = new GameObject("ClassName");
-        nameGO.transform.SetParent(cardGO.transform, false);
-        var nameRect = nameGO.AddComponent<RectTransform>();
-        nameRect.anchorMin = new Vector2(0, 0);
-        nameRect.anchorMax = new Vector2(1, 1);
-        nameRect.offsetMin = new Vector2(64, string.IsNullOrEmpty(classCode) ? 0 : 16);
-        nameRect.offsetMax = new Vector2(-16, -8);
-        var nameTMP = nameGO.AddComponent<TextMeshProUGUI>();
-        nameTMP.text = className;
-        nameTMP.fontSize = 20;
-        nameTMP.fontStyle = FontStyles.Bold;
-        nameTMP.color = cardTextColor;
-        nameTMP.alignment = TextAlignmentOptions.Left;
-        nameTMP.overflowMode = TextOverflowModes.Ellipsis;
-        nameTMP.raycastTarget = false;
-        if (cardFont != null) nameTMP.font = cardFont;
-
-        // Code subtitle
-        if (!string.IsNullOrEmpty(classCode))
-        {
-            var codeGO = new GameObject("ClassCode");
-            codeGO.transform.SetParent(cardGO.transform, false);
-            var codeRect = codeGO.AddComponent<RectTransform>();
-            codeRect.anchorMin = new Vector2(0, 0);
-            codeRect.anchorMax = new Vector2(1, 0);
-            codeRect.pivot = new Vector2(0, 0);
-            codeRect.anchoredPosition = new Vector2(64, 6);
-            codeRect.sizeDelta = new Vector2(-80, 20);
-            var codeTMP = codeGO.AddComponent<TextMeshProUGUI>();
-            codeTMP.text = $"Code: {classCode}";
-            codeTMP.fontSize = 13;
-            codeTMP.fontStyle = FontStyles.Italic;
-            codeTMP.color = cardSubtextColor;
-            codeTMP.alignment = TextAlignmentOptions.Left;
-            codeTMP.raycastTarget = false;
-            if (cardFont != null) codeTMP.font = cardFont;
-        }
-
-        // Bottom divider line
-        var divGO = new GameObject("Divider");
-        divGO.transform.SetParent(cardGO.transform, false);
-        var divRect = divGO.AddComponent<RectTransform>();
-        divRect.anchorMin = new Vector2(0, 0);
-        divRect.anchorMax = new Vector2(1, 0);
-        divRect.pivot = new Vector2(0.5f, 0);
-        divRect.anchoredPosition = Vector2.zero;
-        divRect.sizeDelta = new Vector2(-24, 1);
-        var divImg = divGO.AddComponent<Image>();
-        divImg.color = dividerColor;
-        divImg.raycastTarget = false;
-
-        // Arrow indicator on right
-        var arrowGO = new GameObject("Arrow");
-        arrowGO.transform.SetParent(cardGO.transform, false);
-        var arrowRect = arrowGO.AddComponent<RectTransform>();
-        arrowRect.anchorMin = new Vector2(1, 0.5f);
-        arrowRect.anchorMax = new Vector2(1, 0.5f);
-        arrowRect.pivot = new Vector2(1, 0.5f);
-        arrowRect.anchoredPosition = new Vector2(-12, 0);
-        arrowRect.sizeDelta = new Vector2(24, 24);
-        var arrowTMP = arrowGO.AddComponent<TextMeshProUGUI>();
-        arrowTMP.text = "\u25B6";
-        arrowTMP.fontSize = 16;
-        arrowTMP.color = new Color(0.85f, 0.75f, 0.55f, 0.4f);
-        arrowTMP.alignment = TextAlignmentOptions.Center;
-        arrowTMP.raycastTarget = false;
-        if (cardFont != null) arrowTMP.font = cardFont;
     }
 
     private void OpenClass(string className, string classId, string classCode)
     {
-        Debug.Log("Opening class: " + className);
+        Debug.Log("[StudentClassLoader] Opening class: " + className);
 
         PlayerPrefs.SetString("SelectedClassId", classId);
         PlayerPrefs.SetString("SelectedClassName", className);

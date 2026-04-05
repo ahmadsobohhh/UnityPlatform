@@ -601,9 +601,6 @@ GameObject:
   m_Component:
   - component: {fileID: 219880339}
   - component: {fileID: 219880343}
-  - component: {fileID: 219880342}
-  - component: {fileID: 219880341}
-  - component: {fileID: 219880340}
   m_Layer: 0
   m_Name: Scroll
   m_TagString: Untagged
@@ -631,57 +628,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: -48, y: -32}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &219880340
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 219880338}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 31a19414c41e5ae4aae2af33fee712f6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Mask
-  m_ShowMaskGraphic: 0
---- !u!114 &219880341
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 219880338}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
-  m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0}
-  m_RaycastTarget: 1
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
-  m_PreserveAspect: 0
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
---- !u!222 &219880342
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 219880338}
-  m_CullTransparentMesh: 1
 --- !u!114 &219880343
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1900,7 +1846,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u2715"
+  m_text: X
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: b12bb4b197a7383459bd463768c1a11f, type: 2}
   m_sharedMaterial: {fileID: -1954173889146647396, guid: b12bb4b197a7383459bd463768c1a11f, type: 2}
@@ -2053,7 +1999,7 @@ MonoBehaviour:
   m_ChildForceExpandWidth: 1
   m_ChildForceExpandHeight: 0
   m_ChildControlWidth: 1
-  m_ChildControlHeight: 0
+  m_ChildControlHeight: 1
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
@@ -3265,7 +3211,6 @@ RectTransform:
   - {fileID: 428243472}
   - {fileID: 1009584786}
   - {fileID: 733767956}
-  - {fileID: 1911491639}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -3286,14 +3231,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GameRuntime::StudentClassLoader
   classContainer: {fileID: 1094766600}
-  classButtonPrefab: {fileID: 0}
   noClassesText: {fileID: 1315931364}
   classSceneName: StudentClass
-  cardSize: {x: 320, y: 180}
-  cardBgColor: {r: 0.82, g: 0.72, b: 0.55, a: 0.35}
-  cardTextColor: {r: 0.22, g: 0.15, b: 0.08, a: 1}
-  cardSubtextColor: {r: 0.45, g: 0.35, b: 0.22, a: 0.8}
-  dividerColor: {r: 0.55, g: 0.45, b: 0.3, a: 0.3}
+  rowHeight: 100
+  rowFill: {r: 0.97, g: 0.94, b: 0.86, a: 1}
+  rowFillHighlight: {r: 1, g: 0.98, b: 0.92, a: 1}
+  rowFillPressed: {r: 0.9, g: 0.86, b: 0.76, a: 1}
+  accentBarColor: {r: 0.72, g: 0.52, b: 0.28, a: 1}
+  outlineColor: {r: 0.32, g: 0.22, b: 0.14, a: 0.85}
+  titleColor: {r: 0.22, g: 0.14, b: 0.08, a: 1}
+  subtitleColor: {r: 0.42, g: 0.32, b: 0.22, a: 0.92}
+  chevronColor: {r: 0.55, g: 0.4, b: 0.26, a: 0.75}
+  shadowColor: {r: 0, g: 0, b: 0, a: 0.22}
+  probeRowFill: {r: 0.88, g: 0.94, b: 0.86, a: 1}
+  probeAccentColor: {r: 0.35, g: 0.58, b: 0.32, a: 1}
   cardFont: {fileID: 11400000, guid: b12bb4b197a7383459bd463768c1a11f, type: 2}
 --- !u!114 &1702762939
 MonoBehaviour:
@@ -3357,11 +3308,6 @@ MonoBehaviour:
   btnSlideDuration: 0.5
   btnSlideDistance: 60
   btnStagger: 0.1
-  classContainer: {fileID: 1094766600}
-  cardStartDelay: 0.5
-  cardFadeDuration: 0.4
-  cardSlideUp: 40
-  cardStagger: 0.07
 --- !u!1 &1715550845
 GameObject:
   m_ObjectHideFlags: 0
@@ -3410,10 +3356,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1715550845}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 31a19414c41e5ae4aae2af33fee712f6, type: 3}
+  m_Script: {fileID: 11500000, guid: 3312d7739989d2b4e91e6319e9a96d76, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Mask
-  m_ShowMaskGraphic: 0
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RectMask2D
+  m_Padding: {x: 0, y: 0, z: 0, w: 0}
+  m_Softness: {x: 0, y: 0}
 --- !u!114 &1715550848
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3434,7 +3381,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: 10907, guid: 0000000000000000f000000000000000, type: 0}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -4400,60 +4347,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1863730894}
   m_CullTransparentMesh: 1
---- !u!1 &1911491637
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1911491639}
-  - component: {fileID: 1911491638}
-  m_Layer: 0
-  m_Name: StudentClassLoader
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1911491638
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1911491637}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4efcf26a4c7ce994ea78844bc8b1de27, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: GameRuntime::StudentClassLoader
-  classContainer: {fileID: 0}
-  classButtonPrefab: {fileID: 6553819655723399215, guid: 7802849fbbfb46f4796b28c5005f9bda, type: 3}
-  noClassesText: {fileID: 1315931364}
-  classSceneName: StudentClass
-  cardSize: {x: 320, y: 180}
-  cardBgColor: {r: 0.82, g: 0.72, b: 0.55, a: 0.35}
-  cardTextColor: {r: 0.22, g: 0.15, b: 0.08, a: 1}
-  cardSubtextColor: {r: 0.45, g: 0.35, b: 0.22, a: 0.8}
-  dividerColor: {r: 0.55, g: 0.45, b: 0.3, a: 0.3}
-  cardFont: {fileID: 0}
---- !u!4 &1911491639
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1911491637}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -960, y: -540, z: 0}
-  m_LocalScale: {x: 0.75, y: 0.75, z: 0.75}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1702762937}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1956029651
 GameObject:
   m_ObjectHideFlags: 0

@@ -47,11 +47,14 @@ public class StudentHubBackground : MonoBehaviour
         if (backgroundRect != null)
             bgStartPos = backgroundRect.anchoredPosition;
 
-        var canvasRect = GetComponentInParent<Canvas>()?.GetComponent<RectTransform>();
-        canvasW = canvasRect != null ? canvasRect.rect.width : 1920f;
-        canvasH = canvasRect != null ? canvasRect.rect.height : 1080f;
+        CacheCanvasSize();
+        RebuildEmbers();
+    }
 
-        SpawnEmbers();
+    private void OnEnable()
+    {
+        // After a script recompile in Play Mode, instance fields can reset while Update still runs.
+        EnsureEmbersValid();
     }
 
     private void Update()
@@ -60,33 +63,41 @@ public class StudentHubBackground : MonoBehaviour
         UpdateEmbers();
     }
 
-    private void UpdateParallax()
+    void CacheCanvasSize()
     {
-        if (backgroundRect == null) return;
-
-        Vector2 mouseTarget = Vector2.zero;
-        if (Camera.main != null)
-        {
-            Vector2 viewport = Camera.main.ScreenToViewportPoint(Input.mousePosition);
-            mouseTarget = (viewport - new Vector2(0.5f, 0.5f)) * parallaxStrength;
-        }
-
-        Vector2 drift = Vector2.zero;
-        if (autoDrift)
-        {
-            float t = Time.time * driftSpeed;
-            drift = new Vector2(
-                Mathf.Sin(t) * driftAmount,
-                Mathf.Cos(t * 0.6f) * driftAmount * 0.4f);
-        }
-
-        Vector2 target = bgStartPos + mouseTarget + drift;
-        parallaxOffset = Vector2.SmoothDamp(parallaxOffset, target - bgStartPos, ref parallaxVelocity, 1f / parallaxSmooth);
-        backgroundRect.anchoredPosition = bgStartPos + parallaxOffset;
+        var canvasRect = GetComponentInParent<Canvas>()?.GetComponent<RectTransform>();
+        canvasW = canvasRect != null ? Mathf.Max(1f, canvasRect.rect.width) : 1920f;
+        canvasH = canvasRect != null ? Mathf.Max(1f, canvasRect.rect.height) : 1080f;
     }
 
-    private void SpawnEmbers()
+    void EnsureEmbersValid()
     {
+        emberCount = Mathf.Clamp(emberCount, 0, 500);
+        if (embers != null && emberImages != null && embers.Length == emberCount && emberImages.Length == emberCount)
+            return;
+
+        CacheCanvasSize();
+        RebuildEmbers();
+    }
+
+    void DestroyEmberChildren()
+    {
+        for (int i = transform.childCount - 1; i >= 0; i--)
+        {
+            var c = transform.GetChild(i);
+            if (c != null && c.name.StartsWith("Ember_", System.StringComparison.Ordinal))
+                Destroy(c.gameObject);
+        }
+
+        embers = null;
+        emberImages = null;
+    }
+
+    void RebuildEmbers()
+    {
+        DestroyEmberChildren();
+
+        emberCount = Mathf.Clamp(emberCount, 0, 500);
         embers = new EmberData[emberCount];
         emberImages = new Image[emberCount];
 
@@ -120,13 +131,51 @@ public class StudentHubBackground : MonoBehaviour
         }
     }
 
+    private void UpdateParallax()
+    {
+        if (backgroundRect == null) return;
+
+        Vector2 mouseTarget = Vector2.zero;
+        if (Camera.main != null)
+        {
+            Vector2 viewport = Camera.main.ScreenToViewportPoint(Input.mousePosition);
+            mouseTarget = (viewport - new Vector2(0.5f, 0.5f)) * parallaxStrength;
+        }
+
+        Vector2 drift = Vector2.zero;
+        if (autoDrift)
+        {
+            float t = Time.time * driftSpeed;
+            drift = new Vector2(
+                Mathf.Sin(t) * driftAmount,
+                Mathf.Cos(t * 0.6f) * driftAmount * 0.4f);
+        }
+
+        Vector2 target = bgStartPos + mouseTarget + drift;
+        parallaxOffset = Vector2.SmoothDamp(parallaxOffset, target - bgStartPos, ref parallaxVelocity, 1f / parallaxSmooth);
+        backgroundRect.anchoredPosition = bgStartPos + parallaxOffset;
+    }
+
     private void UpdateEmbers()
     {
+        if (embers == null || emberImages == null || embers.Length != emberImages.Length)
+        {
+            EnsureEmbersValid();
+            if (embers == null || emberImages == null)
+                return;
+        }
+
         float halfH = canvasH * 0.55f;
         float halfW = canvasW * 0.55f;
 
         for (int i = 0; i < embers.Length; i++)
         {
+            if (emberImages[i] == null)
+            {
+                EnsureEmbersValid();
+                return;
+            }
+
             var e = embers[i];
 
             e.y += e.speed * Time.deltaTime;
