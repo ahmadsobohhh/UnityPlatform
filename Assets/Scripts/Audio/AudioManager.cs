@@ -100,19 +100,18 @@ public class AudioManager : MonoBehaviour
 
     private Slider FindSliderByName(string name)
     {
-        foreach (var root in gameObject.scene.GetRootGameObjects())
+        for (int i = 0; i < SceneManager.sceneCount; i++)
         {
-            foreach (var slider in root.GetComponentsInChildren<Slider>(true))
+            var scene = SceneManager.GetSceneAt(i);
+            if (!scene.isLoaded) continue;
+            foreach (var root in scene.GetRootGameObjects())
             {
-                if (slider.gameObject.name == name)
-                    return slider;
+                foreach (var slider in root.GetComponentsInChildren<Slider>(true))
+                {
+                    if (slider.gameObject.name == name)
+                        return slider;
+                }
             }
-        }
-
-        foreach (var slider in Resources.FindObjectsOfTypeAll<Slider>())
-        {
-            if (slider.gameObject.name == name && slider.gameObject.scene.isLoaded)
-                return slider;
         }
 
         return null;
