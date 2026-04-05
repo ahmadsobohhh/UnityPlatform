@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 public class StudentHubAnimator : MonoBehaviour
 {
+    public bool IsIntroComplete { get; private set; }
+
     [Header("Scene Fade")]
     [SerializeField] private Image fadeOverlay;
     [SerializeField] private float fadeDuration = 1.0f;
@@ -23,15 +25,10 @@ public class StudentHubAnimator : MonoBehaviour
     [SerializeField] private float btnSlideDistance = 60f;
     [SerializeField] private float btnStagger = 0.1f;
 
-    [Header("Class Cards")]
-    [SerializeField] private Transform classContainer;
-    [SerializeField] private float cardStartDelay = 0.5f;
-    [SerializeField] private float cardFadeDuration = 0.4f;
-    [SerializeField] private float cardSlideUp = 40f;
-    [SerializeField] private float cardStagger = 0.07f;
-
     private void Start()
     {
+        IsIntroComplete = false;
+
         if (fadeOverlay == null)
         {
             var go = GameObject.Find("FadeOverlay");
@@ -50,13 +47,6 @@ public class StudentHubAnimator : MonoBehaviour
 
         if (titleGroup != null) titleGroup.alpha = 0f;
 
-        if (parchmentRect != null)
-        {
-            var pg = parchmentRect.GetComponent<CanvasGroup>();
-            if (pg == null) pg = parchmentRect.gameObject.AddComponent<CanvasGroup>();
-            pg.alpha = 0f;
-        }
-
         foreach (var btn in buttons)
         {
             if (btn == null) continue;
@@ -64,8 +54,6 @@ public class StudentHubAnimator : MonoBehaviour
             if (g == null) g = btn.gameObject.AddComponent<CanvasGroup>();
             g.alpha = 0f;
         }
-
-        HideCards();
 
         // Fade from black
         if (fadeOverlay != null)
@@ -94,10 +82,10 @@ public class StudentHubAnimator : MonoBehaviour
             titleGroup.alpha = 1f;
         }
 
-        // Parchment scale + fade
+        // Parchment scale only — do not drive CanvasGroup.alpha here; class list lives under this rect
+        // and async load can finish while entrance runs; parent alpha would zero out visible rows.
         if (parchmentRect != null)
         {
-            var pg = parchmentRect.GetComponent<CanvasGroup>();
             Vector3 endScale = parchmentRect.localScale;
             Vector3 startScale = endScale * parchmentScaleFrom;
 
@@ -107,11 +95,9 @@ public class StudentHubAnimator : MonoBehaviour
                 t += Time.deltaTime;
                 float ease = EaseOutCubic(t / parchmentDuration);
                 parchmentRect.localScale = Vector3.Lerp(startScale, endScale, ease);
-                if (pg != null) pg.alpha = ease;
                 yield return null;
             }
             parchmentRect.localScale = endScale;
-            if (pg != null) pg.alpha = 1f;
         }
 
         // Buttons slide up
@@ -121,30 +107,7 @@ public class StudentHubAnimator : MonoBehaviour
                 StartCoroutine(SlideUp(buttons[i], i * btnStagger, btnSlideDistance, btnSlideDuration));
         }
 
-        yield return new WaitForSeconds(cardStartDelay);
-        AnimateCards();
-    }
-
-    private void HideCards()
-    {
-        if (classContainer == null) return;
-        foreach (Transform child in classContainer)
-        {
-            var g = child.GetComponent<CanvasGroup>();
-            if (g == null) g = child.gameObject.AddComponent<CanvasGroup>();
-            g.alpha = 0f;
-        }
-    }
-
-    public void AnimateCards()
-    {
-        if (classContainer == null) return;
-        int i = 0;
-        foreach (Transform child in classContainer)
-        {
-            StartCoroutine(SlideUp(child.GetComponent<RectTransform>(), i * cardStagger, cardSlideUp, cardFadeDuration));
-            i++;
-        }
+        IsIntroComplete = true;
     }
 
     private IEnumerator SlideUp(RectTransform target, float delay, float dist, float dur)

@@ -72,6 +72,7 @@ public class CharacterCreation : MonoBehaviour
         }
 
         UpdateDisplay();
+        UpdateSelectionRing(currentColorIndex);
         StartCoroutine(EntranceAnimation());
     }
 

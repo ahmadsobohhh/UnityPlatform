@@ -5,30 +5,68 @@ using Firebase.Firestore;
 using Firebase.Auth;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class JointClassManager : MonoBehaviour
 {
     public TMP_InputField codeInput;
     public string sceneToLoad = "StudentHub";
+    [SerializeField] private GameObject joinPopup;
+    [SerializeField] private TMP_Text feedbackText;
+    [SerializeField] private bool stayInCurrentSceneWhenPossible = true;
 
     private FirebaseFirestore db;
     private FirebaseAuth auth;
+    private bool isJoining;
 
     void Start()
     {
         db = FirebaseFirestore.DefaultInstance;
         auth = FirebaseAuth.DefaultInstance;
 
+        ResolveJoinPopupReference();
+
         Debug.Log("Scene to load is: " + sceneToLoad);
+    }
+
+    private void ResolveJoinPopupReference()
+    {
+        if (joinPopup != null)
+            return;
+
+        var activeScene = SceneManager.GetActiveScene();
+        if (!activeScene.IsValid() || !activeScene.isLoaded)
+            return;
+
+        foreach (var root in activeScene.GetRootGameObjects())
+        {
+            var allChildren = root.GetComponentsInChildren<Transform>(true);
+            foreach (var t in allChildren)
+            {
+                if (t != null && t.name == "JoinGUI")
+                {
+                    joinPopup = t.gameObject;
+                    return;
+                }
+            }
+        }
     }
 
     public async void JoinClassByCode()
     {
+        if (isJoining)
+            return;
+
+        isJoining = true;
+
         string enteredCode = codeInput.text.Trim();
 
         if (string.IsNullOrEmpty(enteredCode))
         {
             Debug.Log("Please enter a class code.");
+            SetFeedback("Enter a class code first.");
+            isJoining = false;
             return;
         }
 
@@ -43,6 +81,8 @@ public class JointClassManager : MonoBehaviour
             if (snapshot.Count <= 0)
             {
                 Debug.Log("Wrong code. No class found.");
+                SetFeedback("No class found with that code.");
+                isJoining = false;
                 return;
             }
 
@@ -57,6 +97,8 @@ public class JointClassManager : MonoBehaviour
             if (classDoc == null)
             {
                 Debug.Log("No class document found.");
+                SetFeedback("Could not load class details.");
+                isJoining = false;
                 return;
             }
 
@@ -74,6 +116,8 @@ public class JointClassManager : MonoBehaviour
             if (user == null)
             {
                 Debug.LogError("No user logged in.");
+                SetFeedback("You must be logged in to join.");
+                isJoining = false;
                 return;
             }
 
@@ -121,13 +165,47 @@ public class JointClassManager : MonoBehaviour
             PlayerPrefs.SetString("JoinedClassCode", classCode);
             PlayerPrefs.Save();
 
-            // ✅ Go back to Student Hub (it will reload classes)
-            SceneManager.LoadScene(sceneToLoad);
+            SetFeedback("Joined successfully!");
+
+            bool alreadyInTargetScene = SceneManager.GetActiveScene().name == sceneToLoad;
+            if (stayInCurrentSceneWhenPossible && alreadyInTargetScene)
+            {
+                if (codeInput != null)
+                    codeInput.SetTextWithoutNotify("");
+
+                var popupController = FindFirstObjectByType<LoadJoinClassScene>();
+                if (popupController != null)
+                    popupController.CloseJoinClassPopup();
+                else if (joinPopup != null)
+                    joinPopup.SetActive(false);
+
+                var loader = FindFirstObjectByType<StudentClassLoader>();
+                if (loader != null)
+                    loader.ReloadClassesAfterJoin();
+
+                isJoining = false;
+                return;
+            }
+
+            // In non-hub scenes, keep old fallback behavior.
+            if (!alreadyInTargetScene)
+                SceneManager.LoadScene(sceneToLoad);
         }
         catch (System.Exception e)
         {
             Debug.LogError("Error joining class: " + e);
+            SetFeedback("Join failed. Please try again.");
         }
+        finally
+        {
+            isJoining = false;
+        }
+    }
+
+    private void SetFeedback(string msg)
+    {
+        if (feedbackText != null)
+            feedbackText.text = msg;
     }
 
     public void TestLoadScene()
