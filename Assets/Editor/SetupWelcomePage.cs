@@ -224,7 +224,6 @@ public static class SetupWelcomePage
         rect.sizeDelta = new Vector2(350f, 0f);
 
         string[] buttonNames = { "BeginBtn", "OptionsBtn", "ExitBtn" };
-        float startY = -0.45f; // normalized from center
         float spacing = 65f;
 
         for (int i = 0; i < buttonNames.Length; i++)

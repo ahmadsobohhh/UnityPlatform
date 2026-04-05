@@ -645,7 +645,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 269463612}
+  - component: {fileID: 219880339}
+  - component: {fileID: 219880343}
   m_Layer: 0
   m_Name: Text Area
   m_TagString: Untagged
@@ -674,7 +675,37 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: -24, y: -8}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!1 &342216519
+--- !u!114 &219880343
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 219880338}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1aa08ab6e0800fa44ae55d278d1423e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.ScrollRect
+  m_Content: {fileID: 1094766600}
+  m_Horizontal: 0
+  m_Vertical: 1
+  m_MovementType: 1
+  m_Elasticity: 0.1
+  m_Inertia: 1
+  m_DecelerationRate: 0.135
+  m_ScrollSensitivity: 25
+  m_Viewport: {fileID: 1715550846}
+  m_HorizontalScrollbar: {fileID: 0}
+  m_VerticalScrollbar: {fileID: 0}
+  m_HorizontalScrollbarVisibility: 0
+  m_VerticalScrollbarVisibility: 0
+  m_HorizontalScrollbarSpacing: 0
+  m_VerticalScrollbarSpacing: 0
+  m_OnValueChanged:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!1 &290622084
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -2015,7 +2046,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Profile
+  m_text: X
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: b12bb4b197a7383459bd463768c1a11f, type: 2}
   m_sharedMaterial: {fileID: -1954173889146647396, guid: b12bb4b197a7383459bd463768c1a11f, type: 2}
@@ -2095,7 +2126,84 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 727990711}
   m_CullTransparentMesh: 1
---- !u!1 &733767953
+--- !u!1 &1094766599
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1094766600}
+  - component: {fileID: 1094766602}
+  - component: {fileID: 1094766601}
+  m_Layer: 0
+  m_Name: ClassContainer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &1094766600
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1094766599}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1715550846}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0.5, y: 1}
+--- !u!114 &1094766601
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1094766599}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3245ec927659c4140ac4f8d17403cc18, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.ContentSizeFitter
+  m_HorizontalFit: 0
+  m_VerticalFit: 2
+--- !u!114 &1094766602
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1094766599}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59f8146938fff824cb5fd77236b75775, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.VerticalLayoutGroup
+  m_Padding:
+    m_Left: 24
+    m_Right: 24
+    m_Top: 16
+    m_Bottom: 16
+  m_ChildAlignment: 1
+  m_Spacing: 8
+  m_ChildForceExpandWidth: 1
+  m_ChildForceExpandHeight: 0
+  m_ChildControlWidth: 1
+  m_ChildControlHeight: 1
+  m_ChildScaleWidth: 0
+  m_ChildScaleHeight: 0
+  m_ReverseArrangement: 0
+--- !u!1 &1153488055
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -5240,7 +5348,6 @@ RectTransform:
   - {fileID: 560229721}
   - {fileID: 1009584786}
   - {fileID: 733767956}
-  - {fileID: 1911491639}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -5260,15 +5367,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4efcf26a4c7ce994ea78844bc8b1de27, type: 3}
   m_Name: 
   m_EditorClassIdentifier: GameRuntime::StudentClassLoader
-  classContainer: {fileID: 1150098024}
-  classButtonPrefab: {fileID: 0}
+  classContainer: {fileID: 1094766600}
   noClassesText: {fileID: 1315931364}
   classSceneName: StudentClass
-  cardSize: {x: 320, y: 180}
-  cardBgColor: {r: 0.82, g: 0.72, b: 0.55, a: 0.35}
-  cardTextColor: {r: 0.22, g: 0.15, b: 0.08, a: 1}
-  cardSubtextColor: {r: 0.45, g: 0.35, b: 0.22, a: 0.8}
-  dividerColor: {r: 0.55, g: 0.45, b: 0.3, a: 0.3}
+  rowHeight: 100
+  rowFill: {r: 0.97, g: 0.94, b: 0.86, a: 1}
+  rowFillHighlight: {r: 1, g: 0.98, b: 0.92, a: 1}
+  rowFillPressed: {r: 0.9, g: 0.86, b: 0.76, a: 1}
+  accentBarColor: {r: 0.72, g: 0.52, b: 0.28, a: 1}
+  outlineColor: {r: 0.32, g: 0.22, b: 0.14, a: 0.85}
+  titleColor: {r: 0.22, g: 0.14, b: 0.08, a: 1}
+  subtitleColor: {r: 0.42, g: 0.32, b: 0.22, a: 0.92}
+  chevronColor: {r: 0.55, g: 0.4, b: 0.26, a: 0.75}
+  shadowColor: {r: 0, g: 0, b: 0, a: 0.22}
+  probeRowFill: {r: 0.88, g: 0.94, b: 0.86, a: 1}
+  probeAccentColor: {r: 0.35, g: 0.58, b: 0.32, a: 1}
   cardFont: {fileID: 11400000, guid: b12bb4b197a7383459bd463768c1a11f, type: 2}
 --- !u!114 &1702762939
 MonoBehaviour:

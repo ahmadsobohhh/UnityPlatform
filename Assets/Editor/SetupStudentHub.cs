@@ -787,7 +787,7 @@ public static class SetupStudentHub
         var closeTxtRect = closeTxtGO.AddComponent<RectTransform>();
         Stretch(closeTxtRect);
         var closeTMP = closeTxtGO.AddComponent<TextMeshProUGUI>();
-        closeTMP.text = "\u2715";
+        closeTMP.text = "X";
         closeTMP.fontSize = 18;
         closeTMP.color = new Color(0.80f, 0.70f, 0.50f, 0.8f);
         closeTMP.alignment = TextAlignmentOptions.Center;
@@ -1068,7 +1068,6 @@ public static class SetupStudentHub
         if (cc != null)
             loader.classContainer = cc;
 
-        loader.classButtonPrefab = null;
         loader.cardFont = menuFont;
 
         var noClasses = canvas.transform.Find("NoClassesText");
