@@ -155,8 +155,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0}
   m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 322, y: 65}
-  m_SizeDelta: {x: 138.5406, y: 66.3588}
+  m_AnchoredPosition: {x: 312.4073, y: 65}
+  m_SizeDelta: {x: 167.9152, y: 66.3588}
   m_Pivot: {x: 0.5, y: 0}
 --- !u!114 &29707433
 MonoBehaviour:
@@ -1349,7 +1349,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Create Game
+  m_text: 'Choose Game
 
 '
   m_isRightToLeft: 0
