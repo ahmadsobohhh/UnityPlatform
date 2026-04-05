@@ -33,13 +33,11 @@ public static class SetupStudentHub
         EnsureTitle(canvas.transform);
         EnsureNoClassesText(canvas.transform);
         BuildBottomBar(canvas.transform);
-        BuildJoinClassPopup(canvas.transform);
         BuildSettingsUI(canvas.transform);
         EnsureFadeOverlay(canvas.transform);
         AddButtonEffects(canvas.transform);
         WireAnimator(canvas);
         WireClassLoader(canvas);
-        WireJoinPopup(canvas);
         WireBackgroundParallax(canvas);
         EnsureAudioManager();
         ApplyFontToAll(canvas.transform);
@@ -69,8 +67,7 @@ public static class SetupStudentHub
             "VideoBackground", "Subtitle",
             "JoinClassBtn", "ProfileBtn", "SignOutBtn",
             "VignetteOverlay", "ClassParchment", "AddClassBtn",
-            "ContentPanel", "SettingsBtn", "SettingsPanel",
-            "JoinClassPanel", "JoinClassDimmer"
+            "ContentPanel", "SettingsBtn", "SettingsPanel"
         };
         foreach (var n in stale)
             DestroyChild(canvas, n);
@@ -478,242 +475,6 @@ public static class SetupStudentHub
         img.raycastTarget = false;
     }
 
-    // ────────────────────────── JOIN CLASS POPUP ──────────────────────────
-
-    static void BuildJoinClassPopup(Transform canvas)
-    {
-        // Dimmer background (full-screen semi-transparent click-to-close)
-        var dimmerGO = new GameObject("JoinClassDimmer");
-        dimmerGO.transform.SetParent(canvas, false);
-        var dimRect = dimmerGO.AddComponent<RectTransform>();
-        Stretch(dimRect);
-        var dimImg = dimmerGO.AddComponent<Image>();
-        dimImg.color = new Color(0, 0, 0, 0.5f);
-        dimImg.raycastTarget = true;
-
-        var dimCG = dimmerGO.AddComponent<CanvasGroup>();
-        dimCG.alpha = 0f;
-        dimCG.interactable = false;
-        dimCG.blocksRaycasts = false;
-
-        // Popup panel
-        var panelGO = new GameObject("JoinClassPanel");
-        panelGO.transform.SetParent(canvas, false);
-
-        var panelRect = panelGO.AddComponent<RectTransform>();
-        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-        panelRect.sizeDelta = new Vector2(480, 280);
-
-        var panelImg = panelGO.AddComponent<Image>();
-        panelImg.color = new Color(0.06f, 0.05f, 0.03f, 0.92f);
-        panelGO.AddComponent<CanvasGroup>();
-
-        // Title
-        var titleGO = new GameObject("Title");
-        titleGO.transform.SetParent(panelGO.transform, false);
-        var titleRect = titleGO.AddComponent<RectTransform>();
-        titleRect.anchorMin = new Vector2(0, 1);
-        titleRect.anchorMax = new Vector2(1, 1);
-        titleRect.pivot = new Vector2(0.5f, 1);
-        titleRect.anchoredPosition = new Vector2(0, -16);
-        titleRect.sizeDelta = new Vector2(0, 44);
-        var titleTMP = titleGO.AddComponent<TextMeshProUGUI>();
-        titleTMP.text = "Join a Class";
-        titleTMP.fontSize = 36;
-        titleTMP.fontStyle = FontStyles.Bold;
-        titleTMP.color = new Color(0.95f, 0.88f, 0.68f, 1f);
-        titleTMP.alignment = TextAlignmentOptions.Center;
-        titleTMP.raycastTarget = false;
-        ApplyFont(titleTMP);
-
-        // Code input field
-        var inputGO = new GameObject("CodeInput");
-        inputGO.transform.SetParent(panelGO.transform, false);
-        var inputRect = inputGO.AddComponent<RectTransform>();
-        inputRect.anchorMin = new Vector2(0.5f, 0.5f);
-        inputRect.anchorMax = new Vector2(0.5f, 0.5f);
-        inputRect.anchoredPosition = new Vector2(0, 10);
-        inputRect.sizeDelta = new Vector2(360, 50);
-
-        var inputImg = inputGO.AddComponent<Image>();
-        inputImg.color = new Color(1f, 1f, 1f, 0.08f);
-
-        var inputField = inputGO.AddComponent<TMP_InputField>();
-        inputField.characterLimit = 20;
-
-        // Text area
-        var textAreaGO = new GameObject("Text Area");
-        textAreaGO.transform.SetParent(inputGO.transform, false);
-        var taRect = textAreaGO.AddComponent<RectTransform>();
-        Stretch(taRect);
-        taRect.offsetMin = new Vector2(12, 4);
-        taRect.offsetMax = new Vector2(-12, -4);
-
-        // Placeholder
-        var phGO = new GameObject("Placeholder");
-        phGO.transform.SetParent(textAreaGO.transform, false);
-        var phRect = phGO.AddComponent<RectTransform>();
-        Stretch(phRect);
-        var phTMP = phGO.AddComponent<TextMeshProUGUI>();
-        phTMP.text = "Enter class code...";
-        phTMP.fontSize = 24;
-        phTMP.fontStyle = FontStyles.Italic;
-        phTMP.color = new Color(0.6f, 0.55f, 0.45f, 0.5f);
-        phTMP.alignment = TextAlignmentOptions.Left;
-        ApplyFont(phTMP);
-
-        // Input text
-        var txtGO = new GameObject("Text");
-        txtGO.transform.SetParent(textAreaGO.transform, false);
-        var txtRect = txtGO.AddComponent<RectTransform>();
-        Stretch(txtRect);
-        var txtTMP = txtGO.AddComponent<TextMeshProUGUI>();
-        txtTMP.fontSize = 24;
-        txtTMP.fontStyle = FontStyles.Bold;
-        txtTMP.color = new Color(0.95f, 0.90f, 0.78f, 1f);
-        txtTMP.alignment = TextAlignmentOptions.Left;
-        ApplyFont(txtTMP);
-
-        inputField.textViewport = taRect;
-        inputField.textComponent = txtTMP;
-        inputField.placeholder = phTMP;
-        inputField.fontAsset = menuFont;
-
-        // Join button
-        var joinBtnGO = new GameObject("JoinBtn");
-        joinBtnGO.transform.SetParent(panelGO.transform, false);
-        var jbRect = joinBtnGO.AddComponent<RectTransform>();
-        jbRect.anchorMin = new Vector2(0.5f, 0);
-        jbRect.anchorMax = new Vector2(0.5f, 0);
-        jbRect.pivot = new Vector2(0.5f, 0);
-        jbRect.anchoredPosition = new Vector2(0, 50);
-        jbRect.sizeDelta = new Vector2(200, 50);
-
-        var jbImg = joinBtnGO.AddComponent<Image>();
-        jbImg.color = new Color(0.28f, 0.22f, 0.10f, 0.85f);
-
-        var jbBtn = joinBtnGO.AddComponent<Button>();
-        jbBtn.transition = Selectable.Transition.None;
-        jbBtn.targetGraphic = jbImg;
-        joinBtnGO.AddComponent<ButtonHoverEffect>();
-
-        var jbLabelGO = new GameObject("Label");
-        jbLabelGO.transform.SetParent(joinBtnGO.transform, false);
-        var jbLabelRect = jbLabelGO.AddComponent<RectTransform>();
-        Stretch(jbLabelRect);
-        var jbTMP = jbLabelGO.AddComponent<TextMeshProUGUI>();
-        jbTMP.text = "Join";
-        jbTMP.fontSize = 30;
-        jbTMP.fontStyle = FontStyles.Bold;
-        jbTMP.color = new Color(0.95f, 0.88f, 0.68f, 1f);
-        jbTMP.alignment = TextAlignmentOptions.Center;
-        jbTMP.raycastTarget = false;
-        ApplyFont(jbTMP);
-
-        // Status label
-        var statusGO = new GameObject("StatusLabel");
-        statusGO.transform.SetParent(panelGO.transform, false);
-        var stRect = statusGO.AddComponent<RectTransform>();
-        stRect.anchorMin = new Vector2(0, 0);
-        stRect.anchorMax = new Vector2(1, 0);
-        stRect.pivot = new Vector2(0.5f, 0);
-        stRect.anchoredPosition = new Vector2(0, 16);
-        stRect.sizeDelta = new Vector2(0, 30);
-        var stTMP = statusGO.AddComponent<TextMeshProUGUI>();
-        stTMP.text = "";
-        stTMP.fontSize = 20;
-        stTMP.color = new Color(0.85f, 0.78f, 0.60f, 1f);
-        stTMP.alignment = TextAlignmentOptions.Center;
-        stTMP.raycastTarget = false;
-        ApplyFont(stTMP);
-
-        // Close button (X)
-        var closeGO = new GameObject("CloseBtn");
-        closeGO.transform.SetParent(panelGO.transform, false);
-        var closeRect = closeGO.AddComponent<RectTransform>();
-        closeRect.anchorMin = new Vector2(1, 1);
-        closeRect.anchorMax = new Vector2(1, 1);
-        closeRect.pivot = new Vector2(1, 1);
-        closeRect.anchoredPosition = new Vector2(-8, -8);
-        closeRect.sizeDelta = new Vector2(32, 32);
-        var closeImg = closeGO.AddComponent<Image>();
-        closeImg.color = new Color(0, 0, 0, 0);
-        var closeBtn = closeGO.AddComponent<Button>();
-        closeBtn.transition = Selectable.Transition.None;
-        closeBtn.targetGraphic = closeImg;
-
-        var closeTxtGO = new GameObject("X");
-        closeTxtGO.transform.SetParent(closeGO.transform, false);
-        var closeTxtRect = closeTxtGO.AddComponent<RectTransform>();
-        Stretch(closeTxtRect);
-        var closeTMP = closeTxtGO.AddComponent<TextMeshProUGUI>();
-        closeTMP.text = "X";
-        closeTMP.fontSize = 22;
-        closeTMP.fontStyle = FontStyles.Bold;
-        closeTMP.color = new Color(0.80f, 0.70f, 0.50f, 0.8f);
-        closeTMP.alignment = TextAlignmentOptions.Center;
-        closeTMP.raycastTarget = false;
-        ApplyFont(closeTMP);
-    }
-
-    static void WireJoinPopup(GameObject canvas)
-    {
-        var panel = canvas.transform.Find("JoinClassPanel");
-        var dimmer = canvas.transform.Find("JoinClassDimmer");
-        if (panel == null) return;
-
-        var popup = canvas.GetComponent<JoinClassPopup>();
-        if (popup == null) popup = canvas.AddComponent<JoinClassPopup>();
-
-        var so = new SerializedObject(popup);
-        so.FindProperty("popupPanel").objectReferenceValue = panel.gameObject;
-
-        var codeInput = FindDeep(panel, "CodeInput");
-        if (codeInput != null)
-            so.FindProperty("codeInput").objectReferenceValue = codeInput.GetComponent<TMP_InputField>();
-
-        var statusLabel = FindDeep(panel, "StatusLabel");
-        if (statusLabel != null)
-            so.FindProperty("statusLabel").objectReferenceValue = statusLabel.GetComponent<TextMeshProUGUI>();
-
-        var joinBtn = FindDeep(panel, "JoinBtn");
-        if (joinBtn != null)
-        {
-            so.FindProperty("joinButton").objectReferenceValue = joinBtn.GetComponent<Button>();
-            WireButton(joinBtn, popup, "JoinClass");
-        }
-
-        var closeBtn = FindDeep(panel, "CloseBtn");
-        if (closeBtn != null)
-        {
-            so.FindProperty("closeButton").objectReferenceValue = closeBtn.GetComponent<Button>();
-            WireButton(closeBtn, popup, "Close");
-        }
-
-        // Wire direct reference to StudentClassLoader so refresh works after join
-        var loader = canvas.GetComponent<StudentClassLoader>();
-        if (loader != null)
-            so.FindProperty("classLoader").objectReferenceValue = loader;
-
-        so.ApplyModifiedProperties();
-
-        // Wire dimmer click to close
-        if (dimmer != null)
-        {
-            var dimBtn = dimmer.GetComponent<Button>();
-            if (dimBtn == null) dimBtn = dimmer.gameObject.AddComponent<Button>();
-            dimBtn.transition = Selectable.Transition.None;
-            dimBtn.targetGraphic = dimmer.GetComponent<Image>();
-            WireButton(dimmer, popup, "Close");
-        }
-
-        // Rewire the JoinClassBtn in the bottom bar to open popup instead of loading scene
-        var joinClassBtn = FindDeep(canvas.transform, "JoinClassBtn");
-        if (joinClassBtn != null)
-            WireButton(joinClassBtn, popup, "Open");
-    }
-
     // ────────────────────────── SETTINGS GEAR + PANEL ──────────────────────────
 
     static void BuildSettingsUI(Transform canvas)
@@ -758,15 +519,14 @@ public static class SetupStudentHub
         panelRect.anchorMax = new Vector2(1, 0);
         panelRect.pivot = new Vector2(1, 0);
         panelRect.anchoredPosition = new Vector2(-20, 80);
-        panelRect.sizeDelta = new Vector2(280, 150);
+        panelRect.sizeDelta = new Vector2(280, 100);
 
         var panelImg = panelGO.AddComponent<Image>();
         panelImg.color = new Color(0.05f, 0.04f, 0.02f, 0.85f);
         panelGO.AddComponent<CanvasGroup>();
 
-        // Music + Effects sliders
+        // Music label + slider row
         BuildSliderRow(panelGO.transform, "MusicSlider", "Music", 10);
-        BuildSliderRow(panelGO.transform, "EffectsSlider", "Effects", 60);
 
         // Close button (X)
         var closeGO = new GameObject("CloseBtn");
@@ -1086,7 +846,10 @@ public static class SetupStudentHub
         var lps = canvas.GetComponent<LoadProfileScene>();
         if (lps == null) lps = canvas.AddComponent<LoadProfileScene>();
 
-        // JoinClassBtn is wired to JoinClassPopup.Open in WireJoinPopup
+        // Wire JoinClassBtn
+        var joinClassBtn = FindDeep(canvas.transform, "JoinClassBtn");
+        if (joinClassBtn != null)
+            WireButton(joinClassBtn, ljs, "GoToJoinClass");
 
         // Wire SignOutBtn
         var signOutBtn = FindDeep(canvas.transform, "SignOutBtn");
@@ -1129,8 +892,6 @@ public static class SetupStudentHub
             "BottomBar",
             "SettingsBtn",
             "SettingsPanel",
-            "JoinClassDimmer",
-            "JoinClassPanel",
             "JoinGUI",
             "FadeOverlay"
         };
