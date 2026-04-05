@@ -32,11 +32,25 @@ public class StudentClassLoader : MonoBehaviour
     [SerializeField] private Color probeRowFill = new Color(0.88f, 0.94f, 0.86f, 1f);
     [SerializeField] private Color probeAccentColor = new Color(0.35f, 0.58f, 0.32f, 1f);
 
+    [Header("Scroll feel")]
+    [SerializeField] private float scrollSensitivity = 6f;
+    [SerializeField] private float scrollDecelerationRate = 0.065f;
+    [SerializeField] private float scrollElasticity = 0.06f;
+
     [Header("Font")]
     public TMP_FontAsset cardFont;
 
+    [Header("Load reveal")]
+    [SerializeField] private bool waitForHubIntro = true;
+    [SerializeField] private float maxHubIntroWait = 3.5f;
+    [SerializeField] private float overlayRevealDelay = 0.25f;
+    [SerializeField] private float overlayRevealDuration = 0.18f;
+
     private FirebaseFirestore db;
     private FirebaseAuth auth;
+    private CanvasGroup overlayGroup;
+    private CanvasGroup classContainerGroup;
+    private CanvasGroup overlayTitleGroup;
 
     async void Start()
     {
@@ -66,10 +80,117 @@ public class StudentClassLoader : MonoBehaviour
         }
 
         if (classContainer != null)
+        {
             EnsureLayoutSetup();
+            EnsureOverlayTitle();
+            CacheOverlayGroups();
+            SetLoadingStateVisible(false);
+        }
 
-        await Task.Delay(150);
+        // Keep reveal snappy even if old scene-serialized values are still high.
+        overlayRevealDelay = Mathf.Clamp(overlayRevealDelay, 0f, 0.3f);
+        overlayRevealDuration = Mathf.Clamp(overlayRevealDuration, 0.12f, 0.22f);
+
+        await Task.Delay(50);
         LoadClasses();
+    }
+
+    private void CacheOverlayGroups()
+    {
+        if (classContainer == null) return;
+
+        var scroll = classContainer.GetComponentInParent<ScrollRect>();
+        var overlayRoot = scroll != null ? scroll.transform.parent : classContainer.parent;
+
+        if (overlayRoot != null)
+        {
+            overlayGroup = overlayRoot.GetComponent<CanvasGroup>();
+            if (overlayGroup == null)
+                overlayGroup = overlayRoot.gameObject.AddComponent<CanvasGroup>();
+        }
+
+        classContainerGroup = classContainer.GetComponent<CanvasGroup>();
+        if (classContainerGroup == null)
+            classContainerGroup = classContainer.gameObject.AddComponent<CanvasGroup>();
+
+        var title = GameObject.Find("YourClassesTitle");
+        if (title != null)
+        {
+            overlayTitleGroup = title.GetComponent<CanvasGroup>();
+            if (overlayTitleGroup == null)
+                overlayTitleGroup = title.AddComponent<CanvasGroup>();
+        }
+    }
+
+    private void SetLoadingStateVisible(bool isVisible)
+    {
+        float alpha = isVisible ? 1f : 0f;
+
+        if (overlayGroup != null)
+        {
+            overlayGroup.alpha = alpha;
+            overlayGroup.interactable = isVisible;
+            overlayGroup.blocksRaycasts = isVisible;
+        }
+
+        if (classContainerGroup != null)
+        {
+            classContainerGroup.alpha = alpha;
+            classContainerGroup.interactable = isVisible;
+            classContainerGroup.blocksRaycasts = isVisible;
+        }
+
+        if (overlayTitleGroup != null)
+        {
+            overlayTitleGroup.alpha = alpha;
+            overlayTitleGroup.interactable = false;
+            overlayTitleGroup.blocksRaycasts = false;
+        }
+    }
+
+    private System.Collections.IEnumerator RevealLoadedOverlay()
+    {
+        if (waitForHubIntro)
+        {
+            var hubAnimator = FindFirstObjectByType<StudentHubAnimator>();
+            float waited = 0f;
+
+            while (hubAnimator != null && !hubAnimator.IsIntroComplete && waited < maxHubIntroWait)
+            {
+                waited += Time.deltaTime;
+                yield return null;
+            }
+        }
+
+        yield return new WaitForSeconds(Mathf.Max(0f, overlayRevealDelay));
+
+        float t = 0f;
+        while (t < overlayRevealDuration)
+        {
+            t += Time.deltaTime;
+            float a = Mathf.Clamp01(t / Mathf.Max(0.01f, overlayRevealDuration));
+
+            if (overlayGroup != null)
+            {
+                overlayGroup.alpha = a;
+                overlayGroup.interactable = a > 0.99f;
+                overlayGroup.blocksRaycasts = a > 0.99f;
+            }
+
+            if (classContainerGroup != null)
+            {
+                classContainerGroup.alpha = a;
+                classContainerGroup.interactable = a > 0.99f;
+                classContainerGroup.blocksRaycasts = a > 0.99f;
+            }
+
+            if (overlayTitleGroup != null)
+                overlayTitleGroup.alpha = a;
+
+            yield return null;
+        }
+
+        SetLoadingStateVisible(true);
     }
 
     private void EnsureLayoutSetup()
@@ -92,6 +213,72 @@ public class StudentClassLoader : MonoBehaviour
         if (csf == null)
             csf = classContainer.gameObject.AddComponent<ContentSizeFitter>();
         csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        ConfigureScrollFeel();
+    }
+
+    private void ConfigureScrollFeel()
+    {
+        var scroll = classContainer.GetComponentInParent<ScrollRect>();
+        if (scroll == null) return;
+
+        scroll.inertia = true;
+        scroll.scrollSensitivity = Mathf.Max(1f, scrollSensitivity);
+        scroll.decelerationRate = Mathf.Clamp01(scrollDecelerationRate);
+        scroll.elasticity = Mathf.Clamp(scrollElasticity, 0f, 1f);
+    }
+
+    private void EnsureOverlayTitle()
+    {
+        var scroll = classContainer.GetComponentInParent<ScrollRect>();
+        Transform overlayRoot = scroll != null ? scroll.transform.parent : classContainer.parent;
+        if (overlayRoot == null) return;
+
+        var overlayRt = overlayRoot as RectTransform;
+        if (overlayRt == null)
+            overlayRt = overlayRoot.GetComponent<RectTransform>();
+
+        Transform titleParent = overlayRoot.parent != null ? overlayRoot.parent : overlayRoot;
+
+        Transform existing = GameObject.Find("YourClassesTitle")?.transform;
+
+        GameObject titleGo;
+        if (existing != null)
+        {
+            titleGo = existing.gameObject;
+            titleGo.transform.SetParent(titleParent, false);
+        }
+        else
+        {
+            titleGo = new GameObject("YourClassesTitle");
+            titleGo.transform.SetParent(titleParent, false);
+        }
+
+        var titleRt = titleGo.GetComponent<RectTransform>();
+        if (titleRt == null)
+            titleRt = titleGo.AddComponent<RectTransform>();
+
+        float overlayY = overlayRt != null ? overlayRt.anchoredPosition.y : 0f;
+        float overlayHalfHeight = overlayRt != null ? overlayRt.rect.height * 0.5f : 120f;
+        titleRt.anchorMin = new Vector2(0.5f, 0.5f);
+        titleRt.anchorMax = new Vector2(0.5f, 0.5f);
+        titleRt.pivot = new Vector2(0.5f, 0f);
+        titleRt.anchoredPosition = new Vector2(0f, overlayY + overlayHalfHeight + 14f);
+        titleRt.sizeDelta = new Vector2(480f, 58f);
+        titleRt.SetAsLastSibling();
+
+        var titleTmp = titleGo.GetComponent<TextMeshProUGUI>();
+        if (titleTmp == null)
+            titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
+
+        titleTmp.text = "Your Classes!";
+        titleTmp.fontSize = 38f;
+        titleTmp.fontStyle = FontStyles.Bold;
+        titleTmp.alignment = TextAlignmentOptions.Center;
+        titleTmp.color = Color.white;
+        titleTmp.raycastTarget = false;
+        titleTmp.enableWordWrapping = false;
+        ApplyCardFont(titleTmp);
     }
 
     async void LoadClasses()
@@ -192,21 +379,16 @@ public class StudentClassLoader : MonoBehaviour
             scroll.verticalNormalizedPosition = 1f;
 
         ForceClassRowsVisible();
+        StopCoroutine(nameof(RevealLoadedOverlay));
+        StartCoroutine(nameof(RevealLoadedOverlay));
     }
 
     /// <summary>
-    /// Hub entrance animations use CanvasGroups; rows must never stay at alpha 0.
-    /// Also un-fades parent panels (e.g. ContentPanel) so the list is not multiplied to invisible.
+    /// Ensure generated rows are visible once overlay reveal begins.
     /// </summary>
     void ForceClassRowsVisible()
     {
         classContainer.gameObject.SetActive(true);
-        foreach (var cg in classContainer.GetComponentsInParent<CanvasGroup>(true))
-        {
-            cg.alpha = 1f;
-            cg.interactable = true;
-            cg.blocksRaycasts = true;
-        }
 
         foreach (Transform child in classContainer)
         {

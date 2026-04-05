@@ -11,6 +11,7 @@ public class StudentProfilePage : MonoBehaviour
     [Header("UI References")]
     [SerializeField] private Image avatarImage;
     [SerializeField] private TMP_Text usernameText;
+    [SerializeField] private TMP_Text profileTitleText;
     [SerializeField] private TMP_Text classNameText;
     [SerializeField] private TMP_Text memberSinceText;
     [SerializeField] private TMP_Text classesJoinedText;
@@ -27,12 +28,46 @@ public class StudentProfilePage : MonoBehaviour
 
     private void Start()
     {
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.EnsureMusicPlaying();
+
+        EnsureProfileTitleLayout();
+
         if (backButton != null)
             backButton.onClick.AddListener(() => SceneTransition.LoadScene("StudentHub"));
         if (signOutButton != null)
             signOutButton.onClick.AddListener(SignOut);
 
         StartCoroutine(LoadProfile());
+    }
+
+    private void EnsureProfileTitleLayout()
+    {
+        if (profileTitleText == null)
+        {
+            foreach (var tmp in GetComponentsInChildren<TMP_Text>(true))
+            {
+                if (tmp != null && (tmp.name == "TitleTxt" || tmp.text == "Your Profile"))
+                {
+                    profileTitleText = tmp;
+                    break;
+                }
+            }
+        }
+
+        if (profileTitleText == null)
+            return;
+
+        var rt = profileTitleText.rectTransform;
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.anchoredPosition = new Vector2(36f, -28f);
+        rt.sizeDelta = new Vector2(480f, 70f);
+
+        profileTitleText.alignment = TextAlignmentOptions.TopLeft;
+        profileTitleText.enableWordWrapping = false;
+        profileTitleText.transform.SetAsLastSibling();
     }
 
     private IEnumerator LoadProfile()

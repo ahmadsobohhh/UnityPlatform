@@ -181,6 +181,23 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Ensure background music keeps playing across scene changes.
+    /// </summary>
+    public void EnsureMusicPlaying()
+    {
+        if (musicSource == null)
+            return;
+
+        if (musicSource.clip == null && backgroundMusic != null)
+            musicSource.clip = backgroundMusic;
+
+        musicSource.volume = MusicVolume;
+
+        if (musicSource.clip != null && !musicSource.isPlaying)
+            musicSource.Play();
+    }
+
+    /// <summary>
     /// Play a one-shot sound effect at the current effects volume.
     /// Call from anywhere: AudioManager.Instance.PlayEffect(clip);
     /// </summary>

@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 public class StudentHubAnimator : MonoBehaviour
 {
+    public bool IsIntroComplete { get; private set; }
+
     [Header("Scene Fade")]
     [SerializeField] private Image fadeOverlay;
     [SerializeField] private float fadeDuration = 1.0f;
@@ -25,6 +27,8 @@ public class StudentHubAnimator : MonoBehaviour
 
     private void Start()
     {
+        IsIntroComplete = false;
+
         if (fadeOverlay == null)
         {
             var go = GameObject.Find("FadeOverlay");
@@ -102,6 +106,8 @@ public class StudentHubAnimator : MonoBehaviour
             if (buttons[i] != null)
                 StartCoroutine(SlideUp(buttons[i], i * btnStagger, btnSlideDistance, btnSlideDuration));
         }
+
+        IsIntroComplete = true;
     }
 
     private IEnumerator SlideUp(RectTransform target, float delay, float dist, float dur)
