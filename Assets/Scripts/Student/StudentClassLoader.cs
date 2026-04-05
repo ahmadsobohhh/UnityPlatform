@@ -32,6 +32,9 @@ public class StudentClassLoader : MonoBehaviour
     [SerializeField] private Color probeRowFill = new Color(0.88f, 0.94f, 0.86f, 1f);
     [SerializeField] private Color probeAccentColor = new Color(0.35f, 0.58f, 0.32f, 1f);
 
+    [Header("Visual style")]
+    [SerializeField] private bool useGlassyClassCards = true;
+
     [Header("Scroll feel")]
     [SerializeField] private float scrollSensitivity = 6f;
     [SerializeField] private float scrollDecelerationRate = 0.065f;
@@ -81,6 +84,9 @@ public class StudentClassLoader : MonoBehaviour
 
         if (classContainer != null)
         {
+            if (useGlassyClassCards)
+                ApplyGlassyClassCardTheme();
+
             EnsureLayoutSetup();
             EnsureOverlayTitle();
             CacheOverlayGroups();
@@ -93,6 +99,30 @@ public class StudentClassLoader : MonoBehaviour
 
         await Task.Delay(50);
         LoadClasses();
+    }
+
+    public void ReloadClassesAfterJoin()
+    {
+        if (classContainer == null)
+            return;
+
+        SetLoadingStateVisible(false);
+        LoadClasses();
+    }
+
+    private void ApplyGlassyClassCardTheme()
+    {
+        rowFill = new Color(0.16f, 0.13f, 0.08f, 0.48f);
+        rowFillHighlight = new Color(0.26f, 0.2f, 0.13f, 0.62f);
+        rowFillPressed = new Color(0.11f, 0.09f, 0.06f, 0.72f);
+        accentBarColor = new Color(0.98f, 0.86f, 0.58f, 0.85f);
+        outlineColor = new Color(1f, 0.95f, 0.82f, 0.24f);
+        titleColor = new Color(1f, 0.98f, 0.9f, 0.96f);
+        subtitleColor = new Color(0.98f, 0.93f, 0.82f, 0.78f);
+        chevronColor = new Color(1f, 0.9f, 0.7f, 0.82f);
+        shadowColor = new Color(0f, 0f, 0f, 0.16f);
+        probeRowFill = new Color(0.2f, 0.22f, 0.17f, 0.44f);
+        probeAccentColor = new Color(0.62f, 0.79f, 0.54f, 0.75f);
     }
 
     private void CacheOverlayGroups()
