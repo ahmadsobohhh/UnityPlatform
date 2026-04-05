@@ -6,6 +6,7 @@ using Firebase.Auth;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class JointClassManager : MonoBehaviour
 {
@@ -24,13 +25,32 @@ public class JointClassManager : MonoBehaviour
         db = FirebaseFirestore.DefaultInstance;
         auth = FirebaseAuth.DefaultInstance;
 
-        if (joinPopup == null)
-        {
-            var found = GameObject.Find("JoinGUI");
-            if (found != null) joinPopup = found;
-        }
+        ResolveJoinPopupReference();
 
         Debug.Log("Scene to load is: " + sceneToLoad);
+    }
+
+    private void ResolveJoinPopupReference()
+    {
+        if (joinPopup != null)
+            return;
+
+        var activeScene = SceneManager.GetActiveScene();
+        if (!activeScene.IsValid() || !activeScene.isLoaded)
+            return;
+
+        foreach (var root in activeScene.GetRootGameObjects())
+        {
+            var allChildren = root.GetComponentsInChildren<Transform>(true);
+            foreach (var t in allChildren)
+            {
+                if (t != null && t.name == "JoinGUI")
+                {
+                    joinPopup = t.gameObject;
+                    return;
+                }
+            }
+        }
     }
 
     public async void JoinClassByCode()
@@ -167,8 +187,9 @@ public class JointClassManager : MonoBehaviour
                 return;
             }
 
-            // Fallback for old join scene flow.
-            SceneManager.LoadScene(sceneToLoad);
+            // In non-hub scenes, keep old fallback behavior.
+            if (!alreadyInTargetScene)
+                SceneManager.LoadScene(sceneToLoad);
         }
         catch (System.Exception e)
         {
