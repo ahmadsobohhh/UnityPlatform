@@ -43,13 +43,31 @@ public class StudentClassLoader : MonoBehaviour
         LoadClasses();
     }
 
-    async void LoadClasses()
+    public async void RefreshClasses()
+    {
+        Debug.Log("[StudentClassLoader] RefreshClasses called");
+        if (db == null) db = FirebaseFirestore.DefaultInstance;
+        if (auth == null) auth = FirebaseAuth.DefaultInstance;
+        if (classContainer == null)
+        {
+            Debug.LogError("[StudentClassLoader] classContainer is null during refresh!");
+            return;
+        }
+        Debug.Log($"[StudentClassLoader] classContainer: {classContainer.name}, children: {classContainer.childCount}");
+        await Task.Delay(500);
+        LoadClasses(forceServer: true);
+    }
+
+    async void LoadClasses(bool forceServer = false)
     {
         if (classContainer == null)
         {
             Debug.LogError("classContainer NOT assigned");
             return;
         }
+
+        if (db == null) db = FirebaseFirestore.DefaultInstance;
+        if (auth == null) auth = FirebaseAuth.DefaultInstance;
 
         var user = auth.CurrentUser;
         if (user == null)
@@ -60,17 +78,24 @@ public class StudentClassLoader : MonoBehaviour
 
         try
         {
-            var snapshot = await db.Collection("users")
+            QuerySnapshot snapshot;
+            var query = db.Collection("users")
                 .Document(user.UserId)
-                .Collection("classes")
-                .GetSnapshotAsync();
+                .Collection("classes");
+
+            if (forceServer)
+                snapshot = await query.GetSnapshotAsync(Source.Server);
+            else
+                snapshot = await query.GetSnapshotAsync();
+
+            Debug.Log($"[StudentClassLoader] Loaded {snapshot.Count} classes (forceServer={forceServer})");
 
             foreach (Transform child in classContainer)
                 Destroy(child.gameObject);
 
             if (snapshot.Count == 0)
             {
-                Debug.Log("No classes found");
+                Debug.Log("[StudentClassLoader] No classes found");
                 if (noClassesText != null)
                     noClassesText.SetActive(true);
                 return;
