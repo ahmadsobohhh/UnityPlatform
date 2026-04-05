@@ -319,6 +319,9 @@ public class StudentClassLoader : MonoBehaviour
             return;
         }
 
+        if (db == null) db = FirebaseFirestore.DefaultInstance;
+        if (auth == null) auth = FirebaseAuth.DefaultInstance;
+
         var user = auth.CurrentUser;
         if (user == null)
         {
@@ -332,8 +335,14 @@ public class StudentClassLoader : MonoBehaviour
 
             var snapshot = await db.Collection("users")
                 .Document(user.UserId)
-                .Collection("classes")
-                .GetSnapshotAsync();
+                .Collection("classes");
+
+            if (forceServer)
+                snapshot = await query.GetSnapshotAsync(Source.Server);
+            else
+                snapshot = await query.GetSnapshotAsync();
+
+            Debug.Log($"[StudentClassLoader] Loaded {snapshot.Count} classes (forceServer={forceServer})");
 
             foreach (Transform child in classContainer)
                 Destroy(child.gameObject);
