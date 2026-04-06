@@ -7,9 +7,12 @@ using UnityEngine.UI;
 using Firebase.Auth;
 using Firebase.Firestore;
 using UnityEngine.SceneManagement;
+using System.Linq;
 
 public class TeacherClassManager : MonoBehaviour
 {
+    static Sprite _solidUiSprite;
+
     [Header("Panels")]
     [SerializeField] private GameObject classListPanel;
     [SerializeField] private GameObject editPanel;
@@ -30,6 +33,10 @@ public class TeacherClassManager : MonoBehaviour
     [SerializeField] private TMP_Text pageLabel;
     [SerializeField] private int pageSize = 6;
 
+    [Header("Card Layout")]
+    [SerializeField] private float classCardHeight = 80f;
+    [SerializeField] private float fallbackClassCardWidth = 760f;
+
     [Header("Create Class Panel")]
     [SerializeField] private TMP_InputField createClassNameInput;    // input field in CreateClassPanel
     [SerializeField] private Button createConfirmBtn;                // CreateBtn in CreateClassPanel
@@ -46,9 +53,19 @@ public class TeacherClassManager : MonoBehaviour
     [SerializeField] private Button createBtn;   // createBtn (shows create panel)
     [SerializeField] private Button editBtn;     // editBtn (shows edit panel)
 
-    [Header("Selection Visuals")]
-    [SerializeField] private Color unselectedColor = new Color(0.22f, 0.18f, 0.12f, 0.90f);
-    [SerializeField] private Color selectedColor   = new Color(0.45f, 0.35f, 0.15f, 0.95f);
+    [Header("Class row look")]
+    [SerializeField] private Color rowFill = new Color(0.16f, 0.13f, 0.08f, 0.48f);
+    [SerializeField] private Color rowFillHighlight = new Color(0.26f, 0.2f, 0.13f, 0.62f);
+    [SerializeField] private Color rowFillPressed = new Color(0.11f, 0.09f, 0.06f, 0.72f);
+    [SerializeField] private Color accentBarColor = new Color(0.98f, 0.86f, 0.58f, 0.85f);
+    [SerializeField] private Color outlineColor = new Color(1f, 0.95f, 0.82f, 0.24f);
+    [SerializeField] private Color titleColor = new Color(1f, 0.98f, 0.9f, 0.96f);
+    [SerializeField] private Color subtitleColor = new Color(0.98f, 0.93f, 0.82f, 0.78f);
+    [SerializeField] private Color chevronColor = new Color(1f, 0.9f, 0.7f, 0.82f);
+    [SerializeField] private Color shadowColor = new Color(0f, 0f, 0f, 0.16f);
+
+    [Header("Font")]
+    [SerializeField] private TMP_FontAsset cardFont;
 
     private FirebaseAuth auth;
     private FirebaseFirestore db;
@@ -465,27 +482,38 @@ public class TeacherClassManager : MonoBehaviour
         var user = auth.CurrentUser;
         if (user == null) yield break;
 
-        var q = db.Collection("users").Document(user.UserId).Collection("classes");
-        var task = q.GetSnapshotAsync();
-        yield return new WaitUntil(() => task.IsCompleted);
-        if (task.IsFaulted || task.IsCanceled) { Debug.LogError(task.Exception); yield break; }
+        var byId = new Dictionary<string, ClassRow>();
+
+        var indexQuery = db.Collection("users").Document(user.UserId).Collection("classes");
+        var indexTask = indexQuery.GetSnapshotAsync();
+        yield return new WaitUntil(() => indexTask.IsCompleted);
+        if (indexTask.IsFaulted || indexTask.IsCanceled) { Debug.LogError(indexTask.Exception); yield break; }
+
+        foreach (var d in indexTask.Result)
+            UpsertRow(byId, SnapshotToRow(d));
+
+        var ownedQuery = db.Collection("classes").WhereEqualTo("ownerUid", user.UserId);
+        var ownedTask = ownedQuery.GetSnapshotAsync();
+        yield return new WaitUntil(() => ownedTask.IsCompleted);
+        if (ownedTask.IsFaulted || ownedTask.IsCanceled)
+        {
+            Debug.LogError("[TCM] Failed loading owned classes fallback: " + ownedTask.Exception);
+        }
+        else
+        {
+            foreach (var d in ownedTask.Result)
+            {
+                var row = SnapshotToRow(d);
+                bool wasMissingInIndex = !byId.ContainsKey(row.id);
+                UpsertRow(byId, row);
+
+                if (wasMissingInIndex)
+                    yield return StartCoroutine(RepairTeacherIndexRow(user.UserId, row));
+            }
+        }
 
         _all.Clear();
-        foreach (var d in task.Result)
-        {
-            string id   = d.ContainsField("id")   ? d.GetValue<string>("id")   : d.Id;
-            string name = d.ContainsField("name") ? d.GetValue<string>("name") : "(Unnamed)";
-            string code = d.ContainsField("code") ? d.GetValue<string>("code") : "—";
-
-            long createdAtSec = 0;
-            if (d.ContainsField("createdAt"))
-            {
-                var ts = d.GetValue<Firebase.Firestore.Timestamp>("createdAt");
-                createdAtSec = (long)(ts.ToDateTime().ToUniversalTime() - System.DateTime.UnixEpoch).TotalSeconds;
-            }
-
-            _all.Add(new ClassRow { id = id, name = name, code = code, createdAtSeconds = createdAtSec });
-        }
+        _all.AddRange(byId.Values.Where(r => !string.IsNullOrEmpty(r.id)));
 
         // Sort newest → oldest
         _all.Sort((a, b) => b.createdAtSeconds.CompareTo(a.createdAtSeconds));
@@ -502,6 +530,86 @@ public class TeacherClassManager : MonoBehaviour
 
         _pageIndex = Mathf.Clamp(_pageIndex, 0, Mathf.Max(0, Mathf.CeilToInt(_all.Count / (float)pageSize) - 1));
         RenderPage();
+    }
+
+    private ClassRow SnapshotToRow(DocumentSnapshot d)
+    {
+        string id = d.ContainsField("id") ? d.GetValue<string>("id") : d.Id;
+        string name = d.ContainsField("name") ? d.GetValue<string>("name") : "(Unnamed)";
+        string code = d.ContainsField("code") ? d.GetValue<string>("code") : "—";
+
+        long createdAtSec = 0;
+        if (d.ContainsField("createdAt"))
+        {
+            var ts = d.GetValue<Firebase.Firestore.Timestamp>("createdAt");
+            createdAtSec = (long)(ts.ToDateTime().ToUniversalTime() - System.DateTime.UnixEpoch).TotalSeconds;
+        }
+
+        return new ClassRow
+        {
+            id = id,
+            name = string.IsNullOrWhiteSpace(name) ? "(Unnamed)" : name,
+            code = string.IsNullOrWhiteSpace(code) ? "—" : code,
+            createdAtSeconds = createdAtSec
+        };
+    }
+
+    private void UpsertRow(Dictionary<string, ClassRow> map, ClassRow incoming)
+    {
+        if (string.IsNullOrEmpty(incoming.id))
+            return;
+
+        if (!map.TryGetValue(incoming.id, out var existing))
+        {
+            map[incoming.id] = incoming;
+            return;
+        }
+
+        if (IsWeakName(existing.name) && !IsWeakName(incoming.name))
+            existing.name = incoming.name;
+
+        if (IsWeakCode(existing.code) && !IsWeakCode(incoming.code))
+            existing.code = incoming.code;
+
+        if (incoming.createdAtSeconds > existing.createdAtSeconds)
+            existing.createdAtSeconds = incoming.createdAtSeconds;
+
+        map[incoming.id] = existing;
+    }
+
+    private bool IsWeakName(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) || value == "(Unnamed)";
+    }
+
+    private bool IsWeakCode(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) || value == "—";
+    }
+
+    private IEnumerator RepairTeacherIndexRow(string teacherUid, ClassRow row)
+    {
+        if (string.IsNullOrEmpty(teacherUid) || string.IsNullOrEmpty(row.id))
+            yield break;
+
+        var createdAt = row.createdAtSeconds > 0
+            ? Timestamp.FromDateTime(System.DateTime.UnixEpoch.AddSeconds(row.createdAtSeconds).ToUniversalTime())
+            : Timestamp.GetCurrentTimestamp();
+
+        var data = new Dictionary<string, object>
+        {
+            { "id", row.id },
+            { "name", string.IsNullOrWhiteSpace(row.name) ? "(Unnamed)" : row.name },
+            { "code", string.IsNullOrWhiteSpace(row.code) ? "—" : row.code },
+            { "createdAt", createdAt }
+        };
+
+        var idxRef = db.Collection("users").Document(teacherUid).Collection("classes").Document(row.id);
+        var repairTask = idxRef.SetAsync(data, SetOptions.MergeAll);
+        yield return new WaitUntil(() => repairTask.IsCompleted);
+
+        if (repairTask.IsFaulted || repairTask.IsCanceled)
+            Debug.LogWarning("[TCM] Failed to repair teacher class index for " + row.id + ": " + repairTask.Exception);
     }
 
     // Update Join/Edit button visibility based on selection
@@ -537,7 +645,10 @@ public class TeacherClassManager : MonoBehaviour
             bool isSelected = (row.id == _selectedClassId);
 
             var go = CreateClassCard(row.name, row.code, isSelected);
+            go.name = "ClassCard_" + row.id;
             go.transform.SetParent(classListContainer, false);
+            go.SetActive(true);
+            EnsureCardHasSize(go.GetComponent<RectTransform>());
 
             int capturedI = i;
             var capturedId = row.id;
@@ -576,6 +687,9 @@ public class TeacherClassManager : MonoBehaviour
         if (prevPageBtn) prevPageBtn.interactable = (_pageIndex > 0);
         if (nextPageBtn) nextPageBtn.interactable = (_pageIndex < pageCount - 1);
         if (pageLabel) pageLabel.text = $"Page {_pageIndex + 1} of {pageCount}";
+
+        if (classListContainer is RectTransform containerRt)
+            LayoutRebuilder.ForceRebuildLayoutImmediate(containerRt);
     }
 
     private GameObject CreateClassCard(string className, string code, bool selected)
@@ -584,68 +698,173 @@ public class TeacherClassManager : MonoBehaviour
         card.layer = 5;
 
         var rt = card.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(0, 80);
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(0.5f, 1f);
+        rt.sizeDelta = new Vector2(0f, classCardHeight);
 
         var le = card.AddComponent<LayoutElement>();
-        le.preferredHeight = 80;
+        le.minHeight = classCardHeight;
+        le.preferredHeight = classCardHeight;
+        le.flexibleHeight = 0f;
+        le.minWidth = fallbackClassCardWidth;
+        le.preferredWidth = fallbackClassCardWidth;
         le.flexibleWidth = 1;
 
         var bg = card.AddComponent<Image>();
-        bg.color = selected
-            ? new Color(0.85f, 0.68f, 0.30f, 1f)
-            : new Color(1f, 1f, 1f, 0.95f);
+        bg.sprite = GetSolidUiSprite();
+        bg.type = Image.Type.Simple;
+        bg.color = selected ? rowFillHighlight : rowFill;
         bg.raycastTarget = true;
+        bg.maskable = false;
+
+        var shadow = card.AddComponent<Shadow>();
+        shadow.effectColor = shadowColor;
+        shadow.effectDistance = new Vector2(0f, -3f);
 
         var outline = card.AddComponent<Outline>();
-        outline.effectColor = selected ? Color.yellow : new Color(0.6f, 0.5f, 0.3f, 1f);
-        outline.effectDistance = new Vector2(3, -3);
+        outline.effectColor = selected ? new Color(1f, 0.95f, 0.82f, 0.45f) : outlineColor;
+        outline.effectDistance = new Vector2(1.5f, -1.5f);
 
         var btn = card.AddComponent<Button>();
         btn.targetGraphic = bg;
         btn.transition = Selectable.Transition.ColorTint;
-        var colors = btn.colors;
-        colors.highlightedColor = new Color(0.9f, 0.85f, 0.7f, 1f);
-        colors.pressedColor = new Color(0.7f, 0.6f, 0.4f, 1f);
-        btn.colors = colors;
+        var cb = ColorBlock.defaultColorBlock;
+        cb.normalColor = Color.white;
+        cb.highlightedColor = Color.white;
+        cb.pressedColor = Color.white;
+        cb.selectedColor = Color.white;
+        cb.disabledColor = new Color(1f, 1f, 1f, 0.55f);
+        cb.colorMultiplier = 1f;
+        cb.fadeDuration = 0.08f;
+        btn.colors = cb;
 
-        // Class name — black text, large, left-aligned
-        var nameGO = new GameObject("ClassName", typeof(RectTransform));
-        nameGO.layer = 5;
-        nameGO.transform.SetParent(card.transform, false);
-        var nameRT = nameGO.GetComponent<RectTransform>();
-        nameRT.anchorMin = new Vector2(0, 0);
-        nameRT.anchorMax = new Vector2(0.65f, 1);
-        nameRT.offsetMin = new Vector2(20, 5);
-        nameRT.offsetMax = new Vector2(0, -5);
+        const float accentW = 6f;
+        var accentGo = new GameObject("Accent");
+        accentGo.transform.SetParent(card.transform, false);
+        var accentRt = accentGo.AddComponent<RectTransform>();
+        accentRt.anchorMin = new Vector2(0f, 0f);
+        accentRt.anchorMax = new Vector2(0f, 1f);
+        accentRt.pivot = new Vector2(0f, 0.5f);
+        accentRt.offsetMin = new Vector2(3f, 6f);
+        accentRt.offsetMax = new Vector2(3f + accentW, -6f);
+        var accentImg = accentGo.AddComponent<Image>();
+        accentImg.sprite = GetSolidUiSprite();
+        accentImg.color = selected ? new Color(1f, 0.9f, 0.64f, 0.95f) : accentBarColor;
+        accentImg.raycastTarget = false;
+        accentImg.maskable = false;
 
-        var nameTMP = nameGO.AddComponent<TextMeshProUGUI>();
-        nameTMP.text = className;
-        nameTMP.fontSize = 30;
-        nameTMP.fontStyle = FontStyles.Bold;
-        nameTMP.color = selected ? Color.white : Color.black;
-        nameTMP.alignment = TextAlignmentOptions.Left;
-        nameTMP.raycastTarget = false;
-        nameTMP.enableWordWrapping = false;
-        nameTMP.overflowMode = TextOverflowModes.Ellipsis;
+        var chevronGo = new GameObject("Chevron");
+        chevronGo.transform.SetParent(card.transform, false);
+        var chevRt = chevronGo.AddComponent<RectTransform>();
+        chevRt.anchorMin = new Vector2(1f, 0f);
+        chevRt.anchorMax = new Vector2(1f, 1f);
+        chevRt.pivot = new Vector2(1f, 0.5f);
+        chevRt.sizeDelta = new Vector2(40f, 0f);
+        chevRt.anchoredPosition = new Vector2(-10f, 0f);
+        var chev = chevronGo.AddComponent<TextMeshProUGUI>();
+        chev.text = "\u203A";
+        chev.fontSize = 40f;
+        chev.fontStyle = FontStyles.Normal;
+        chev.color = chevronColor;
+        chev.alignment = TextAlignmentOptions.MidlineRight;
+        chev.raycastTarget = false;
+        chev.maskable = false;
+        chev.enableAutoSizing = false;
+        ApplyCardFont(chev);
 
-        // Code — dark gray, right-aligned
-        var codeGO = new GameObject("ClassCode", typeof(RectTransform));
-        codeGO.layer = 5;
-        codeGO.transform.SetParent(card.transform, false);
-        var codeRT = codeGO.GetComponent<RectTransform>();
-        codeRT.anchorMin = new Vector2(0.65f, 0);
-        codeRT.anchorMax = new Vector2(1, 1);
-        codeRT.offsetMin = new Vector2(0, 5);
-        codeRT.offsetMax = new Vector2(-20, -5);
+        var textBlock = new GameObject("TextBlock");
+        textBlock.transform.SetParent(card.transform, false);
+        var tbRt = textBlock.AddComponent<RectTransform>();
+        tbRt.anchorMin = Vector2.zero;
+        tbRt.anchorMax = Vector2.one;
+        float textLeft = 3f + accentW + 12f;
+        float textRight = 46f;
+        tbRt.offsetMin = new Vector2(textLeft, 10f);
+        tbRt.offsetMax = new Vector2(-textRight, -10f);
 
-        var codeTMP = codeGO.AddComponent<TextMeshProUGUI>();
-        codeTMP.text = $"Code: {code}";
-        codeTMP.fontSize = 24;
-        codeTMP.color = selected ? new Color(1f, 1f, 1f, 0.85f) : new Color(0.3f, 0.3f, 0.3f, 1f);
-        codeTMP.alignment = TextAlignmentOptions.Right;
-        codeTMP.raycastTarget = false;
+        var vlg = textBlock.AddComponent<VerticalLayoutGroup>();
+        vlg.spacing = 2f;
+        vlg.childAlignment = TextAnchor.UpperLeft;
+        vlg.childControlWidth = true;
+        vlg.childControlHeight = true;
+        vlg.childForceExpandWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.padding = new RectOffset(0, 0, 2, 0);
+
+        var titleGo = new GameObject("Title");
+        titleGo.transform.SetParent(textBlock.transform, false);
+        var titleLe = titleGo.AddComponent<LayoutElement>();
+        titleLe.preferredHeight = 38f;
+        titleLe.flexibleHeight = 0f;
+        var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
+        titleTmp.text = className;
+        titleTmp.fontSize = 26f;
+        titleTmp.fontStyle = FontStyles.Bold;
+        titleTmp.color = selected ? Color.white : titleColor;
+        titleTmp.alignment = TextAlignmentOptions.Left;
+        titleTmp.textWrappingMode = TextWrappingModes.NoWrap;
+        titleTmp.overflowMode = TextOverflowModes.Ellipsis;
+        titleTmp.raycastTarget = false;
+        titleTmp.maskable = false;
+        ApplyCardFont(titleTmp);
+
+        var subGo = new GameObject("Subtitle");
+        subGo.transform.SetParent(textBlock.transform, false);
+        var subLe = subGo.AddComponent<LayoutElement>();
+        subLe.preferredHeight = 24f;
+        subLe.flexibleHeight = 0f;
+        var subTmp = subGo.AddComponent<TextMeshProUGUI>();
+        subTmp.text = $"Code: {code}";
+        subTmp.fontSize = 17f;
+        subTmp.fontStyle = FontStyles.Normal;
+        subTmp.color = selected ? new Color(1f, 1f, 1f, 0.85f) : subtitleColor;
+        subTmp.alignment = TextAlignmentOptions.Left;
+        subTmp.textWrappingMode = TextWrappingModes.NoWrap;
+        subTmp.overflowMode = TextOverflowModes.Ellipsis;
+        subTmp.raycastTarget = false;
+        subTmp.maskable = false;
+        ApplyCardFont(subTmp);
 
         return card;
+    }
+
+    private void EnsureCardHasSize(RectTransform rt)
+    {
+        if (rt == null)
+            return;
+
+        float containerWidth = 0f;
+        if (classListContainer is RectTransform containerRt)
+            containerWidth = containerRt.rect.width;
+
+        float targetWidth = containerWidth > 1f ? containerWidth : fallbackClassCardWidth;
+
+        rt.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, targetWidth);
+        rt.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 0f, classCardHeight);
+
+        if (rt.sizeDelta.y < 1f)
+            rt.sizeDelta = new Vector2(rt.sizeDelta.x, classCardHeight);
+    }
+
+    private void ApplyCardFont(TextMeshProUGUI tmp)
+    {
+        if (tmp != null && cardFont != null)
+            tmp.font = cardFont;
+    }
+
+    private static Sprite GetSolidUiSprite()
+    {
+        if (_solidUiSprite != null)
+            return _solidUiSprite;
+
+        var tex = Texture2D.whiteTexture;
+        _solidUiSprite = Sprite.Create(
+            tex,
+            new Rect(0, 0, tex.width, tex.height),
+            new Vector2(0.5f, 0.5f),
+            100f);
+        return _solidUiSprite;
     }
 
     // Rename class
