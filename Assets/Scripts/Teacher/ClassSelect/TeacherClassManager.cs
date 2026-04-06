@@ -1,5 +1,7 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -76,6 +78,8 @@ public class TeacherClassManager : MonoBehaviour
 
     void Start()
     {
+        ApplyStudentHubVisualStyle();
+
         // Wire up buttons
         if (joinBtn) joinBtn.onClick.AddListener(JoinSelected);
         if (createBtn) createBtn.onClick.AddListener(ShowCreatePanel);
@@ -91,6 +95,7 @@ public class TeacherClassManager : MonoBehaviour
         bool isClassSelectMode = classListContainer != null;
         if (isClassSelectMode)
         {
+            BypassAdventureGateIfPresent();
             ShowListPanel();
             StartCoroutine(LoadClasses());
         }
@@ -100,6 +105,174 @@ public class TeacherClassManager : MonoBehaviour
             EnsureEditListButton();
             StartCoroutine(LoadSelectedClassDetailsRoutine());
         }
+    }
+
+    private void BypassAdventureGateIfPresent()
+    {
+        // Legacy TeacherClassSelect layout used an extra button gate before showing class tools.
+        // Ensure teachers always land directly on class list/create/edit UI.
+        if (classListPanel != null)
+        {
+            var classListRoot = classListPanel.transform.parent != null
+                ? classListPanel.transform.parent.gameObject
+                : classListPanel;
+
+            if (!classListRoot.activeSelf)
+                classListRoot.SetActive(true);
+        }
+
+        var adventureBtn = GameObject.Find("AdventureBtn");
+        if (adventureBtn != null && adventureBtn.activeSelf)
+            adventureBtn.SetActive(false);
+
+        UpdateButtonVisibility();
+    }
+
+    private void ApplyStudentHubVisualStyle()
+    {
+        EnsureStudentHubBackgroundEffect();
+        ApplyStudentHubButtonStyle();
+    }
+
+    private void EnsureStudentHubBackgroundEffect()
+    {
+        var canvas = FindFirstObjectByType<Canvas>();
+        if (canvas == null)
+            return;
+
+        var backgroundRect = FindBackgroundRect(canvas.transform as RectTransform);
+        if (backgroundRect == null)
+            return;
+
+        var studentHubBgType = FindTypeByName("StudentHubBackground");
+        if (studentHubBgType == null)
+            return;
+
+        var bgFx = backgroundRect.GetComponent(studentHubBgType);
+        if (bgFx == null)
+            bgFx = backgroundRect.gameObject.AddComponent(studentHubBgType);
+
+        // Keep the same gentle movement behavior StudentHub uses.
+        var field = studentHubBgType.GetField("backgroundRect", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (field != null)
+            field.SetValue(bgFx, backgroundRect);
+    }
+
+    private RectTransform FindBackgroundRect(RectTransform canvasRect)
+    {
+        if (canvasRect == null)
+            return null;
+
+        RectTransform best = null;
+        float bestArea = 0f;
+
+        var images = canvasRect.GetComponentsInChildren<Image>(true);
+        for (int i = 0; i < images.Length; i++)
+        {
+            var img = images[i];
+            if (img == null)
+                continue;
+
+            var rect = img.rectTransform;
+            if (rect == null)
+                continue;
+
+            string name = img.gameObject.name;
+            bool nameLooksBackground = name.IndexOf("background", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || name.IndexOf("bg", System.StringComparison.OrdinalIgnoreCase) >= 0;
+
+            bool fullStretch = rect.anchorMin.x <= 0.01f && rect.anchorMin.y <= 0.01f
+                && rect.anchorMax.x >= 0.99f && rect.anchorMax.y >= 0.99f;
+
+            if (!nameLooksBackground && !fullStretch)
+                continue;
+
+            float area = Mathf.Abs(rect.rect.width * rect.rect.height);
+            if (area <= bestArea)
+                continue;
+
+            bestArea = area;
+            best = rect;
+        }
+
+        return best;
+    }
+
+    private void ApplyStudentHubButtonStyle()
+    {
+        var buttons = FindObjectsByType<Button>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        if (buttons == null || buttons.Length == 0)
+            return;
+
+        var hoverType = FindTypeByName("ButtonHoverEffect");
+
+        Color panelBtnColor = new Color(0.28f, 0.22f, 0.1f, 0.75f);
+        Color textColor = new Color(0.95f, 0.9f, 0.78f, 1f);
+
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            var btn = buttons[i];
+            if (btn == null)
+                continue;
+
+            btn.transition = Selectable.Transition.None;
+
+            var img = btn.GetComponent<Image>();
+            if (img != null)
+            {
+                img.color = panelBtnColor;
+                btn.targetGraphic = img;
+            }
+
+            if (hoverType != null && btn.GetComponent(hoverType) == null)
+                btn.gameObject.AddComponent(hoverType);
+
+            var label = btn.GetComponentInChildren<TMP_Text>(true);
+            if (label != null)
+                label.color = textColor;
+
+            bool isSignOut = btn.gameObject.name.IndexOf("signout", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || btn.gameObject.name.IndexOf("sign out", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            if (!isSignOut)
+                continue;
+
+            if (label != null)
+            {
+                label.text = "Sign Out";
+                label.color = textColor;
+            }
+
+            var layout = btn.GetComponent<LayoutElement>();
+            if (layout != null)
+            {
+                layout.preferredWidth = 200f;
+                layout.preferredHeight = 55f;
+            }
+
+            var rect = btn.GetComponent<RectTransform>();
+            if (rect != null)
+                rect.sizeDelta = new Vector2(Mathf.Max(180f, rect.sizeDelta.x), Mathf.Max(55f, rect.sizeDelta.y));
+        }
+    }
+
+    private Type FindTypeByName(string typeName)
+    {
+        if (string.IsNullOrWhiteSpace(typeName))
+            return null;
+
+        var direct = Type.GetType(typeName);
+        if (direct != null)
+            return direct;
+
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+        for (int i = 0; i < assemblies.Length; i++)
+        {
+            var type = assemblies[i].GetType(typeName);
+            if (type != null)
+                return type;
+        }
+
+        return null;
     }
 
     private void EnsureBackButtonWiring()
