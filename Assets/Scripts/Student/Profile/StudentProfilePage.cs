@@ -18,6 +18,8 @@ public class StudentProfilePage : MonoBehaviour
     [SerializeField] private TMP_Text totalXpText;
     [SerializeField] private TMP_Text levelText;
     [SerializeField] private Image xpBarFill;
+    [SerializeField] private Color xpBarColor = new Color(0.1f, 1f, 0.2f, 1f);
+    [SerializeField] private float profileTitleAboveCardOffset = 24f;
     [SerializeField] private Button backButton;
     [SerializeField] private Button signOutButton;
     [SerializeField] private CanvasGroup uiGroup;
@@ -59,15 +61,41 @@ public class StudentProfilePage : MonoBehaviour
             return;
 
         var rt = profileTitleText.rectTransform;
-        rt.anchorMin = new Vector2(0f, 1f);
-        rt.anchorMax = new Vector2(0f, 1f);
-        rt.pivot = new Vector2(0f, 1f);
-        rt.anchoredPosition = new Vector2(36f, -28f);
+        var parentRt = rt.parent as RectTransform;
+        RectTransform cardRt = FindRectTransformByName("ProfileCard");
+
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0f);
         rt.sizeDelta = new Vector2(480f, 70f);
 
-        profileTitleText.alignment = TextAlignmentOptions.TopLeft;
+        if (parentRt != null && cardRt != null)
+        {
+            Canvas canvas = parentRt.GetComponentInParent<Canvas>();
+            Camera cam = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+
+            Vector3 cardTopWorld = cardRt.TransformPoint(new Vector3(0f, cardRt.rect.yMax, 0f));
+            Vector2 screen = RectTransformUtility.WorldToScreenPoint(cam, cardTopWorld);
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(parentRt, screen, cam, out Vector2 localPoint))
+            {
+                rt.anchoredPosition = new Vector2(localPoint.x, localPoint.y + profileTitleAboveCardOffset);
+            }
+        }
+
+        profileTitleText.alignment = TextAlignmentOptions.Center;
         profileTitleText.enableWordWrapping = false;
         profileTitleText.transform.SetAsLastSibling();
+    }
+
+    private RectTransform FindRectTransformByName(string targetName)
+    {
+        foreach (RectTransform r in GetComponentsInChildren<RectTransform>(true))
+        {
+            if (r != null && r.name == targetName)
+                return r;
+        }
+
+        return null;
     }
 
     private IEnumerator LoadProfile()
@@ -154,6 +182,7 @@ public class StudentProfilePage : MonoBehaviour
 
         if (xpBarFill != null)
         {
+            xpBarFill.color = xpBarColor;
             int xpForNext = maxLevel * 100;
             int currentLevelXp = totalXp % xpForNext;
             xpBarFill.fillAmount = Mathf.Clamp01((float)currentLevelXp / xpForNext);
