@@ -47,8 +47,8 @@ public class TeacherClassManager : MonoBehaviour
     [SerializeField] private Button editBtn;     // editBtn (shows edit panel)
 
     [Header("Selection Visuals")]
-    [SerializeField] private Color unselectedColor = new Color(1f, 1f, 1f, 1f);
-    [SerializeField] private Color selectedColor   = new Color(0.85f, 0.92f, 1f, 1f); // light blue
+    [SerializeField] private Color unselectedColor = new Color(0.22f, 0.18f, 0.12f, 0.90f);
+    [SerializeField] private Color selectedColor   = new Color(0.45f, 0.35f, 0.15f, 0.95f);
 
     private FirebaseAuth auth;
     private FirebaseFirestore db;
@@ -86,8 +86,6 @@ public class TeacherClassManager : MonoBehaviour
         if (prevPageBtn) prevPageBtn.onClick.AddListener(PrevPage);
         if (nextPageBtn) nextPageBtn.onClick.AddListener(NextPage);
 
-        // This script is shared by Class Select and Teacher Class scenes.
-        // If list refs exist, run list mode; otherwise render selected class details mode.
         bool isClassSelectMode = classListContainer != null;
         if (isClassSelectMode)
         {
@@ -312,8 +310,7 @@ public class TeacherClassManager : MonoBehaviour
 
     // Panel Management
 
-    // Show class list panel
-    private void ShowListPanel()
+    public void ShowListPanel()
     {
         if (classListPanel) classListPanel.SetActive(true);
         if (editPanel) editPanel.SetActive(false);
@@ -448,7 +445,6 @@ public class TeacherClassManager : MonoBehaviour
         yield return new WaitUntil(() => mapTask.IsCompleted);
         if (mapTask.IsFaulted || mapTask.IsCanceled) { Debug.LogError(mapTask.Exception); yield break; }
 
-        // Go back to list and refresh
         ShowListPanel();
         yield return StartCoroutine(LoadClasses());
     }
@@ -469,14 +465,12 @@ public class TeacherClassManager : MonoBehaviour
         var user = auth.CurrentUser;
         if (user == null) yield break;
 
-        // Get class index for current user
         var q = db.Collection("users").Document(user.UserId).Collection("classes");
         var task = q.GetSnapshotAsync();
         yield return new WaitUntil(() => task.IsCompleted);
         if (task.IsFaulted || task.IsCanceled) { Debug.LogError(task.Exception); yield break; }
 
         _all.Clear();
-        // Populate from index
         foreach (var d in task.Result)
         {
             string id   = d.ContainsField("id")   ? d.GetValue<string>("id")   : d.Id;
@@ -520,90 +514,138 @@ public class TeacherClassManager : MonoBehaviour
         if (editBtn) editBtn.gameObject.SetActive(hasSelection);
     }
 
-    // Render current page of class list
     private void RenderPage()
     {
-        foreach (Transform c in classListContainer) Destroy(c.gameObject); // clear existing
+        Debug.Log($"[TCM] RenderPage — container={classListContainer}, " +
+                  $"parent={classListContainer?.parent?.name}, " +
+                  $"count={_all.Count}");
 
-        // Show "no classes" graphic if needed
+        foreach (Transform c in classListContainer) Destroy(c.gameObject);
+
         bool hasAny = _all.Count > 0;
         if (emptyListGraphic) emptyListGraphic.SetActive(!hasAny);
 
-        int pageCount = Mathf.Max(1, Mathf.CeilToInt(_all.Count / (float)pageSize)); // at least 1 page 
-        _pageIndex = Mathf.Clamp(_pageIndex, 0, pageCount - 1); // clamp page index
+        int pageCount = Mathf.Max(1, Mathf.CeilToInt(_all.Count / (float)pageSize));
+        _pageIndex = Mathf.Clamp(_pageIndex, 0, pageCount - 1);
 
-        // Render items for current page
         int start = _pageIndex * pageSize;
         int end   = Mathf.Min(start + pageSize, _all.Count);
 
-        // Instantiate class items
         for (int i = start; i < end; i++)
         {
             var row = _all[i];
-            var go = Instantiate(classListItemPrefab, classListContainer); // create item
-
-            // Bind texts
-            var nameTxt = go.transform.Find("ClassName")?.GetComponent<TMP_Text>();
-            var codeTxt = go.transform.Find("ClassCode")?.GetComponent<TMP_Text>();
-            if (nameTxt) nameTxt.text = row.name;
-            if (codeTxt) codeTxt.text = $"Code: {row.code}";
-
-            // Ensure an Image to tint for highlight
-            var bg = go.GetComponent<Image>();
-            if (!bg) bg = go.AddComponent<Image>();
-            bg.raycastTarget = true;
-
-            // Ensure a Button to receive clicks
-            var btn = go.GetComponent<Button>();
-            if (!btn) btn = go.AddComponent<Button>();
-            if (btn.targetGraphic == null) btn.targetGraphic = bg;
-
-            // Highlight color
             bool isSelected = (row.id == _selectedClassId);
-            bg.color = isSelected ? selectedColor : unselectedColor;
 
-            // Click card to select
+            var go = CreateClassCard(row.name, row.code, isSelected);
+            go.transform.SetParent(classListContainer, false);
+
             int capturedI = i;
             var capturedId = row.id;
             var capturedName = row.name;
             var capturedCode = row.code;
 
-            // Clear previous listeners
+            var btn = go.GetComponent<Button>();
             btn.onClick.RemoveAllListeners();
-
-            // Add new listener
             btn.onClick.AddListener(() =>
             {
-                // If this card is already selected → unselect it
                 if (_selectedClassId == capturedId)
                 {
                     _selectedClassId = null;
                     _selectedIndex   = -1;
-
-                    // Optional: clear global selection too
                     ClassSelection.CurrentClassId   = null;
                     ClassSelection.CurrentClassName = null;
                     ClassSelection.CurrentClassCode = null;
                 }
                 else
                 {
-                    // Otherwise select this card
                     _selectedClassId = capturedId;
                     _selectedIndex   = capturedI;
-
                     ClassSelection.CurrentClassId   = capturedId;
                     ClassSelection.CurrentClassName = capturedName;
                     ClassSelection.CurrentClassCode = capturedCode;
                 }
 
                 UpdateButtonVisibility();
-                RenderPage(); // re-tint all tiles with new selection state
+                RenderPage();
             });
+
+            Debug.Log($"[TCM] Card created: '{row.name}' active={go.activeSelf} " +
+                      $"parentActive={go.transform.parent?.gameObject.activeInHierarchy}");
         }
 
         if (prevPageBtn) prevPageBtn.interactable = (_pageIndex > 0);
         if (nextPageBtn) nextPageBtn.interactable = (_pageIndex < pageCount - 1);
         if (pageLabel) pageLabel.text = $"Page {_pageIndex + 1} of {pageCount}";
+    }
+
+    private GameObject CreateClassCard(string className, string code, bool selected)
+    {
+        var card = new GameObject("ClassCard", typeof(RectTransform));
+        card.layer = 5;
+
+        var rt = card.GetComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(0, 80);
+
+        var le = card.AddComponent<LayoutElement>();
+        le.preferredHeight = 80;
+        le.flexibleWidth = 1;
+
+        var bg = card.AddComponent<Image>();
+        bg.color = selected
+            ? new Color(0.85f, 0.68f, 0.30f, 1f)
+            : new Color(1f, 1f, 1f, 0.95f);
+        bg.raycastTarget = true;
+
+        var outline = card.AddComponent<Outline>();
+        outline.effectColor = selected ? Color.yellow : new Color(0.6f, 0.5f, 0.3f, 1f);
+        outline.effectDistance = new Vector2(3, -3);
+
+        var btn = card.AddComponent<Button>();
+        btn.targetGraphic = bg;
+        btn.transition = Selectable.Transition.ColorTint;
+        var colors = btn.colors;
+        colors.highlightedColor = new Color(0.9f, 0.85f, 0.7f, 1f);
+        colors.pressedColor = new Color(0.7f, 0.6f, 0.4f, 1f);
+        btn.colors = colors;
+
+        // Class name — black text, large, left-aligned
+        var nameGO = new GameObject("ClassName", typeof(RectTransform));
+        nameGO.layer = 5;
+        nameGO.transform.SetParent(card.transform, false);
+        var nameRT = nameGO.GetComponent<RectTransform>();
+        nameRT.anchorMin = new Vector2(0, 0);
+        nameRT.anchorMax = new Vector2(0.65f, 1);
+        nameRT.offsetMin = new Vector2(20, 5);
+        nameRT.offsetMax = new Vector2(0, -5);
+
+        var nameTMP = nameGO.AddComponent<TextMeshProUGUI>();
+        nameTMP.text = className;
+        nameTMP.fontSize = 30;
+        nameTMP.fontStyle = FontStyles.Bold;
+        nameTMP.color = selected ? Color.white : Color.black;
+        nameTMP.alignment = TextAlignmentOptions.Left;
+        nameTMP.raycastTarget = false;
+        nameTMP.enableWordWrapping = false;
+        nameTMP.overflowMode = TextOverflowModes.Ellipsis;
+
+        // Code — dark gray, right-aligned
+        var codeGO = new GameObject("ClassCode", typeof(RectTransform));
+        codeGO.layer = 5;
+        codeGO.transform.SetParent(card.transform, false);
+        var codeRT = codeGO.GetComponent<RectTransform>();
+        codeRT.anchorMin = new Vector2(0.65f, 0);
+        codeRT.anchorMax = new Vector2(1, 1);
+        codeRT.offsetMin = new Vector2(0, 5);
+        codeRT.offsetMax = new Vector2(-20, -5);
+
+        var codeTMP = codeGO.AddComponent<TextMeshProUGUI>();
+        codeTMP.text = $"Code: {code}";
+        codeTMP.fontSize = 24;
+        codeTMP.color = selected ? new Color(1f, 1f, 1f, 0.85f) : new Color(0.3f, 0.3f, 0.3f, 1f);
+        codeTMP.alignment = TextAlignmentOptions.Right;
+        codeTMP.raycastTarget = false;
+
+        return card;
     }
 
     // Rename class
