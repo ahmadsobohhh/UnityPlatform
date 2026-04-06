@@ -10,16 +10,17 @@ public class LoadJoinClassScene : MonoBehaviour
     [SerializeField] private float popupFadeDuration = 0.18f;
 
     [Header("Theme")]
-    [SerializeField] private Color panelColor = new Color(0.03f, 0.04f, 0.06f, 0.78f);
-    [SerializeField] private Color titleColor = new Color(0.93f, 0.82f, 0.57f, 1f);
-    [SerializeField] private Color inputBackgroundColor = new Color(0.75f, 0.75f, 0.75f, 0.9f);
-    [SerializeField] private Color inputTextColor = new Color(0.16f, 0.16f, 0.16f, 1f);
-    [SerializeField] private Color inputPlaceholderColor = new Color(0.52f, 0.52f, 0.52f, 0.85f);
-    [SerializeField] private Color joinButtonColor = new Color(0.43f, 0.31f, 0.12f, 0.96f);
-    [SerializeField] private Color joinButtonTextColor = new Color(0.95f, 0.95f, 0.95f, 1f);
-    [SerializeField] private float titleFontSize = 42f;
-    [SerializeField] private float inputFontSize = 26f;
+    [SerializeField] private Color panelColor = new Color(0.02f, 0.03f, 0.05f, 0.9f);
+    [SerializeField] private Color titleColor = new Color(0.95f, 0.84f, 0.6f, 1f);
+    [SerializeField] private Color inputBackgroundColor = new Color(0.11f, 0.14f, 0.2f, 0.96f);
+    [SerializeField] private Color inputTextColor = new Color(0.92f, 0.92f, 0.92f, 1f);
+    [SerializeField] private Color inputPlaceholderColor = new Color(0.72f, 0.72f, 0.72f, 0.9f);
+    [SerializeField] private Color joinButtonColor = new Color(0.18f, 0.55f, 0.27f, 1f);
+    [SerializeField] private Color joinButtonTextColor = new Color(0.98f, 0.98f, 0.98f, 1f);
+    [SerializeField] private float titleFontSize = 48f;
+    [SerializeField] private float inputFontSize = 30f;
     [SerializeField] private float placeholderFontSize = 24f;
+    [SerializeField] private float joinButtonFontSize = 34f;
 
     private CanvasGroup popupGroup;
     private RectTransform popupRect;
@@ -105,6 +106,8 @@ public class LoadJoinClassScene : MonoBehaviour
         var panelImage = joinPopup.GetComponent<Image>();
         if (panelImage != null)
         {
+            panelImage.sprite = null;
+            panelImage.type = Image.Type.Simple;
             panelImage.color = panelColor;
             panelImage.raycastTarget = true;
         }
@@ -143,17 +146,17 @@ public class LoadJoinClassScene : MonoBehaviour
 
         if (title != null)
         {
-            title.text = "Join a Class";
+            title.text = "Join Class";
             title.color = titleColor;
             title.fontSize = titleFontSize;
-            title.fontStyle = FontStyles.Normal;
+            title.fontStyle = FontStyles.Bold;
             title.alignment = TextAlignmentOptions.Center;
         }
 
         if (closeX != null)
         {
             closeX.color = titleColor;
-            closeX.fontSize = Mathf.Max(closeX.fontSize, 34f);
+            closeX.fontSize = Mathf.Max(closeX.fontSize, 40f);
         }
 
         if (input != null)
@@ -172,7 +175,7 @@ public class LoadJoinClassScene : MonoBehaviour
             var ph = input.placeholder as TMP_Text;
             if (ph != null)
             {
-                ph.text = "Enter class code...";
+                ph.text = "Enter class code";
                 ph.color = inputPlaceholderColor;
                 ph.fontSize = placeholderFontSize;
                 ph.fontStyle = FontStyles.Italic;
@@ -188,9 +191,10 @@ public class LoadJoinClassScene : MonoBehaviour
             var label = joinBtn.GetComponentInChildren<TMP_Text>(true);
             if (label != null)
             {
-                label.text = "Join";
+                label.text = "Join Class";
                 label.color = joinButtonTextColor;
-                label.fontSize = Mathf.Max(label.fontSize, 40f);
+                label.fontSize = Mathf.Max(label.fontSize, joinButtonFontSize);
+                label.fontStyle = FontStyles.Bold;
             }
         }
     }
