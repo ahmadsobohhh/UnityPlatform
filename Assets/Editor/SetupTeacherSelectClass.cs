@@ -39,6 +39,7 @@ public static class SetupTeacherSelectClass
         EnsureFadeOverlay(canvas.transform);
         EnsureAudioManager();
         WireTeacherClassManager(canvas);
+        WireBackgroundParallax(canvas);
         ApplyFontToAll(canvas.transform);
         FixSiblingOrder(canvas.transform);
 
@@ -1040,6 +1041,25 @@ public static class SetupTeacherSelectClass
         var editCancelBtn = FindDeep(canvas.transform, "EditCancelBtn");
         if (editCancelBtn != null)
             WireButton(editCancelBtn, manager, "ShowListPanel");
+    }
+
+    // ────────────────────────── WIRE BACKGROUND PARALLAX ──────────────────────────
+
+    static void WireBackgroundParallax(GameObject canvas)
+    {
+        var particlesObj = canvas.transform.Find("FloatingParticles");
+        if (particlesObj == null) return;
+
+        var script = particlesObj.GetComponent<TeacherFloatingParticles>();
+        if (script == null) return;
+
+        var so = new SerializedObject(script);
+
+        var bg = canvas.transform.Find("Background");
+        if (bg != null)
+            so.FindProperty("backgroundRect").objectReferenceValue = bg.GetComponent<RectTransform>();
+
+        so.ApplyModifiedProperties();
     }
 
     // ────────────────────────── SIBLING ORDER ──────────────────────────

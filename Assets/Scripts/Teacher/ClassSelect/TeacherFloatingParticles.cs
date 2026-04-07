@@ -3,6 +3,16 @@ using UnityEngine.UI;
 
 public class TeacherFloatingParticles : MonoBehaviour
 {
+    [Header("Parallax (Background Image)")]
+    [SerializeField] private RectTransform backgroundRect;
+    [SerializeField] private float parallaxStrength = 20f;
+    [SerializeField] private float parallaxSmooth = 3f;
+
+    [Header("Auto Drift")]
+    [SerializeField] private bool autoDrift = true;
+    [SerializeField] private float autoDriftSpeed = 0.08f;
+    [SerializeField] private float autoDriftAmount = 12f;
+
     [Header("Particle Settings")]
     [SerializeField] private int particleCount = 30;
     [SerializeField] private float minSize = 3f;
@@ -28,8 +38,15 @@ public class TeacherFloatingParticles : MonoBehaviour
     private Image[] particleImages;
     private float canvasW, canvasH;
 
+    private Vector2 bgStartPos;
+    private Vector2 parallaxOffset;
+    private Vector2 parallaxVelocity;
+
     private void Awake()
     {
+        if (backgroundRect != null)
+            bgStartPos = backgroundRect.anchoredPosition;
+
         CacheCanvasSize();
         RebuildParticles();
     }
@@ -41,6 +58,8 @@ public class TeacherFloatingParticles : MonoBehaviour
 
     private void Update()
     {
+        UpdateParallax();
+
         if (particles == null || particleImages == null || particles.Length != particleImages.Length)
         {
             EnsureValid();
@@ -80,6 +99,31 @@ public class TeacherFloatingParticles : MonoBehaviour
             c.a = p.color.a * (0.3f + flicker * 0.7f);
             particleImages[i].color = c;
         }
+    }
+
+    private void UpdateParallax()
+    {
+        if (backgroundRect == null) return;
+
+        Vector2 mouseTarget = Vector2.zero;
+        if (Camera.main != null)
+        {
+            Vector2 viewport = Camera.main.ScreenToViewportPoint(Input.mousePosition);
+            mouseTarget = (viewport - new Vector2(0.5f, 0.5f)) * parallaxStrength;
+        }
+
+        Vector2 drift = Vector2.zero;
+        if (autoDrift)
+        {
+            float t = Time.time * autoDriftSpeed;
+            drift = new Vector2(
+                Mathf.Sin(t) * autoDriftAmount,
+                Mathf.Cos(t * 0.6f) * autoDriftAmount * 0.4f);
+        }
+
+        Vector2 target = bgStartPos + mouseTarget + drift;
+        parallaxOffset = Vector2.SmoothDamp(parallaxOffset, target - bgStartPos, ref parallaxVelocity, 1f / parallaxSmooth);
+        backgroundRect.anchoredPosition = bgStartPos + parallaxOffset;
     }
 
     private void CacheCanvasSize()
