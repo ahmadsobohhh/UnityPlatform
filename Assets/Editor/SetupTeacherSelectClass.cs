@@ -646,14 +646,14 @@ public static class SetupTeacherSelectClass
         barGO.transform.SetParent(canvas, false);
 
         var barRect = barGO.AddComponent<RectTransform>();
-        barRect.anchorMin = new Vector2(1, 0);
-        barRect.anchorMax = new Vector2(1, 0);
-        barRect.pivot = new Vector2(1, 0);
-        barRect.anchoredPosition = new Vector2(-20, 16);
-        barRect.sizeDelta = new Vector2(480, 48);
+        barRect.anchorMin = new Vector2(0.5f, 0);
+        barRect.anchorMax = new Vector2(0.5f, 0);
+        barRect.pivot = new Vector2(0.5f, 0);
+        barRect.anchoredPosition = new Vector2(0, 16);
+        barRect.sizeDelta = new Vector2(620, 48);
 
         var hlg = barGO.AddComponent<HorizontalLayoutGroup>();
-        hlg.childAlignment = TextAnchor.MiddleRight;
+        hlg.childAlignment = TextAnchor.MiddleCenter;
         hlg.spacing = 12;
         hlg.childForceExpandWidth = false;
         hlg.childForceExpandHeight = true;
