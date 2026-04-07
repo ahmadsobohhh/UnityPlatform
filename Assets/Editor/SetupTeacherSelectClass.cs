@@ -28,6 +28,7 @@ public static class SetupTeacherSelectClass
         FixCanvasScaler(canvas);
         SetupBackground(canvas.transform);
         SetupDarkOverlay(canvas.transform);
+        EnsureFloatingParticles(canvas.transform);
         BuildClassListPanel(canvas.transform);
         BuildCreateClassPanel(canvas.transform);
         BuildEditPanel(canvas.transform);
@@ -38,6 +39,7 @@ public static class SetupTeacherSelectClass
         EnsureFadeOverlay(canvas.transform);
         EnsureAudioManager();
         WireTeacherClassManager(canvas);
+        WireBackgroundParallax(canvas);
         ApplyFontToAll(canvas.transform);
         FixSiblingOrder(canvas.transform);
 
@@ -47,6 +49,7 @@ public static class SetupTeacherSelectClass
             "TeacherClassSelect UI rebuilt!\n\n" +
             "  Background (captain hat)\n" +
             "  DarkOverlay\n" +
+            "  FloatingParticles\n" +
             "  ClassListPanel (dark transparent)\n" +
             "  CreateClassPanel (popup)\n" +
             "  EditPanel (popup)\n" +
@@ -61,7 +64,7 @@ public static class SetupTeacherSelectClass
     static void CleanupOldObjects(Transform canvas)
     {
         string[] stale = {
-            "DarkOverlay", "ClassListPanel", "CreateClassPanel", "EditPanel",
+            "DarkOverlay", "FloatingParticles", "ClassListPanel", "CreateClassPanel", "EditPanel",
             "BottomBar", "BottomRightBar", "FadeOverlay", "Header",
             "VideoBackground", "AnimatedBackground", "ClassManager",
             "SignOutBtn", "SignoutBtn", "SettingsBtn", "SettingsPanel",
@@ -192,6 +195,31 @@ public static class SetupTeacherSelectClass
         var img = go.AddComponent<Image>();
         img.color = new Color(0f, 0f, 0f, 0.45f);
         img.raycastTarget = false;
+    }
+
+    // ────────────────────────── FLOATING PARTICLES ──────────────────────────
+
+    static void EnsureFloatingParticles(Transform canvas)
+    {
+        var existing = canvas.Find("FloatingParticles");
+        if (existing != null)
+        {
+            if (existing.GetComponent<TeacherFloatingParticles>() == null)
+                existing.gameObject.AddComponent<TeacherFloatingParticles>();
+            return;
+        }
+
+        var go = new GameObject("FloatingParticles");
+        go.transform.SetParent(canvas, false);
+
+        var rect = go.AddComponent<RectTransform>();
+        Stretch(rect);
+
+        var cg = go.AddComponent<CanvasGroup>();
+        cg.blocksRaycasts = false;
+        cg.interactable = false;
+
+        go.AddComponent<TeacherFloatingParticles>();
     }
 
     // ────────────────────────── CLASS LIST PANEL ──────────────────────────
@@ -618,14 +646,14 @@ public static class SetupTeacherSelectClass
         barGO.transform.SetParent(canvas, false);
 
         var barRect = barGO.AddComponent<RectTransform>();
-        barRect.anchorMin = new Vector2(1, 0);
-        barRect.anchorMax = new Vector2(1, 0);
-        barRect.pivot = new Vector2(1, 0);
-        barRect.anchoredPosition = new Vector2(-20, 16);
-        barRect.sizeDelta = new Vector2(480, 48);
+        barRect.anchorMin = new Vector2(0.5f, 0);
+        barRect.anchorMax = new Vector2(0.5f, 0);
+        barRect.pivot = new Vector2(0.5f, 0);
+        barRect.anchoredPosition = new Vector2(0, 16);
+        barRect.sizeDelta = new Vector2(620, 48);
 
         var hlg = barGO.AddComponent<HorizontalLayoutGroup>();
-        hlg.childAlignment = TextAnchor.MiddleRight;
+        hlg.childAlignment = TextAnchor.MiddleCenter;
         hlg.spacing = 12;
         hlg.childForceExpandWidth = false;
         hlg.childForceExpandHeight = true;
@@ -990,11 +1018,13 @@ public static class SetupTeacherSelectClass
             so.FindProperty("editBtn").objectReferenceValue = editBtn.GetComponent<Button>();
 
         // Item colors — must contrast clearly against the dark panel (0.02, 0.02, 0.05, 0.65)
-        var unselProp = so.FindProperty("unselectedColor");
-        unselProp.colorValue = new Color(0.30f, 0.25f, 0.18f, 0.85f);
+        var rowFillProp = so.FindProperty("rowFill");
+        if (rowFillProp != null)
+            rowFillProp.colorValue = new Color(0.30f, 0.25f, 0.18f, 0.85f);
 
-        var selProp = so.FindProperty("selectedColor");
-        selProp.colorValue = new Color(0.50f, 0.38f, 0.15f, 0.90f);
+        var rowHighlightProp = so.FindProperty("rowFillHighlight");
+        if (rowHighlightProp != null)
+            rowHighlightProp.colorValue = new Color(0.50f, 0.38f, 0.15f, 0.90f);
 
         so.ApplyModifiedProperties();
 
@@ -1013,6 +1043,25 @@ public static class SetupTeacherSelectClass
             WireButton(editCancelBtn, manager, "ShowListPanel");
     }
 
+    // ────────────────────────── WIRE BACKGROUND PARALLAX ──────────────────────────
+
+    static void WireBackgroundParallax(GameObject canvas)
+    {
+        var particlesObj = canvas.transform.Find("FloatingParticles");
+        if (particlesObj == null) return;
+
+        var script = particlesObj.GetComponent<TeacherFloatingParticles>();
+        if (script == null) return;
+
+        var so = new SerializedObject(script);
+
+        var bg = canvas.transform.Find("Background");
+        if (bg != null)
+            so.FindProperty("backgroundRect").objectReferenceValue = bg.GetComponent<RectTransform>();
+
+        so.ApplyModifiedProperties();
+    }
+
     // ────────────────────────── SIBLING ORDER ──────────────────────────
 
     static void FixSiblingOrder(Transform canvas)
@@ -1020,6 +1069,7 @@ public static class SetupTeacherSelectClass
         string[] order = {
             "Background",
             "DarkOverlay",
+            "FloatingParticles",
             "ClassListPanel",
             "CreateClassPanel",
             "EditPanel",
