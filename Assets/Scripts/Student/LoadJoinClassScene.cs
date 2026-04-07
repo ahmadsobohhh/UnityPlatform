@@ -258,6 +258,60 @@ public class LoadJoinClassScene : MonoBehaviour
                 label.fontStyle = FontStyles.Bold;
             }
         }
+
+        EnsureCloseButton();
+    }
+
+    private void EnsureCloseButton()
+    {
+        if (joinPopup == null) return;
+
+        Transform existing = joinPopup.transform.Find("CloseXBtn");
+        if (existing != null)
+        {
+            var existingBtn = existing.GetComponent<Button>();
+            if (existingBtn != null)
+            {
+                existingBtn.onClick.RemoveAllListeners();
+                existingBtn.onClick.AddListener(CloseJoinClassPopup);
+            }
+            return;
+        }
+
+        var go = new GameObject("CloseXBtn");
+        go.transform.SetParent(joinPopup.transform, false);
+        go.transform.SetAsLastSibling();
+
+        var btnImg = go.AddComponent<Image>();
+        btnImg.color = new Color(0.3f, 0.25f, 0.18f, 0.5f);
+        btnImg.raycastTarget = true;
+
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(1f, 1f);
+        rt.anchoredPosition = new Vector2(-10f, -10f);
+        rt.sizeDelta = new Vector2(44f, 44f);
+
+        var txt = new GameObject("Label");
+        txt.transform.SetParent(go.transform, false);
+        var txtRt = txt.AddComponent<RectTransform>();
+        txtRt.anchorMin = Vector2.zero;
+        txtRt.anchorMax = Vector2.one;
+        txtRt.offsetMin = Vector2.zero;
+        txtRt.offsetMax = Vector2.zero;
+        var tmp = txt.AddComponent<TextMeshProUGUI>();
+        tmp.text = "X";
+        tmp.fontSize = 28f;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.color = new Color(0.95f, 0.88f, 0.70f, 1f);
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.raycastTarget = false;
+
+        var btn = go.AddComponent<Button>();
+        btn.transition = Selectable.Transition.None;
+        btn.targetGraphic = btnImg;
+        btn.onClick.AddListener(CloseJoinClassPopup);
     }
 
     public void OpenJoinClassPopup()

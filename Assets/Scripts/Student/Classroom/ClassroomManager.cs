@@ -36,6 +36,11 @@ public class ClassroomManager : MonoBehaviour
 
     private readonly List<MemberInfo> members = new List<MemberInfo>();
 
+    void Awake()
+    {
+        HideContentPanel();
+    }
+
     void Start()
     {
         auth = FirebaseAuth.DefaultInstance;
@@ -58,8 +63,6 @@ public class ClassroomManager : MonoBehaviour
             classCodeLabel.text = string.IsNullOrEmpty(classCode) ? "" : "Code: " + classCode;
         if (noStudentsText)
             noStudentsText.SetActive(false);
-
-        HideContentPanel();
 
         if (!string.IsNullOrEmpty(classId))
             StartCoroutine(LoadMembers());
