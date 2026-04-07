@@ -16,7 +16,7 @@ public class StudentClassLoader : MonoBehaviour
     public GameObject noClassesText;
 
     [Header("Scene")]
-    public string classSceneName = "StudentClass";
+    public string classSceneName = "ClassroomScene";
 
     [Header("Class row look")]
     [SerializeField] private float rowHeight = 100f;

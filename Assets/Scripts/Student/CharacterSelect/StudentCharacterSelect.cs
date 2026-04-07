@@ -169,7 +169,7 @@ public class StudentCharacterSelect : MonoBehaviour
         ClassSelection.CurrentClassName = className;
         ClassSelection.CurrentClassCode = classCode;
 
-        SceneManager.LoadScene("StudentClass"); // load class scene
+        SceneManager.LoadScene("ClassroomScene"); // load class scene
     }
 
 
@@ -371,7 +371,7 @@ public class StudentCharacterSelect : MonoBehaviour
                 ClassSelection.CurrentClassId = classId;
                 ClassSelection.CurrentClassName = className;
                 // if needed: ClassSelection.CurrentClassCode = ... (not required)
-                SceneManager.LoadScene("StudentClass");
+                SceneManager.LoadScene("ClassroomScene");
             });
         }
     }

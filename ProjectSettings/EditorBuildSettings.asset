@@ -29,6 +29,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/StudentPages/StudentProfile.unity
     guid: 30a528441d077f1459e08c8a4963e8f0
+  - enabled: 1
+    path: Assets/Scenes/StudentPages/ClassroomScene.unity
+    guid: 53367bc3ac563264a9f01f361ad9a9bd
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0
