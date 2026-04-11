@@ -1,3 +1,7 @@
+// Script: StudentProfilePage
+// Path: Assets/Scripts/Student/Profile/StudentProfilePage.cs
+// Purpose: Loads and displays student profile data and profile actions.
+
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -231,3 +235,5 @@ public class StudentProfilePage : MonoBehaviour
         SceneTransition.LoadScene("WelcomePage");
     }
 }
+
+

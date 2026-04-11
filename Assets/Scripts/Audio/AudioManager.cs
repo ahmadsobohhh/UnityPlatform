@@ -1,3 +1,7 @@
+// Script: AudioManager
+// Path: Assets/Scripts/Audio/AudioManager.cs
+// Purpose: Manages global music and sound effects playback across scenes.
+
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -218,3 +222,5 @@ public class AudioManager : MonoBehaviour
         if (newClip != null) musicSource.Play();
     }
 }
+
+

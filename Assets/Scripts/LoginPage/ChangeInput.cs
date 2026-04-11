@@ -1,3 +1,7 @@
+// Script: ChangeInput
+// Path: Assets/Scripts/LoginPage/ChangeInput.cs
+// Purpose: Switches selected input fields and keyboard navigation behavior.
+
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -57,3 +61,5 @@ public class ChangeInput : MonoBehaviour
         return -1;
     }
 }
+
+

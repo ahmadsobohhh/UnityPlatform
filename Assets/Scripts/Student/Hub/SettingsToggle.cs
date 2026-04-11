@@ -1,3 +1,7 @@
+// Script: SettingsToggle
+// Path: Assets/Scripts/Student/Hub/SettingsToggle.cs
+// Purpose: Opens and closes the settings panel with UI transitions.
+
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -131,3 +135,5 @@ public class SettingsToggle : MonoBehaviour
         panelGroup.alpha = Mathf.Lerp(panelGroup.alpha, targetAlpha, Time.deltaTime * 10f);
     }
 }
+
+

@@ -1,3 +1,7 @@
+// Script: ButtonHoverEffect
+// Path: Assets/Scripts/WelcomePage/ButtonHoverEffect.cs
+// Purpose: Applies hover color and visual feedback on menu buttons.
+
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -64,3 +68,5 @@ public class ButtonHoverEffect : MonoBehaviour, IPointerEnterHandler, IPointerEx
         targetColor = hoverTextColor;
     }
 }
+
+

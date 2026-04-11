@@ -1,3 +1,7 @@
+// Script: StudentClassRowButtonColors
+// Path: Assets/Scripts/Student/StudentClassRowButtonColors.cs
+// Purpose: Applies hover/selection color states for class row buttons.
+
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -65,3 +69,5 @@ public class StudentClassRowButtonColors : MonoBehaviour,
             _img.color = _normal;
     }
 }
+
+

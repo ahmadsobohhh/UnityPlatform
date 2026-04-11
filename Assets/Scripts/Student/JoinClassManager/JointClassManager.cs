@@ -1,3 +1,7 @@
+// Script: JointClassManager
+// Path: Assets/Scripts/Student/JoinClassManager/JointClassManager.cs
+// Purpose: Validates class join input and enrolls students into classes.
+
 using UnityEngine;
 using TMPro;
 using UnityEngine.SceneManagement;
@@ -214,3 +218,4 @@ public class JointClassManager : MonoBehaviour
         SceneManager.LoadScene(sceneToLoad);
     }
 }
+

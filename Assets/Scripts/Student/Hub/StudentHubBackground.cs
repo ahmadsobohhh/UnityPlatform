@@ -1,3 +1,7 @@
+// Script: StudentHubBackground
+// Path: Assets/Scripts/Student/Hub/StudentHubBackground.cs
+// Purpose: Updates hub background visuals, motion, and ambience effects.
+
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -200,3 +204,5 @@ public class StudentHubBackground : MonoBehaviour
         }
     }
 }
+
+

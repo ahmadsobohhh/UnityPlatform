@@ -1,3 +1,7 @@
+// Script: TeacherFloatingParticles
+// Path: Assets/Scripts/Teacher/ClassSelect/TeacherFloatingParticles.cs
+// Purpose: Renders decorative floating particle motion in teacher UI.
+
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -195,3 +199,5 @@ public class TeacherFloatingParticles : MonoBehaviour
         }
     }
 }
+
+

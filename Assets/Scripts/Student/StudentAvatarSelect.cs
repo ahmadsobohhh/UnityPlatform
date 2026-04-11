@@ -1,3 +1,7 @@
+// Script: StudentAvatarSelect
+// Path: Assets/Scripts/Student/StudentAvatarSelect.cs
+// Purpose: Saves the selected student avatar to the user profile.
+
 using Firebase.Auth;
 using Firebase.Firestore;
 using UnityEngine;
@@ -48,3 +52,4 @@ public class StudentAvatarSelect : MonoBehaviour
         }
     }
 }
+

@@ -1,3 +1,7 @@
+// Script: ClassroomManager
+// Path: Assets/Scripts/Student/Classroom/ClassroomManager.cs
+// Purpose: Controls student classroom scene setup and runtime interactions.
+
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -244,3 +248,5 @@ public class ClassroomManager : MonoBehaviour
         SceneTransition.LoadScene("StudentHub");
     }
 }
+
+

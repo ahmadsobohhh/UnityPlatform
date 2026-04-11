@@ -1,3 +1,7 @@
+// Script: TeacherClassManager
+// Path: Assets/Scripts/Teacher/ClassSelect/TeacherClassManager.cs
+// Purpose: Handles teacher class CRUD, selection, and list rendering.
+
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
@@ -963,3 +967,4 @@ public class TeacherClassManager : MonoBehaviour
     }
 
 }
+

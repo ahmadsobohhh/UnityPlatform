@@ -1,3 +1,7 @@
+// Script: ClassCardHover
+// Path: Assets/Scripts/Student/Hub/ClassCardHover.cs
+// Purpose: Animates class card visuals on pointer hover and exit.
+
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -98,3 +102,5 @@ public class ClassCardHover : MonoBehaviour,
         targetBg = hoverBg;
     }
 }
+
+

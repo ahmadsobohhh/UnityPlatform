@@ -1,3 +1,7 @@
+// Script: MenuParallax
+// Path: Assets/Scripts/WelcomePage/MenuParallax.cs
+// Purpose: Applies pointer-driven parallax movement to menu background.
+
 using UnityEngine;
 
 public class MenuParallax : MonoBehaviour
@@ -36,3 +40,5 @@ public class MenuParallax : MonoBehaviour
         transform.position = Vector3.SmoothDamp(transform.position, target, ref velocity, smoothTime);
     }
 }
+
+

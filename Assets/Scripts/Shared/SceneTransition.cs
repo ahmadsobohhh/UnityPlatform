@@ -1,3 +1,7 @@
+// Script: SceneTransition
+// Path: Assets/Scripts/Shared/SceneTransition.cs
+// Purpose: Performs animated scene changes and transition timing control.
+
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -89,3 +93,5 @@ public class SceneTransition : MonoBehaviour
         busy = false;
     }
 }
+
+

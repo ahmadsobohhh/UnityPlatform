@@ -1,3 +1,7 @@
+// Script: MenuAnimator
+// Path: Assets/Scripts/WelcomePage/MenuAnimator.cs
+// Purpose: Animates welcome menu panels and transition states.
+
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -107,3 +111,5 @@ public class MenuAnimator : MonoBehaviour
         return 1f - Mathf.Pow(1f - x, 3f);
     }
 }
+
+

@@ -1,3 +1,7 @@
+// Script: ButtonPulseEffect
+// Path: Assets/Scripts/WelcomePage/ButtonPulseEffect.cs
+// Purpose: Adds pulsing visual emphasis to key menu buttons.
+
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -59,3 +63,5 @@ public class ButtonPulseEffect : MonoBehaviour
         if (bg != null) baseColor = bg.color;
     }
 }
+
+

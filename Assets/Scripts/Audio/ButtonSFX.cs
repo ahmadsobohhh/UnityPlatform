@@ -1,3 +1,7 @@
+// Script: ButtonSFX
+// Path: Assets/Scripts/Audio/ButtonSFX.cs
+// Purpose: Plays hover and click sound feedback for UI buttons.
+
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -16,3 +20,5 @@ public class ButtonSFX : MonoBehaviour, IPointerEnterHandler, IPointerClickHandl
             AudioManager.Instance.PlayClick();
     }
 }
+
+

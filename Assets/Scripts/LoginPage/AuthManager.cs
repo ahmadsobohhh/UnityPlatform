@@ -1,3 +1,7 @@
+// Script: AuthManager
+// Path: Assets/Scripts/LoginPage/AuthManager.cs
+// Purpose: Handles login/signup flow and Firebase authentication state.
+
 using System.Collections; 
 using UnityEngine;
 using UnityEngine.UI;
@@ -541,3 +545,5 @@ public class AuthManager : MonoBehaviour
         uiLabel.text = msg;
     }
 }
+
+

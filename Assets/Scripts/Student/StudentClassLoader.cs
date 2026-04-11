@@ -1,3 +1,7 @@
+// Script: StudentClassLoader
+// Path: Assets/Scripts/Student/StudentClassLoader.cs
+// Purpose: Fetches student classes and builds class list UI entries.
+
 using Firebase.Auth;
 using Firebase.Firestore;
 using UnityEngine;
@@ -650,3 +654,5 @@ public class StudentClassLoader : MonoBehaviour
         SceneManager.LoadScene(classSceneName);
     }
 }
+
+

@@ -1,3 +1,7 @@
+// Script: MainMenu
+// Path: Assets/Scripts/WelcomePage/MainMenu.cs
+// Purpose: Routes top-level main menu button actions.
+
 using UnityEngine;
 
 public class MainMenu : MonoBehaviour
@@ -31,3 +35,5 @@ public class MainMenu : MonoBehaviour
             UIManager.Instance.ShowMainMenu();
     }
 }
+
+

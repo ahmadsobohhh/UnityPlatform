@@ -1,3 +1,7 @@
+// Script: StudentCharacterSelect
+// Path: Assets/Scripts/Student/CharacterSelect/StudentCharacterSelect.cs
+// Purpose: Displays available characters and manages character selection.
+
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -409,3 +413,5 @@ public class StudentCharacterSelect : MonoBehaviour
         }
     }
 }
+
+

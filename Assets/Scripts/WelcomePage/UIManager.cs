@@ -1,3 +1,7 @@
+// Script: UIManager
+// Path: Assets/Scripts/WelcomePage/UIManager.cs
+// Purpose: Manages active welcome-page panels and menu visibility.
+
 using System.Collections;
 using UnityEngine;
 
@@ -87,3 +91,5 @@ public class UIManager : MonoBehaviour
         group.gameObject.SetActive(false);
     }
 }
+
+

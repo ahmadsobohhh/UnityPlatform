@@ -1,3 +1,7 @@
+// Script: CharacterCreation
+// Path: Assets/Scripts/Student/CharacterCreation/CharacterCreation.cs
+// Purpose: Drives student character creation selections and persistence.
+
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -222,3 +226,5 @@ public class CharacterCreation : MonoBehaviour
         }
     }
 }
+
+

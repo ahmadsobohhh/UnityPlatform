@@ -1,3 +1,7 @@
+// Script: LoadJoinClassScene
+// Path: Assets/Scripts/Student/LoadJoinClassScene.cs
+// Purpose: Loads and prepares the student Join Class scene UI and state.
+
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -395,3 +399,4 @@ public class LoadJoinClassScene : MonoBehaviour
             popupRect.localScale = Vector3.one;
     }
 }
+

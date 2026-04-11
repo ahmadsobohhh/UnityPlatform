@@ -1,3 +1,7 @@
+// Script: StudentHubAnimator
+// Path: Assets/Scripts/Student/Hub/StudentHubAnimator.cs
+// Purpose: Animates student hub entrance, panels, and UI elements.
+
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -139,3 +143,5 @@ public class StudentHubAnimator : MonoBehaviour
         return 1f - Mathf.Pow(1f - x, 3f);
     }
 }
+
+

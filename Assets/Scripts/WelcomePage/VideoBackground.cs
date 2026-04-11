@@ -1,3 +1,7 @@
+// Script: VideoBackground
+// Path: Assets/Scripts/WelcomePage/VideoBackground.cs
+// Purpose: Controls looping background video playback and fallback handling.
+
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Video;
@@ -60,3 +64,5 @@ public class VideoBackground : MonoBehaviour
         }
     }
 }
+
+
