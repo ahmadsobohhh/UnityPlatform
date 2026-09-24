@@ -1,162 +1,85 @@
-# Classes and Character Selection — Change and Restoration Record
+# Classes and Character Selection — UI Fix Record
 
-## Why this file exists
+## Scope of this fix
 
-This record explains the regression visible on the Classes page, exactly how this
-branch caused it, and what has been restored. It is intentionally written in plain
-language so the project history is understandable without reading Unity YAML files.
+This document records the narrow UI fix made after the Classes page and character
+selection screen were visually covered by a new harbour image.
 
-Audit baseline: `main...feature/celestial-clock-quest`.
+The teacher/student class workflow, quest assignment controls, and standalone quest
+remain in place. This fix does **not** remove those features.
 
-The original Celestial Clock implementation consisted of three commits:
+## Root cause
 
-- `eb57689` — quest vertical slice, imported art, class/lobby integration, and
-  Firebase scaffold.
-- `817efdb` — local Windows preview builder and editor preview command.
-- `75a3a73` — preview-only missing-scene guard.
-
-The original implementation changed 266 paths against `main` (257 additions and
-9 modifications). The restoration below removes only the UI changes that altered
-existing product pages; the standalone quest, its assets, and preview tooling remain.
-
-## The visible regression
-
-### Harbour image and dark/opaque legacy pages
-
-**Added file:** `Assets/Scripts/Frontend/PremiumFrontendPolish.cs`
-
-This script ran automatically after every scene load. It targeted all of these
-existing pages:
-
-- `WelcomePage`
-- `Login`
-- `StudentAvatarSelect`
-- `StudentHub`
-- `ClassroomScene`
-- `TeacherClassSelect`
-- `TeacherClass`
-- `StudentProfile`
-- `StudentJoinClassWCode`
-
-For each page, it added a `PremiumHarbourBackdrop` to the first Canvas. That backdrop
-loaded `Assets/Resources/Frontend/pirate-academy-harbour.png` at 88% opacity, then
-added a navy veil at 44% opacity and a low harbour-glow layer. It also changed button
-outlines and label/text colours and shadows at runtime.
-
-This was the source of the new harbour picture in the screenshot. It also explains
-why character selection changed even though no character-selection scene or character
-selection script was edited.
-
-**Restoration completed:**
-
-- Removed `PremiumFrontendPolish.cs` and its Unity metadata.
-- Removed the harbour image resource and its metadata.
-- Removed the now-empty frontend folder metadata.
-
-`StudentAvatarSelect.unity`, `StudentCharacterSelect.cs`, and
-`CharacterCreation.cs` had no branch diff versus `main`; after the global script was
-removed, character selection returns to its authored appearance and behaviour.
-
-### Added quest status/card on the Classes pages
-
-The screenshot text `Quest status could not be loaded. Please try again.` came from
-the added `StudentQuestLobby` component after its Firestore assignment read failed.
-
-The initial implementation added the following legacy-page UI:
-
-- **StudentHub:** a bottom-right `StartPirateQuestButton`, Canvas `QuestLauncher`,
-  Canvas `StudentQuestLobby`, and the runtime status label.
-- **ClassroomScene:** Canvas `QuestLauncher` and Canvas `StudentQuestLobby`; the
-  component built a lower-right quest card at runtime.
-- **TeacherClass:** Canvas `TeacherQuestLobby`; the component built a lower-right
-  unlock/lock control at runtime and changed serialized class-row presentation values.
-- **QuestLobbyAutoSetup:** an automatic scene-load script which re-added those
-  components if a Canvas did not already have them.
-
-**Restoration completed:**
-
-- Restored `StudentHub.unity` exactly to its `main` version.
-- Restored `ClassroomScene.unity` exactly to its `main` version.
-- Restored `TeacherClass.unity` exactly to its `main` version.
-- Removed `QuestLobbyAutoSetup.cs` so no legacy page can gain quest UI at runtime.
-- Removed `QuestLobbyControllers.cs`, which created the student status/card and
-  teacher unlock panel.
-- Removed `SetupPirateQuestIntegration.cs`, the editor command that could put those
-  controls back into legacy pages.
-- Changed `SetupCelestialClockQuest.cs` so its setup command creates only the
-  standalone quest scene and build-setting entry. It no longer opens, edits, or adds
-  components to Student Hub or Classroom scenes.
-
-## Opacity failure-path repair
-
-`StudentClassLoader` already hid the Class overlay before its Firebase class query.
-Its error/no-user path did not reveal that overlay again, which could leave the
-original class UI transparent after an offline, permission, or authentication error.
-
-**Change made during restoration:**
-
-- Added `ShowClassesAfterLoadFailure()` in
-  `Assets/Scripts/Student/StudentClassLoader.cs`.
-- The no-user and exception paths now re-enable the existing authored Classes UI and
-  show its existing empty-state message instead of leaving the canvas faded out.
-
-This is a resilience fix, not a redesign: it does not add a background, move layout,
-or restyle the page.
-
-## Changes intentionally retained
-
-The following remain in the branch because they are isolated from existing classes and
-character-selection layouts:
-
-- `Assets/Scenes/Gameplay/CelestialClockQuest.unity` and the Celestial Clock runtime:
-  the standalone pirate learning quest, ship deck, captain, four math challenges,
-  journal, progress, and completion flow.
-- `Assets/Content/Quests/CelestialClockQuest.asset` and the quest framework under
-  `Assets/Scripts/QuestFramework/`.
-- Imported art under `Assets/Gameplay/Pirate/` and `Assets/Gameplay/ColonialShip/`.
-- Preview tools: `BuildCelestialClockPreview.cs` and the editor preview menu command.
-- The preview-only `SceneTransition` guard, which prevents a one-scene standalone
-  preview from trying to load an omitted hub scene.
-- Firebase Functions, rules, indexes, and seed files under `firebase/`. These are a
-  scaffold only; they have not been deployed or connected to the restored legacy UI.
-- Class-data reliability changes that do not restyle screens:
-  normalized class-code/membership data in `JointClassManager.cs`, class-context
-  synchronization in `StudentClassLoader.cs`, and normalized teacher class metadata
-  in `TeacherClassManager.cs`.
-
-The quest can be opened directly from
-`Assets/Scenes/Gameplay/CelestialClockQuest.unity` or with
-**Tools > Imagine Quest > Preview Celestial Clock Quest**. It no longer appears on or
-changes the existing Classes or character-selection pages.
-
-## Verification performed
-
-After restoration, these three legacy scenes are byte-for-byte equivalent in content
-to their `main` versions (apart from working-tree line-ending normalization):
+The visual regression came from one runtime-only script added in the Celestial Clock
+work:
 
 ```text
-Assets/Scenes/StudentPages/StudentHub.unity
-Assets/Scenes/StudentPages/ClassroomScene.unity
-Assets/Scenes/TeacherPages/TeacherClass.unity
+Assets/Scripts/Frontend/PremiumFrontendPolish.cs
 ```
 
-You can independently verify the scene restoration with:
+It automatically ran after every scene load and targeted these existing screens:
+
+- Welcome Page and Login
+- Student Avatar Select / character selection
+- Student Hub / Your Classes
+- Classroom Scene
+- Teacher Class Select and Teacher Class
+- Student Profile and Join Class
+
+For each target Canvas, it added a full-screen `PremiumHarbourBackdrop`, loaded the
+harbour artwork at 88% opacity, then added a 44% navy veil. It also changed button
+outlines plus text colours and shadows. That is why the existing Classes and character
+selection layouts became faint and appeared behind the new picture.
+
+## Changes made now
+
+### Removed
+
+- `Assets/Scripts/Frontend/PremiumFrontendPolish.cs`
+- Its Unity metadata file
+
+Because this was the only automatic visual layer, removing it restores the authored
+look of the existing pages. `StudentAvatarSelect.unity`, `StudentCharacterSelect.cs`,
+and `CharacterCreation.cs` were never changed by the Celestial Clock branch.
+
+### Kept and restored
+
+The following functionality remains deliberately intact:
+
+- Student Hub and Classroom quest entry controls.
+- Teacher class quest unlock/lock control.
+- `QuestLobbyAutoSetup`, `QuestLobbyControllers`, and `QuestLauncher`.
+- The pirate harbour image resource. It is retained as an asset but is no longer
+  loaded automatically by any legacy screen.
+- `SetupPirateQuestIntegration` and `SetupCelestialClockQuest` editor tools.
+- The standalone Celestial Clock game, its pirate/ship art, quest framework, Firebase
+  scaffold, and local preview builder.
+
+### Reliability fix retained
+
+`Assets/Scripts/Student/StudentClassLoader.cs` now reveals the existing Classes UI
+when its authentication or Firebase class query fails. Before this change, a failed
+load could leave the original content transparent. This fix does not add artwork,
+change layout, or restyle the page.
+
+## Explicitly not changed by this UI fix
+
+- The existing character-selection scene hierarchy and character-selection scripts.
+- Teacher/student class creation and joining logic.
+- The quest scene: `Assets/Scenes/Gameplay/CelestialClockQuest.unity`.
+- Any user-owned URP/font/project-settings changes or `Vision Document.docx`.
+
+## Verify the current behavior
+
+1. Exit Play mode and let Unity reload scripts.
+2. Open `Assets/Scenes/StudentPages/StudentHub.unity` and press Play.
+3. The normal Classes UI and character selection should retain their original look;
+   the full-screen harbour image and dark veil should not appear.
+4. Existing teacher/student quest controls remain available as before.
+
+For the complete branch history, use:
 
 ```powershell
-git diff --exit-code main -- Assets/Scenes/StudentPages/StudentHub.unity
-git diff --exit-code main -- Assets/Scenes/StudentPages/ClassroomScene.unity
-git diff --exit-code main -- Assets/Scenes/TeacherPages/TeacherClass.unity
-```
-
-For the full file-by-file history of the original implementation, run:
-
-```powershell
-git diff --name-status main...feature/celestial-clock-quest
 git log --oneline main..feature/celestial-clock-quest
+git diff --name-status main...feature/celestial-clock-quest
 ```
-
-## Unrelated local files preserved
-
-This restoration does not stage, delete, or alter the pre-existing local URP/font/
-project-settings changes or `Vision Document.docx`. They remain outside the feature
-branch work.

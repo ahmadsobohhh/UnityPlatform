@@ -3,8 +3,7 @@ using UnityEngine;
 namespace ImagineQuest.Gameplay
 {
     /// <summary>
-    /// Optional entry point for a future dedicated quest menu. It does not attach
-    /// itself to any legacy student, teacher, or character-selection page.
+    /// Entry point used by the student hub and, later, teacher-assigned quest cards.
     /// </summary>
     public sealed class QuestLauncher : MonoBehaviour
     {

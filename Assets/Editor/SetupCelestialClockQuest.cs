@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ImagineQuest.Gameplay;
 using ImagineQuest.QuestFramework;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -14,6 +15,8 @@ using UnityEngine.SceneManagement;
 public static class SetupCelestialClockQuest
 {
     private const string QuestScenePath = "Assets/Scenes/Gameplay/CelestialClockQuest.unity";
+    private const string StudentHubScenePath = "Assets/Scenes/StudentPages/StudentHub.unity";
+    private const string ClassroomScenePath = "Assets/Scenes/StudentPages/ClassroomScene.unity";
     private const string ShipPrefabPath = "Assets/Gameplay/ColonialShip/02_Prefabs/Colonial Ship_Empty.prefab";
     private const string CaptainPrefabPath = "Assets/Gameplay/Pirate/Prefabs/Pirate_01.prefab";
     private const string TreasurePrefabPath = "Assets/Gameplay/ColonialShip/02_Prefabs/Extra Items/Treasure_Chest.prefab";
@@ -49,6 +52,7 @@ public static class SetupCelestialClockQuest
     {
         var definition = CreateOrUpdateQuestDefinition();
         CreateQuestScene(definition);
+        UpdateExistingQuestLaunchers();
         AddQuestSceneToBuildSettings();
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -56,7 +60,7 @@ public static class SetupCelestialClockQuest
         if (showDialog)
         {
             EditorUtility.DisplayDialog("Celestial Clock quest ready",
-                "Created the CelestialClockQuest scene and added it to the build settings. Existing student and teacher pages are unchanged.", "OK");
+                "Created the CelestialClockQuest scene and updated existing student quest launch buttons to use it.", "OK");
         }
         else
         {
@@ -196,6 +200,77 @@ public static class SetupCelestialClockQuest
 
         property.objectReferenceValue = prefab;
         serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void UpdateExistingQuestLaunchers()
+    {
+        UpdateLauncherInScene(StudentHubScenePath, true);
+        UpdateLauncherInScene(ClassroomScenePath, false);
+    }
+
+    private static void UpdateLauncherInScene(string scenePath, bool updateHubButtonLabel)
+    {
+        var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+        var launcher = Object.FindFirstObjectByType<QuestLauncher>();
+        if (launcher == null)
+        {
+            var canvas = Object.FindFirstObjectByType<Canvas>();
+            if (canvas == null)
+            {
+                Debug.LogWarning("[CelestialClockQuest] No Canvas found in " + scenePath + ".");
+                return;
+            }
+
+            launcher = canvas.gameObject.AddComponent<QuestLauncher>();
+        }
+
+        var serialized = new SerializedObject(launcher);
+        var sceneName = serialized.FindProperty("questSceneName");
+        if (sceneName != null)
+        {
+            sceneName.stringValue = "CelestialClockQuest";
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+        var questId = serialized.FindProperty("defaultQuestId");
+        if (questId != null)
+        {
+            questId.stringValue = "celestial-clock";
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+        var assignmentId = serialized.FindProperty("defaultAssignmentId");
+        if (assignmentId != null)
+        {
+            assignmentId.stringValue = "pirate-voyage";
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        if (updateHubButtonLabel)
+        {
+            var buttonTransform = FindTransformInLoadedScene("StartPirateQuestButton");
+            if (buttonTransform != null)
+            {
+                var label = buttonTransform.GetComponentInChildren<TMP_Text>(true);
+                if (label != null)
+                    label.text = "BEGIN CELESTIAL CLOCK";
+            }
+        }
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+    }
+
+    private static Transform FindTransformInLoadedScene(string name)
+    {
+        var activeScene = SceneManager.GetActiveScene();
+        foreach (var root in activeScene.GetRootGameObjects())
+        {
+            foreach (var child in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name == name)
+                    return child;
+            }
+        }
+        return null;
     }
 
     private static void AddQuestSceneToBuildSettings()
