@@ -28,10 +28,24 @@ public static class SetupCelestialClockQuest
         RunInternal(true);
     }
 
+    [MenuItem("Tools/Imagine Quest/Preview Celestial Clock Quest")]
+    public static void PreviewInEditor()
+    {
+        EditorSceneManager.OpenScene(QuestScenePath, OpenSceneMode.Single);
+        // Let the editor finish opening the authored scene before entering Play mode.
+        EditorApplication.delayCall += () => EditorApplication.isPlaying = true;
+    }
+
     /// <summary>Batch-mode entry point used by the project verification command.</summary>
     public static void RunFromCommandLine()
     {
         RunInternal(false);
+    }
+
+    /// <summary>Interactive command-line entry point for a visible quest preview.</summary>
+    public static void PreviewFromCommandLine()
+    {
+        PreviewInEditor();
     }
 
     private static void RunInternal(bool showDialog)
