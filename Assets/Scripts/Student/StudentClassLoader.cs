@@ -327,6 +327,7 @@ public class StudentClassLoader : MonoBehaviour
         if (user == null)
         {
             Debug.LogError("[StudentClassLoader] No user logged in.");
+            ShowClassesAfterLoadFailure();
             return;
         }
 
@@ -398,7 +399,20 @@ public class StudentClassLoader : MonoBehaviour
 
             foreach (Transform child in classContainer)
                 Destroy(child.gameObject);
+
+            // A network or permission failure must not leave the authored Classes
+            // page transparent. Keep its original empty-state UI visible instead.
+            ShowClassesAfterLoadFailure();
         }
+    }
+
+    private void ShowClassesAfterLoadFailure()
+    {
+        if (noClassesText != null)
+            noClassesText.SetActive(true);
+
+        StopCoroutine(nameof(RevealLoadedOverlay));
+        SetLoadingStateVisible(true);
     }
 
     private void RebuildAndAnimate()

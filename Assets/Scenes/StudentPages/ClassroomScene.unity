@@ -1051,8 +1051,6 @@ GameObject:
   - component: {fileID: 660327530}
   - component: {fileID: 660327529}
   - component: {fileID: 660327528}
-  - component: {fileID: 660327534}
-  - component: {fileID: 660327535}
   m_Layer: 0
   m_Name: Canvas
   m_TagString: Untagged
@@ -1195,34 +1193,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
---- !u!114 &660327534
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 660327527}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d3c0dc428bbe8f941bf17e7950d1b2b8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: GameRuntime::ImagineQuest.Gameplay.StudentQuestLobby
---- !u!114 &660327535
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 660327527}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4383bca055ab8144696305f7fecef86f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: GameRuntime::ImagineQuest.Gameplay.QuestLauncher
-  defaultQuestId: celestial-clock
-  defaultAssignmentId: pirate-voyage
-  questSceneName: CelestialClockQuest
-  introVideoUrl: 
 --- !u!1 &664851518
 GameObject:
   m_ObjectHideFlags: 0
