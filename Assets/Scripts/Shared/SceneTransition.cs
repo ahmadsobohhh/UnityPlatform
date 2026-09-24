@@ -58,6 +58,16 @@ public class SceneTransition : MonoBehaviour
 
     public static void LoadScene(string sceneName, float fadeTime = -1f)
     {
+        // A focused standalone preview can intentionally contain just one scene.
+        // Do not start a fade (and then terminate the player) if a legacy route
+        // points at a hub scene that is not part of that build. The editor keeps
+        // its normal flexible scene-loading behaviour for authoring workflows.
+        if (!Application.isEditor && !Application.CanStreamedLevelBeLoaded(sceneName))
+        {
+            Debug.LogWarning($"[SceneTransition] Cannot load '{sceneName}' because it is not included in this build.");
+            return;
+        }
+
         EnsureInstance();
         if (Instance.busy) return;
         float t = fadeTime < 0 ? Instance.defaultFadeTime : fadeTime;
