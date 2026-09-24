@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bea95f59e6479774f97a75e79a2f5598
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 241220
+  packageName: Pirate Customized
+  packageVersion: 1.0
+  assetPath: Assets/Pirate/Materials/Pirate_Cloth.mat
+  uploadId: 548640

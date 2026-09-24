@@ -1,0 +1,148 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db3a7af8d09142a7af33ae30d7af67b7, type: 3}
+  m_Name: CelestialClockQuest
+  m_EditorClassIdentifier: GameRuntime::ImagineQuest.QuestFramework.QuestDefinition
+  questId: celestial-clock
+  displayName: The Riddle of the Celestial Clock
+  contentVersion: 1.0.0
+  summary: A shipboard learning quest where students restore four Celestial Clock
+    seals through fractions, angle turns, and one-step equations.
+  rewardPolicy:
+    enabled: 1
+    experiencePerCorrectChallenge: 30
+    completionExperience: 10
+    perfectRunBonusExperience: 0
+    showProvisionalExperience: 1
+    serverCalculatesCanonicalRewards: 1
+    rewardDescriptor: Celestial navigator commendation
+  nodes:
+  - nodeId: sail-fraction
+    title: The Sailmaker's Seal
+    nodeType: 3
+    objectiveText: Restore the fraction seal.
+    narrativeText: A fraction names equal parts of a whole. The bottom number tells
+      how many equal parts there are; the top number tells how many are chosen.
+    requiredForCompletion: 1
+    challenges:
+    - challengeId: sail-fraction-challenge
+      conceptId: fraction-of-a-whole
+      challengeType: 0
+      prompt: Three of four storm-sail panels must be raised. Which fraction names
+        the raised panels?
+      supportingText: Use the Teaching Note if you want a reminder.
+      answers:
+      - answerId: answer-0
+        label: 1/4
+        detailText: 
+      - answerId: answer-1
+        label: 3/4
+        detailText: 
+      - answerId: answer-2
+        label: 4/3
+        detailText: 
+      correctAnswerId: answer-1
+      maximumAttempts: 3
+      requiredForCompletion: 1
+      hintText: The denominator counts equal panels; the numerator counts raised
+        panels.
+      successFeedback: Seal restored.
+      retryFeedback: Try the Teaching Note, then make another choice.
+  - nodeId: compass-angle
+    title: The Compass Seal
+    nodeType: 3
+    objectiveText: Use a quarter turn to restore the compass.
+    narrativeText: "A full turn is 360\xB0. One quarter-turn is 90\xB0, so it carries
+      a ship from north to east when turning clockwise."
+    requiredForCompletion: 1
+    challenges:
+    - challengeId: compass-angle-challenge
+      conceptId: right-angle-turn
+      challengeType: 0
+      prompt: The compass points north. The Aurora makes one quarter-turn clockwise.
+        Which direction is it facing?
+      supportingText: Use the Teaching Note if you want a reminder.
+      answers:
+      - answerId: answer-0
+        label: West
+        detailText: 
+      - answerId: answer-1
+        label: East
+        detailText: 
+      - answerId: answer-2
+        label: South
+        detailText: 
+      correctAnswerId: answer-1
+      maximumAttempts: 3
+      requiredForCompletion: 1
+      hintText: A clockwise quarter-turn from north is east.
+      successFeedback: Seal restored.
+      retryFeedback: Try the Teaching Note, then make another choice.
+  - nodeId: star-equation
+    title: The Starlock Seal
+    nodeType: 3
+    objectiveText: Balance the starlock equation.
+    narrativeText: An equation is balanced like a ship's scale. Undo the operation
+      beside the unknown to discover its value.
+    requiredForCompletion: 1
+    challenges:
+    - challengeId: star-equation-challenge
+      conceptId: one-step-addition-equation
+      challengeType: 0
+      prompt: 'The starlock reads: x + 7 = 19. What value unlocks x?'
+      supportingText: Use the Teaching Note if you want a reminder.
+      answers:
+      - answerId: answer-0
+        label: 10
+        detailText: 
+      - answerId: answer-1
+        label: 12
+        detailText: 
+      - answerId: answer-2
+        label: 26
+        detailText: 
+      correctAnswerId: answer-1
+      maximumAttempts: 3
+      requiredForCompletion: 1
+      hintText: Undo +7 by subtracting 7 from 19.
+      successFeedback: Seal restored.
+      retryFeedback: Try the Teaching Note, then make another choice.
+  - nodeId: celestial-clock
+    title: Wake the Celestial Clock
+    nodeType: 4
+    objectiveText: Use clock-angle reasoning to wake the final seal.
+    narrativeText: "Clock angles use the same idea as turns. From 12 to 3 is one
+      quarter of a full 360\xB0 turn, which is 90\xB0."
+    requiredForCompletion: 1
+    challenges:
+    - challengeId: celestial-clock-challenge
+      conceptId: right-angle-clock
+      challengeType: 0
+      prompt: The minute hand points to 12 and the hour hand points to 3. What angle
+        lies between the hands?
+      supportingText: Use the Teaching Note if you want a reminder.
+      answers:
+      - answerId: answer-0
+        label: "45\xB0"
+        detailText: 
+      - answerId: answer-1
+        label: "90\xB0"
+        detailText: 
+      - answerId: answer-2
+        label: "180\xB0"
+        detailText: 
+      correctAnswerId: answer-1
+      maximumAttempts: 3
+      requiredForCompletion: 1
+      hintText: "From 12 to 3 is one quarter of a full turn: 90\xB0."
+      successFeedback: Seal restored.
+      retryFeedback: Try the Teaching Note, then make another choice.

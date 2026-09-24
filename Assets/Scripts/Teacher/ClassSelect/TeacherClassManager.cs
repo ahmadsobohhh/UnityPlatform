@@ -451,6 +451,7 @@ public class TeacherClassManager : MonoBehaviour
         var now = Timestamp.GetCurrentTimestamp();
         var classData = new Dictionary<string, object> {
             { "id", classRef.Id }, { "name", className }, { "code", code },
+            { "codeNormalized", code },
             { "ownerUid", user.UserId }, { "createdAt", now }, { "updatedAt", now }
         };
         var createTask = classRef.SetAsync(classData);
@@ -460,7 +461,8 @@ public class TeacherClassManager : MonoBehaviour
         // Index under teacher for quick listing
         var idxRef  = db.Collection("users").Document(user.UserId).Collection("classes").Document(classRef.Id);
         var idxData = new Dictionary<string, object> {
-            { "id", classRef.Id }, { "name", className }, { "code", code }, { "createdAt", now }
+            { "id", classRef.Id }, { "name", className }, { "code", code }, { "createdAt", now },
+            { "membershipRole", "teacher" }
         };
         var mapTask = idxRef.SetAsync(idxData);
         yield return new WaitUntil(() => mapTask.IsCompleted);

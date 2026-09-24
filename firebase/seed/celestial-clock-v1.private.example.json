@@ -1,0 +1,23 @@
+{
+  "documentPath": "questDefinitions/celestial-clock/versions/v1",
+  "requiredChallengeIds": [
+    "sail-fraction-challenge",
+    "compass-angle-challenge",
+    "star-equation-challenge",
+    "celestial-clock-challenge"
+  ],
+  "challenges": {
+    "sail-fraction-challenge": {
+      "acceptedAnswers": ["3/4", "0.75"]
+    },
+    "compass-angle-challenge": {
+      "acceptedAnswers": ["east"]
+    },
+    "star-equation-challenge": {
+      "acceptedAnswers": [12, "12"]
+    },
+    "celestial-clock-challenge": {
+      "acceptedAnswers": [90, "90", "90°"]
+    }
+  }
+}

@@ -651,6 +651,12 @@ public class StudentClassLoader : MonoBehaviour
         PlayerPrefs.SetString("SelectedClassCode", classCode);
         PlayerPrefs.Save();
 
+        // Keep the legacy classroom context in sync with the persisted context.  This
+        // makes the student class lobby reliable after moving between student scenes.
+        ClassSelection.CurrentClassId = classId;
+        ClassSelection.CurrentClassName = className;
+        ClassSelection.CurrentClassCode = classCode;
+
         SceneManager.LoadScene(classSceneName);
     }
 }

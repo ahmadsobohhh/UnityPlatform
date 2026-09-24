@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b28e356534a2f1e41a01facba99437bc
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 241220
+  packageName: Pirate Customized
+  packageVersion: 1.0
+  assetPath: Assets/Pirate/Materials/Stand.mat
+  uploadId: 548640

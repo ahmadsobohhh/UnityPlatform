@@ -10,7 +10,6 @@ using Firebase.Auth;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine.UI;
-using UnityEngine.SceneManagement;
 
 public class JointClassManager : MonoBehaviour
 {
@@ -64,7 +63,9 @@ public class JointClassManager : MonoBehaviour
 
         isJoining = true;
 
-        string enteredCode = codeInput.text.Trim();
+        // Join codes are generated in uppercase. Normalize here so a student is never
+        // blocked just because they typed the same code in lowercase.
+        string enteredCode = codeInput.text.Trim().ToUpperInvariant();
 
         if (string.IsNullOrEmpty(enteredCode))
         {
@@ -138,28 +139,36 @@ public class JointClassManager : MonoBehaviour
                 if (userDoc.ContainsField("lastName")) lastName = userDoc.GetValue<string>("lastName");
             }
 
-            // ✅ Add class to user's classes
-            await db.Collection("users")
+            // Keep the learner's index and the class roster consistent. A batch makes
+            // the enrollment atomic: a successful join cannot create only one side of
+            // the relationship if the network is interrupted between writes.
+            var joinedAt = Timestamp.GetCurrentTimestamp();
+            var studentClassRef = db.Collection("users")
                 .Document(userId)
                 .Collection("classes")
-                .Document(classId)
-                .SetAsync(new Dictionary<string, object>
-                {
-                    { "name", className },
-                    { "code", classCode }
-                });
-
-            // ✅ Add user to class members
-            await db.Collection("classes")
+                .Document(classId);
+            var memberRef = db.Collection("classes")
                 .Document(classId)
                 .Collection("members")
-                .Document(userId)
-                .SetAsync(new Dictionary<string, object>
-                {
-                    { "joinedAt", Timestamp.GetCurrentTimestamp() },
-                    { "firstName", firstName ?? "" },
-                    { "lastName", lastName ?? "" }
-                });
+                .Document(userId);
+            var enrollment = db.StartBatch();
+            enrollment.Set(studentClassRef, new Dictionary<string, object>
+            {
+                { "id", classId },
+                { "name", className },
+                { "code", classCode },
+                { "joinedAt", joinedAt },
+                { "membershipRole", "student" }
+            }, SetOptions.MergeAll);
+            enrollment.Set(memberRef, new Dictionary<string, object>
+            {
+                { "uid", userId },
+                { "joinedAt", joinedAt },
+                { "firstName", firstName ?? "" },
+                { "lastName", lastName ?? "" },
+                { "role", "student" }
+            }, SetOptions.MergeAll);
+            await enrollment.CommitAsync();
 
             Debug.Log("Successfully joined class!");
 

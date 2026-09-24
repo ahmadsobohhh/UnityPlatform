@@ -1,0 +1,205 @@
+rules_version = '2';
+
+// Imagine Quest target rules. These deliberately reserve authoritative assignments,
+// quest outcomes, wallets, and ledgers for Cloud Functions. The legacy Unity routes
+// below are narrowly retained while the client moves to the callable functions.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function profileExists() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasProfileRole(role) {
+      return profileExists() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    function classExists(classId) {
+      return exists(/databases/$(database)/documents/classes/$(classId));
+    }
+
+    function ownsClass(classId) {
+      return signedIn() && classExists(classId) &&
+        get(/databases/$(database)/documents/classes/$(classId)).data.ownerUid == request.auth.uid;
+    }
+
+    function isClassMember(classId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid));
+    }
+
+    function canSeeClass(classId) {
+      return ownsClass(classId) || isClassMember(classId);
+    }
+
+    function validProfileCreate(uid) {
+      return request.resource.data.uid == uid &&
+        request.resource.data.role in ['student', 'teacher'] &&
+        request.resource.data.keys().hasOnly([
+          'uid', 'username', 'firstName', 'lastName', 'email', 'role',
+          'avatarId', 'avatarChosen', 'characterClass', 'characterColor',
+          'createdAt', 'updatedAt'
+        ]);
+    }
+
+    function validOwnProfileUpdate(uid) {
+      return request.resource.data.uid == uid &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'username', 'firstName', 'lastName', 'avatarId', 'avatarChosen',
+          'characterClass', 'characterColor', 'createdAt', 'updatedAt'
+        ]);
+    }
+
+    // The main profile holds personally identifiable information, so it is private.
+    // Class member documents contain the intentionally limited display name used by
+    // teacher/student roster screens.
+    match /users/{uid} {
+      allow get: if isSelf(uid);
+      allow list: if false;
+      // Transitional: current Unity registration creates its own profile directly.
+      // Production teacher provisioning should move to an Admin SDK flow or custom claims.
+      allow create: if isSelf(uid) && validProfileCreate(uid);
+      allow update: if isSelf(uid) && validOwnProfileUpdate(uid);
+      allow delete: if false;
+
+      match /classes/{classId} {
+        allow read: if isSelf(uid);
+        // Transitional indexes for existing direct class creation/joining UI. These
+        // indexes never grant class ownership or reward authority.
+        allow create, update: if isSelf(uid) &&
+          request.resource.data.id == classId &&
+          (!request.resource.data.keys().hasAll(['membershipRole']) ||
+            request.resource.data.membershipRole in ['student', 'teacher']);
+        allow delete: if isSelf(uid);
+      }
+
+      // Legacy, display-only quest progress. XP here is non-authoritative and must
+      // never be used for wallets, rewards, grades, or teacher reports.
+      match /questProgress/{questId} {
+        allow read: if isSelf(uid);
+        allow create: if isSelf(uid) && request.resource.data.questId == questId &&
+          request.resource.data.keys().hasOnly([
+            'questId', 'classId', 'completedChallenges', 'earnedXp', 'completed', 'updatedAt'
+          ]);
+        allow update: if isSelf(uid) && request.resource.data.questId == questId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'questId', 'classId', 'completedChallenges', 'earnedXp', 'completed', 'updatedAt'
+          ]);
+        allow delete: if false;
+      }
+
+      // Created only by recordQuestEvent. Owners can read their own outcomes; the
+      // class owner can read them for a future teacher dashboard.
+      match /classProgress/{classId}/assignments/{assignmentId} {
+        allow read: if isSelf(uid) || ownsClass(classId);
+        allow write: if false;
+
+        match /runs/{runId} {
+          allow read: if isSelf(uid) || ownsClass(classId);
+          allow write: if false;
+        }
+
+        match /events/{eventId} {
+          allow read: if isSelf(uid) || ownsClass(classId);
+          allow write: if false;
+        }
+      }
+    }
+
+    // Username lookup must work before a player is signed in. Listing is denied so
+    // this remains a keyed lookup rather than a browsable directory.
+    match /usernames/{username} {
+      allow get: if true;
+      allow list: if false;
+      // Transitional direct signup route. A signed-in account may claim only one
+      // previously unused mapping for itself; it cannot later overwrite it.
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid &&
+        request.resource.data.role in ['student', 'teacher'] &&
+        request.resource.data.keys().hasOnly(['uid', 'email', 'role']);
+      allow update, delete: if false;
+    }
+
+    match /classes/{classId} {
+      // During the migration, signed-in clients can look up a class code for the
+      // existing JoinClassManager. Once it calls joinClassByCode, change `list` to
+      // false; the callable function performs the code lookup privately.
+      allow get: if canSeeClass(classId);
+      allow list: if signedIn();
+
+      // Transitional direct teacher class creation. The owner check is authoritative
+      // for all subsequent class writes. Move class creation to a callable function
+      // before treating profile.role as a trusted staff provisioning signal.
+      allow create: if signedIn() && hasProfileRole('teacher') &&
+        request.resource.data.id == classId &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.code == request.resource.data.codeNormalized;
+      allow update, delete: if ownsClass(classId);
+
+      match /members/{memberUid} {
+        allow read: if canSeeClass(classId);
+        // Transitional direct student joining. This lets a signed-in student add only
+        // their own membership and exposes no authority beyond roster membership.
+        // Replace with joinClassByCode, then set this to `if false` for create.
+        allow create: if isSelf(memberUid) && hasProfileRole('student') &&
+          request.resource.data.keys().hasOnly(['uid', 'role', 'firstName', 'lastName', 'joinedAt']) &&
+          (!request.resource.data.keys().hasAll(['role']) || request.resource.data.role == 'student');
+        allow update: if ownsClass(classId) ||
+          (isSelf(memberUid) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'firstName', 'lastName', 'joinedAt'
+            ]));
+        allow delete: if ownsClass(classId) || isSelf(memberUid);
+      }
+
+      // Existing Pirate Voyage lobby UI uses this path. It is intentionally owner-only
+      // and is a migration bridge to /assignments below.
+      match /questAssignments/{questId} {
+        allow read: if canSeeClass(classId);
+        allow create, update, delete: if ownsClass(classId);
+      }
+
+      // Authoritative assignments are created or updated by upsertQuestAssignment.
+      match /assignments/{assignmentId} {
+        allow read: if canSeeClass(classId);
+        allow write: if false;
+      }
+    }
+
+    // Private authored content may contain answer keys. Keep it server-only and add a
+    // separately sanitized public manifest collection if clients need dynamic content.
+    match /questDefinitions/{questId} {
+      allow read, write: if false;
+
+      match /versions/{versionId} {
+        allow read, write: if false;
+      }
+    }
+
+    // Every wallet change has a server-created immutable ledger entry. The Unity
+    // client can read its own balance and receipts but can never mutate either.
+    match /wallets/{uid} {
+      allow read: if isSelf(uid);
+      allow write: if false;
+    }
+
+    match /walletLedger/{ledgerId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // A server-side audit stream; no direct client access is needed.
+    match /questEventAudit/{eventId} {
+      allow read, write: if false;
+    }
+  }
+}

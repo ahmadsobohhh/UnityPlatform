@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 58155e7370df36a4bb5d6667cc79647b
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 241220
+  packageName: Pirate Customized
+  packageVersion: 1.0
+  assetPath: Assets/Pirate/Materials/Pirate_Details_Weapon.mat
+  uploadId: 548640
