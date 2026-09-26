@@ -81,9 +81,14 @@ Changed `Assets/Scripts/Student/Classroom/ClassroomManager.cs`:
 - Reduced oversized student rows and type.
 - Kept the same pirate-room background and navigation.
 
+### Your Classes page
+
+- Removed the bottom-right **Begin Celestial Clock** button from `StudentHub`.
+- Quest launch is now available only after the student opens a class.
+
 Changed `Assets/Scripts/Gameplay/QuestLobbyControllers.cs`:
 
-- Removed the free-floating yellow status line from Student Hub.
+- Removed the free-floating yellow status line and quest-launch button from Student Hub.
 - Replaced blue floating quest panels with contained brown/gold quest cards.
 - Added separate teacher and student copy appropriate to each role.
 - Treats a missing assignment as a normal locked state.

@@ -3,7 +3,7 @@ using UnityEngine;
 namespace ImagineQuest.Gameplay
 {
     /// <summary>
-    /// Entry point used by the student hub and, later, teacher-assigned quest cards.
+    /// Entry point used by teacher-assigned quest cards inside a selected class.
     /// </summary>
     public sealed class QuestLauncher : MonoBehaviour
     {

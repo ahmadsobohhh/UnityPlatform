@@ -10,8 +10,7 @@ using UnityEngine.UI;
 namespace ImagineQuest.Gameplay
 {
     /// <summary>
-    /// Student-facing assignment gate. The hub reuses its existing quest button, while
-    /// the classroom receives one contained quest card instead of a floating overlay.
+    /// Student-facing assignment gate shown only after a learner opens a class.
     /// </summary>
     public sealed class StudentQuestLobby : MonoBehaviour
     {
@@ -23,14 +22,26 @@ namespace ImagineQuest.Gameplay
         private TMP_Text statusLabel;
         private QuestLauncher launcher;
         private GameObject runtimeCard;
-        private bool usesExistingHubButton;
         private string requestUserId;
 
         private void Start()
         {
+            if (SceneManager.GetActiveScene().name == "StudentHub")
+            {
+                HideLegacyHubLaunchButton();
+                return;
+            }
+
             launcher = GetComponent<QuestLauncher>() ?? gameObject.AddComponent<QuestLauncher>();
             BuildUi();
             StartCoroutine(RefreshRoutine());
+        }
+
+        private static void HideLegacyHubLaunchButton()
+        {
+            var legacyButton = QuestLobbyUi.FindSceneRect("StartPirateQuestButton");
+            if (legacyButton != null)
+                legacyButton.gameObject.SetActive(false);
         }
 
         private void OnDisable()
@@ -46,15 +57,6 @@ namespace ImagineQuest.Gameplay
 
         private void BuildUi()
         {
-            var existing = GameObject.Find("StartPirateQuestButton");
-            if (existing != null && SceneManager.GetActiveScene().name == "StudentHub")
-            {
-                usesExistingHubButton = true;
-                playButton = existing.GetComponent<Button>();
-                buttonLabel = existing.GetComponentInChildren<TMP_Text>(true);
-                return;
-            }
-
             RectTransform contentPanel = QuestLobbyUi.FindSceneRect("ContentPanel");
             Transform parent = contentPanel != null ? contentPanel : transform;
             runtimeCard = QuestLobbyUi.CreatePanel("PirateQuestLobbyCard", parent,
@@ -152,10 +154,6 @@ namespace ImagineQuest.Gameplay
             if (playButton != null)
                 playButton.interactable = false;
 
-            // The hub deliberately has no extra status label. Its existing button is
-            // the single, unobtrusive source of quest state.
-            if (usesExistingHubButton && playButton != null)
-                playButton.gameObject.SetActive(true);
         }
     }
 
