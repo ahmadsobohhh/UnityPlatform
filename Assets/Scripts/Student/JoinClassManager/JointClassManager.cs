@@ -50,6 +50,12 @@ public class JointClassManager : MonoBehaviour
                 if (t != null && t.name == "JoinGUI")
                 {
                     joinPopup = t.gameObject;
+                    if (feedbackText == null)
+                    {
+                        var feedback = joinPopup.transform.Find("JoinFeedback");
+                        if (feedback != null)
+                            feedbackText = feedback.GetComponent<TMP_Text>();
+                    }
                     return;
                 }
             }

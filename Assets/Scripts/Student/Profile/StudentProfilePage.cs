@@ -230,6 +230,7 @@ public class StudentProfilePage : MonoBehaviour
 
     private void SignOut()
     {
+        ClassSelection.ClearForSignOut();
         FirebaseAuth.DefaultInstance.SignOut();
         Debug.Log("User signed out");
         SceneTransition.LoadScene("WelcomePage");

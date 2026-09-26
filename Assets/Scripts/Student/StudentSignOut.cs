@@ -9,6 +9,7 @@ public class SignOutManager : MonoBehaviour
 {
     public void SignOut()
     {
+        ClassSelection.ClearForSignOut();
         FirebaseAuth.DefaultInstance.SignOut();
         Debug.Log("User signed out");
         SceneTransition.LoadScene("WelcomePage");

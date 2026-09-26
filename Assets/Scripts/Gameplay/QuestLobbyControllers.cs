@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using Firebase.Auth;
@@ -11,13 +10,11 @@ using UnityEngine.UI;
 namespace ImagineQuest.Gameplay
 {
     /// <summary>
-    /// Adds the learner-facing quest card to a student class lobby.  A learner can only
-    /// launch a quest after a teacher has unlocked it for the currently selected class.
+    /// Student-facing assignment gate. The hub reuses its existing quest button, while
+    /// the classroom receives one contained quest card instead of a floating overlay.
     /// </summary>
     public sealed class StudentQuestLobby : MonoBehaviour
     {
-        // Keep the old assignment document ID while the Firebase Functions migration
-        // moves this card to classes/{classId}/assignments.
         private const string AssignmentId = "pirate-voyage";
         private const string AssignmentCollection = "questAssignments";
 
@@ -25,7 +22,9 @@ namespace ImagineQuest.Gameplay
         private TMP_Text buttonLabel;
         private TMP_Text statusLabel;
         private QuestLauncher launcher;
+        private GameObject runtimeCard;
         private bool usesExistingHubButton;
+        private string requestUserId;
 
         private void Start()
         {
@@ -34,98 +33,147 @@ namespace ImagineQuest.Gameplay
             StartCoroutine(RefreshRoutine());
         }
 
+        private void OnDisable()
+        {
+            StopAllCoroutines();
+        }
+
+        private void OnDestroy()
+        {
+            if (runtimeCard != null)
+                Destroy(runtimeCard);
+        }
+
         private void BuildUi()
         {
-            // The student hub already has a styled pirate button. Reuse it, and use its
-            // disabled state as the access gate rather than creating a duplicate route.
             var existing = GameObject.Find("StartPirateQuestButton");
             if (existing != null && SceneManager.GetActiveScene().name == "StudentHub")
             {
                 usesExistingHubButton = true;
                 playButton = existing.GetComponent<Button>();
                 buttonLabel = existing.GetComponentInChildren<TMP_Text>(true);
-                statusLabel = QuestLobbyUi.CreateText("PirateQuestHubStatus", transform, new Vector2(0.5f, 0f),
-                    new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(700f, 34f), 18f);
-                statusLabel.alignment = TextAlignmentOptions.Center;
                 return;
             }
 
-            var panel = QuestLobbyUi.CreatePanel("PirateQuestLobbyCard", transform, new Vector2(1f, 0f),
-                new Vector2(1f, 0f), new Vector2(-34f, 42f), new Vector2(460f, 142f));
-            statusLabel = QuestLobbyUi.CreateText("Status", panel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -20f), new Vector2(410f, 55f), 20f);
-            statusLabel.alignment = TextAlignmentOptions.Center;
+            RectTransform contentPanel = QuestLobbyUi.FindSceneRect("ContentPanel");
+            Transform parent = contentPanel != null ? contentPanel : transform;
+            runtimeCard = QuestLobbyUi.CreatePanel("PirateQuestLobbyCard", parent,
+                new Vector2(0.66f, 0.08f), new Vector2(0.97f, 0.78f));
+
+            var eyebrow = QuestLobbyUi.CreateText("Eyebrow", runtimeCard.transform,
+                new Vector2(0.08f, 0.82f), new Vector2(0.92f, 0.94f), 17f);
+            eyebrow.text = "ASSIGNED QUEST";
+            eyebrow.fontStyle = FontStyles.Bold;
+            eyebrow.alignment = TextAlignmentOptions.MidlineLeft;
+            eyebrow.color = QuestLobbyUi.MutedGold;
+
+            var title = QuestLobbyUi.CreateText("Title", runtimeCard.transform,
+                new Vector2(0.08f, 0.61f), new Vector2(0.92f, 0.82f), 27f);
+            title.text = "The Celestial Clock";
+            title.fontStyle = FontStyles.Bold;
+            title.alignment = TextAlignmentOptions.MidlineLeft;
+            title.color = QuestLobbyUi.Cream;
+
+            statusLabel = QuestLobbyUi.CreateText("Status", runtimeCard.transform,
+                new Vector2(0.08f, 0.29f), new Vector2(0.92f, 0.58f), 19f);
+            statusLabel.alignment = TextAlignmentOptions.TopLeft;
             statusLabel.textWrappingMode = TextWrappingModes.Normal;
-            playButton = QuestLobbyUi.CreateButton("PlayPirateQuestButton", panel.transform, "BEGIN CELESTIAL CLOCK",
-                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(360f, 48f));
+            statusLabel.color = new Color(0.90f, 0.84f, 0.72f, 0.94f);
+
+            playButton = QuestLobbyUi.CreateButton("PlayPirateQuestButton", runtimeCard.transform,
+                "BEGIN QUEST", new Vector2(0.08f, 0.07f), new Vector2(0.92f, 0.23f));
             buttonLabel = playButton.GetComponentInChildren<TMP_Text>();
             playButton.onClick.AddListener(() => launcher.LaunchPirateQuest());
         }
 
         private IEnumerator RefreshRoutine()
         {
-            // ClassroomScene can be reached directly from character selection, which
-            // supplies ClassSelection but does not necessarily write PlayerPrefs.
-            var classId = ClassSelection.CurrentClassId;
+            var user = FirebaseAuth.DefaultInstance.CurrentUser;
+            requestUserId = user != null ? user.UserId : string.Empty;
+            if (string.IsNullOrWhiteSpace(requestUserId))
+            {
+                SetLocked("Sign in to view your assigned quest.", "SIGN IN TO PLAY");
+                yield break;
+            }
+
+            string classId = ClassSelection.CurrentClassId;
             if (string.IsNullOrWhiteSpace(classId))
                 classId = PlayerPrefs.GetString("SelectedClassId", string.Empty);
             if (string.IsNullOrWhiteSpace(classId))
             {
-                SetLocked("Choose a class to begin a teacher-assigned quest.");
+                SetLocked("Choose a class to see its assigned quest.", "SELECT A CLASS");
                 yield break;
             }
 
-            SetLocked("Checking your class quest...");
+            SetLocked("Checking your teacher's quest assignment...", "CHECKING QUEST");
             var task = FirebaseFirestore.DefaultInstance.Collection("classes").Document(classId)
                 .Collection(AssignmentCollection).Document(AssignmentId).GetSnapshotAsync();
             yield return new WaitUntil(() => task.IsCompleted);
 
+            if (!SessionStillMatches())
+                yield break;
+
             if (task.IsFaulted || task.IsCanceled)
             {
-                SetLocked("Quest status could not be loaded. Please try again.");
+                Debug.LogError("[StudentQuestLobby] Could not read class quest assignment: " + task.Exception);
+                SetLocked("This class has no available quest assignment right now.", "QUEST UNAVAILABLE");
                 yield break;
             }
 
             var assignment = task.Result;
-            var unlocked = assignment.Exists && assignment.ContainsField("isUnlocked") && assignment.GetValue<bool>("isUnlocked");
+            bool unlocked = assignment.Exists && assignment.ContainsField("isUnlocked") &&
+                            assignment.GetValue<bool>("isUnlocked");
             if (!unlocked)
             {
-                SetLocked("The Celestial Clock mission is locked by your teacher.");
+                SetLocked("Waiting for your teacher to unlock this mission.", "QUEST LOCKED");
                 yield break;
             }
 
             if (statusLabel != null)
-                statusLabel.text = "The Riddle of the Celestial Clock is ready for your crew.";
+                statusLabel.text = "Ready for launch. Your teacher has opened this mission for the class.";
             if (buttonLabel != null)
                 buttonLabel.text = "BEGIN CELESTIAL CLOCK";
             if (playButton != null)
                 playButton.interactable = true;
         }
 
-        private void SetLocked(string message)
+        private bool SessionStillMatches()
+        {
+            var current = FirebaseAuth.DefaultInstance.CurrentUser;
+            return current != null && current.UserId == requestUserId && isActiveAndEnabled;
+        }
+
+        private void SetLocked(string message, string buttonText)
         {
             if (statusLabel != null)
                 statusLabel.text = message;
-            if (buttonLabel != null && usesExistingHubButton)
-                buttonLabel.text = "PIRATE QUEST LOCKED";
+            if (buttonLabel != null)
+                buttonLabel.text = buttonText;
             if (playButton != null)
                 playButton.interactable = false;
+
+            // The hub deliberately has no extra status label. Its existing button is
+            // the single, unobtrusive source of quest state.
+            if (usesExistingHubButton && playButton != null)
+                playButton.gameObject.SetActive(true);
         }
     }
 
     /// <summary>
-    /// Adds a compact teacher control to the class lobby.  It writes one class-scoped
-    /// assignment document which student lobbies use as their launch gate.
+    /// Teacher assignment control integrated into the class command deck.
     /// </summary>
     public sealed class TeacherQuestLobby : MonoBehaviour
     {
         private const string AssignmentId = "pirate-voyage";
         private const string QuestDefinitionId = "celestial-clock";
+
         private TMP_Text statusLabel;
         private Button toggleButton;
         private TMP_Text toggleLabel;
+        private GameObject runtimeCard;
         private bool unlocked;
         private string classId;
+        private string requestUserId;
 
         private void Start()
         {
@@ -133,41 +181,87 @@ namespace ImagineQuest.Gameplay
             StartCoroutine(RefreshRoutine());
         }
 
+        private void OnDisable()
+        {
+            StopAllCoroutines();
+        }
+
+        private void OnDestroy()
+        {
+            if (runtimeCard != null)
+                Destroy(runtimeCard);
+        }
+
         private void BuildUi()
         {
-            var panel = QuestLobbyUi.CreatePanel("TeacherQuestControl", transform, new Vector2(1f, 0f), new Vector2(1f, 0f),
-                new Vector2(-34f, 42f), new Vector2(470f, 150f));
-            statusLabel = QuestLobbyUi.CreateText("Status", panel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -20f), new Vector2(425f, 62f), 19f);
-            statusLabel.alignment = TextAlignmentOptions.Center;
+            RectTransform classPanel = QuestLobbyUi.FindSceneRect("StudentListPanel");
+            Transform parent = classPanel != null ? classPanel : transform;
+            runtimeCard = QuestLobbyUi.CreatePanel("TeacherQuestControl", parent,
+                new Vector2(0.65f, 0.13f), new Vector2(0.96f, 0.73f));
+
+            var eyebrow = QuestLobbyUi.CreateText("Eyebrow", runtimeCard.transform,
+                new Vector2(0.08f, 0.82f), new Vector2(0.92f, 0.94f), 17f);
+            eyebrow.text = "CLASS QUEST";
+            eyebrow.fontStyle = FontStyles.Bold;
+            eyebrow.alignment = TextAlignmentOptions.MidlineLeft;
+            eyebrow.color = QuestLobbyUi.MutedGold;
+
+            var title = QuestLobbyUi.CreateText("Title", runtimeCard.transform,
+                new Vector2(0.08f, 0.61f), new Vector2(0.92f, 0.82f), 27f);
+            title.text = "The Celestial Clock";
+            title.fontStyle = FontStyles.Bold;
+            title.alignment = TextAlignmentOptions.MidlineLeft;
+            title.color = QuestLobbyUi.Cream;
+
+            statusLabel = QuestLobbyUi.CreateText("Status", runtimeCard.transform,
+                new Vector2(0.08f, 0.29f), new Vector2(0.92f, 0.58f), 18f);
+            statusLabel.alignment = TextAlignmentOptions.TopLeft;
             statusLabel.textWrappingMode = TextWrappingModes.Normal;
-            toggleButton = QuestLobbyUi.CreateButton("TogglePirateQuestButton", panel.transform, "LOADING QUEST...",
-                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(370f, 48f));
+            statusLabel.color = new Color(0.90f, 0.84f, 0.72f, 0.94f);
+
+            toggleButton = QuestLobbyUi.CreateButton("TogglePirateQuestButton", runtimeCard.transform,
+                "LOADING QUEST", new Vector2(0.08f, 0.07f), new Vector2(0.92f, 0.23f));
             toggleLabel = toggleButton.GetComponentInChildren<TMP_Text>();
             toggleButton.onClick.AddListener(() => StartCoroutine(ToggleRoutine()));
         }
 
         private IEnumerator RefreshRoutine()
         {
+            var user = FirebaseAuth.DefaultInstance.CurrentUser;
+            requestUserId = user != null ? user.UserId : string.Empty;
+            if (string.IsNullOrWhiteSpace(requestUserId))
+            {
+                SetUnavailable("Sign in as the class teacher to manage quests.");
+                yield break;
+            }
+
             classId = ClassSelection.CurrentClassId;
             if (string.IsNullOrWhiteSpace(classId))
                 classId = PlayerPrefs.GetString("SelectedClassId", string.Empty);
             if (string.IsNullOrWhiteSpace(classId))
             {
-                SetUnavailable("Select a class before managing its quests.");
+                SetUnavailable("Select a class before managing its quest.");
                 yield break;
             }
 
+            statusLabel.text = "Checking the current assignment...";
+            toggleButton.interactable = false;
             var task = FirebaseFirestore.DefaultInstance.Collection("classes").Document(classId)
                 .Collection("questAssignments").Document(AssignmentId).GetSnapshotAsync();
             yield return new WaitUntil(() => task.IsCompleted);
+
+            if (!SessionStillMatches())
+                yield break;
+
             if (task.IsFaulted || task.IsCanceled)
             {
-                SetUnavailable("Quest status could not be loaded.");
+                Debug.LogError("[TeacherQuestLobby] Could not read class quest assignment: " + task.Exception);
+                SetUnavailable("Quest permissions need to be published to Firebase.");
                 yield break;
             }
 
-            unlocked = task.Result.Exists && task.Result.ContainsField("isUnlocked") && task.Result.GetValue<bool>("isUnlocked");
+            unlocked = task.Result.Exists && task.Result.ContainsField("isUnlocked") &&
+                       task.Result.GetValue<bool>("isUnlocked");
             Render();
         }
 
@@ -178,25 +272,28 @@ namespace ImagineQuest.Gameplay
 
             toggleButton.interactable = false;
             var user = FirebaseAuth.DefaultInstance.CurrentUser;
-            if (user == null)
+            if (user == null || user.UserId != requestUserId)
             {
                 SetUnavailable("Sign in as the class teacher to manage quests.");
                 yield break;
             }
 
-            // This is a useful client-side guard. Production Firestore rules must also
-            // enforce ownerUid == request.auth.uid; UI checks are not authorization.
-            var ownerTask = FirebaseFirestore.DefaultInstance.Collection("classes").Document(classId).GetSnapshotAsync();
+            var ownerTask = FirebaseFirestore.DefaultInstance.Collection("classes").Document(classId)
+                .GetSnapshotAsync();
             yield return new WaitUntil(() => ownerTask.IsCompleted);
+            if (!SessionStillMatches())
+                yield break;
+
             if (ownerTask.IsFaulted || ownerTask.IsCanceled || !ownerTask.Result.Exists ||
                 !ownerTask.Result.ContainsField("ownerUid") ||
                 ownerTask.Result.GetValue<string>("ownerUid") != user.UserId)
             {
-                SetUnavailable("Only this class's teacher can manage its quests.");
+                Debug.LogError("[TeacherQuestLobby] The current account could not verify ownership of " + classId + ".");
+                SetUnavailable("Only this class's teacher can manage its quest.");
                 yield break;
             }
 
-            var nextState = !unlocked;
+            bool nextState = !unlocked;
             var payload = new Dictionary<string, object>
             {
                 { "questId", QuestDefinitionId },
@@ -212,9 +309,14 @@ namespace ImagineQuest.Gameplay
             var task = FirebaseFirestore.DefaultInstance.Collection("classes").Document(classId)
                 .Collection("questAssignments").Document(AssignmentId).SetAsync(payload, SetOptions.MergeAll);
             yield return new WaitUntil(() => task.IsCompleted);
+
+            if (!SessionStillMatches())
+                yield break;
+
             if (task.IsFaulted || task.IsCanceled)
             {
-                SetUnavailable("Could not update the quest. Please try again.");
+                Debug.LogError("[TeacherQuestLobby] Could not update class quest assignment: " + task.Exception);
+                SetUnavailable("The quest could not be updated. Check Firebase permissions.");
                 yield break;
             }
 
@@ -222,20 +324,34 @@ namespace ImagineQuest.Gameplay
             Render();
         }
 
+        private bool SessionStillMatches()
+        {
+            var current = FirebaseAuth.DefaultInstance.CurrentUser;
+            return current != null && current.UserId == requestUserId && isActiveAndEnabled;
+        }
+
         private void Render()
         {
-            statusLabel.text = unlocked
-                ? "The Celestial Clock mission is unlocked for this class."
-                : "The Celestial Clock mission is currently locked for students.";
-            toggleLabel.text = unlocked ? "LOCK CELESTIAL CLOCK" : "UNLOCK CELESTIAL CLOCK";
-            toggleButton.interactable = true;
+            if (statusLabel != null)
+            {
+                statusLabel.text = unlocked
+                    ? "Open for students. They can launch it from their class page."
+                    : "Locked. Students can see the mission but cannot launch it yet.";
+            }
+            if (toggleLabel != null)
+                toggleLabel.text = unlocked ? "LOCK QUEST" : "UNLOCK FOR CLASS";
+            if (toggleButton != null)
+                toggleButton.interactable = true;
         }
 
         private void SetUnavailable(string message)
         {
-            statusLabel.text = message;
-            toggleLabel.text = "QUEST UNAVAILABLE";
-            toggleButton.interactable = false;
+            if (statusLabel != null)
+                statusLabel.text = message;
+            if (toggleLabel != null)
+                toggleLabel.text = "QUEST SETUP REQUIRED";
+            if (toggleButton != null)
+                toggleButton.interactable = false;
         }
     }
 
@@ -243,25 +359,32 @@ namespace ImagineQuest.Gameplay
     {
         private static Sprite solidSprite;
 
-        internal static GameObject CreatePanel(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax,
-            Vector2 position, Vector2 size)
+        internal static readonly Color Cream = new Color(1f, 0.95f, 0.80f, 1f);
+        internal static readonly Color MutedGold = new Color(0.88f, 0.70f, 0.38f, 1f);
+
+        internal static GameObject CreatePanel(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax)
         {
-            var panel = new GameObject(name, typeof(RectTransform), typeof(Image));
+            var panel = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Outline));
             panel.transform.SetParent(parent, false);
             var rect = panel.GetComponent<RectTransform>();
             rect.anchorMin = anchorMin;
             rect.anchorMax = anchorMax;
-            rect.pivot = new Vector2(1f, 0f);
-            rect.anchoredPosition = position;
-            rect.sizeDelta = size;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = Vector2.zero;
+
             var image = panel.GetComponent<Image>();
             image.sprite = GetSolidSprite();
-            image.color = new Color(0.035f, 0.08f, 0.16f, 0.92f);
+            image.color = new Color(0.075f, 0.055f, 0.035f, 0.96f);
+
+            var outline = panel.GetComponent<Outline>();
+            outline.effectColor = new Color(0.78f, 0.60f, 0.28f, 0.65f);
+            outline.effectDistance = new Vector2(2f, -2f);
             return panel;
         }
 
-        internal static TMP_Text CreateText(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax,
-            Vector2 position, Vector2 size, float fontSize)
+        internal static TMP_Text CreateText(string name, Transform parent, Vector2 anchorMin,
+            Vector2 anchorMax, float fontSize)
         {
             var textObject = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
             textObject.transform.SetParent(parent, false);
@@ -269,51 +392,76 @@ namespace ImagineQuest.Gameplay
             rect.anchorMin = anchorMin;
             rect.anchorMax = anchorMax;
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = position;
-            rect.sizeDelta = size;
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = Vector2.zero;
+
             var text = textObject.GetComponent<TextMeshProUGUI>();
             text.font = TMP_Settings.defaultFontAsset;
             text.fontSize = fontSize;
-            text.color = new Color(1f, 0.9f, 0.57f, 1f);
+            text.color = Cream;
             text.raycastTarget = false;
             return text;
         }
 
-        internal static Button CreateButton(string name, Transform parent, string label, Vector2 anchorMin,
-            Vector2 anchorMax, Vector2 position, Vector2 size)
+        internal static Button CreateButton(string name, Transform parent, string label,
+            Vector2 anchorMin, Vector2 anchorMax)
         {
-            var buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+            var buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button),
+                typeof(Outline));
             buttonObject.transform.SetParent(parent, false);
             var rect = buttonObject.GetComponent<RectTransform>();
             rect.anchorMin = anchorMin;
             rect.anchorMax = anchorMax;
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = position;
-            rect.sizeDelta = size;
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = Vector2.zero;
+
             var image = buttonObject.GetComponent<Image>();
             image.sprite = GetSolidSprite();
-            image.color = new Color(0.14f, 0.42f, 0.64f, 1f);
+            image.color = new Color(0.43f, 0.28f, 0.075f, 1f);
+            var outline = buttonObject.GetComponent<Outline>();
+            outline.effectColor = new Color(0.95f, 0.78f, 0.40f, 0.56f);
+            outline.effectDistance = new Vector2(1f, -1f);
+
             var button = buttonObject.GetComponent<Button>();
             button.targetGraphic = image;
             var colors = button.colors;
-            colors.highlightedColor = new Color(0.2f, 0.55f, 0.8f, 1f);
-            colors.pressedColor = new Color(0.08f, 0.27f, 0.45f, 1f);
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.16f, 1.09f, 0.92f, 1f);
+            colors.pressedColor = new Color(0.75f, 0.72f, 0.68f, 1f);
+            colors.disabledColor = new Color(0.55f, 0.52f, 0.48f, 0.72f);
             button.colors = colors;
-            var text = CreateText("Label", buttonObject.transform, Vector2.zero, Vector2.one, Vector2.zero,
-                Vector2.zero, 20f);
+
+            var text = CreateText("Label", buttonObject.transform, Vector2.zero, Vector2.one, 17f);
             text.text = label;
+            text.fontStyle = FontStyles.Bold;
             text.alignment = TextAlignmentOptions.Center;
-            text.color = Color.white;
+            text.color = Cream;
             return button;
+        }
+
+        internal static RectTransform FindSceneRect(string objectName)
+        {
+            var scene = SceneManager.GetActiveScene();
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                foreach (var rect in root.GetComponentsInChildren<RectTransform>(true))
+                {
+                    if (rect != null && rect.name == objectName)
+                        return rect;
+                }
+            }
+
+            return null;
         }
 
         private static Sprite GetSolidSprite()
         {
             if (solidSprite != null)
                 return solidSprite;
-            solidSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f));
+            solidSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0f, 0f, 1f, 1f),
+                new Vector2(0.5f, 0.5f));
             return solidSprite;
         }
     }
-
 }

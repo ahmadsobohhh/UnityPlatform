@@ -1,4 +1,5 @@
 using System;
+using Firebase.Auth;
 using UnityEngine;
 
 namespace ImagineQuest.Gameplay
@@ -27,6 +28,22 @@ namespace ImagineQuest.Gameplay
 
             Instance = this;
             DontDestroyOnLoad(gameObject);
+        }
+
+        private void OnEnable()
+        {
+            FirebaseAuth.DefaultInstance.StateChanged += HandleAuthStateChanged;
+        }
+
+        private void OnDisable()
+        {
+            FirebaseAuth.DefaultInstance.StateChanged -= HandleAuthStateChanged;
+        }
+
+        private void HandleAuthStateChanged(object sender, EventArgs eventArgs)
+        {
+            if (FirebaseAuth.DefaultInstance.CurrentUser == null)
+                Clear();
         }
 
         public static QuestSession Begin(string questId, string classId, string introVideoUrl = null,

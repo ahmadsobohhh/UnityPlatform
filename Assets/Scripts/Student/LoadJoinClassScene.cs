@@ -43,6 +43,7 @@ public class LoadJoinClassScene : MonoBehaviour
             popupRect = joinPopup.GetComponent<RectTransform>();
 
             EnsureJoinManager();
+            ApplyCompactLayout();
             ApplyPopupTheme();
             SetPopupVisibleImmediate(false);
         }
@@ -266,6 +267,109 @@ public class LoadJoinClassScene : MonoBehaviour
         EnsureCloseButton();
     }
 
+    private void ApplyCompactLayout()
+    {
+        if (joinPopup == null || popupRect == null)
+            return;
+
+        // The serialized panel used stretched anchors with large negative offsets.
+        // That happened to look acceptable at its original editor size, but expands
+        // into a nearly full-screen blocker at 1920x1080. Keep this a focused dialog.
+        popupRect.anchorMin = new Vector2(0.5f, 0.5f);
+        popupRect.anchorMax = new Vector2(0.5f, 0.5f);
+        popupRect.pivot = new Vector2(0.5f, 0.5f);
+        popupRect.anchoredPosition = new Vector2(0f, 8f);
+        popupRect.sizeDelta = new Vector2(560f, 360f);
+
+        var title = FindChildRect("title");
+        if (title != null)
+        {
+            title.anchorMin = new Vector2(0.5f, 1f);
+            title.anchorMax = new Vector2(0.5f, 1f);
+            title.pivot = new Vector2(0.5f, 1f);
+            title.anchoredPosition = new Vector2(0f, -48f);
+            title.sizeDelta = new Vector2(460f, 62f);
+        }
+
+        var input = FindChildRect("codeInput");
+        if (input != null)
+        {
+            input.anchorMin = new Vector2(0.5f, 0.5f);
+            input.anchorMax = new Vector2(0.5f, 0.5f);
+            input.pivot = new Vector2(0.5f, 0.5f);
+            input.anchoredPosition = new Vector2(0f, -2f);
+            input.sizeDelta = new Vector2(420f, 64f);
+        }
+
+        var joinButton = FindChildRect("joinBtn");
+        if (joinButton != null)
+        {
+            joinButton.anchorMin = new Vector2(0.5f, 0f);
+            joinButton.anchorMax = new Vector2(0.5f, 0f);
+            joinButton.pivot = new Vector2(0.5f, 0f);
+            joinButton.anchoredPosition = new Vector2(0f, 38f);
+            joinButton.sizeDelta = new Vector2(220f, 58f);
+        }
+
+        EnsureHelpText();
+        EnsureFeedbackText();
+    }
+
+    private RectTransform FindChildRect(string objectName)
+    {
+        foreach (var rect in joinPopup.GetComponentsInChildren<RectTransform>(true))
+        {
+            if (rect != null && rect.name == objectName)
+                return rect;
+        }
+
+        return null;
+    }
+
+    private void EnsureHelpText()
+    {
+        if (joinPopup.transform.Find("JoinHelp") != null)
+            return;
+
+        var helpObject = new GameObject("JoinHelp", typeof(RectTransform), typeof(TextMeshProUGUI));
+        helpObject.transform.SetParent(joinPopup.transform, false);
+        var rect = helpObject.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(0f, -112f);
+        rect.sizeDelta = new Vector2(450f, 32f);
+
+        var text = helpObject.GetComponent<TextMeshProUGUI>();
+        text.text = "Enter the 6-character code from your teacher";
+        text.fontSize = 20f;
+        text.color = new Color(0.88f, 0.82f, 0.69f, 0.9f);
+        text.alignment = TextAlignmentOptions.Center;
+        text.raycastTarget = false;
+    }
+
+    private void EnsureFeedbackText()
+    {
+        if (joinPopup.transform.Find("JoinFeedback") != null)
+            return;
+
+        var feedbackObject = new GameObject("JoinFeedback", typeof(RectTransform), typeof(TextMeshProUGUI));
+        feedbackObject.transform.SetParent(joinPopup.transform, false);
+        var rect = feedbackObject.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(0f, -56f);
+        rect.sizeDelta = new Vector2(440f, 30f);
+
+        var text = feedbackObject.GetComponent<TextMeshProUGUI>();
+        text.text = string.Empty;
+        text.fontSize = 18f;
+        text.color = new Color(1f, 0.77f, 0.42f, 1f);
+        text.alignment = TextAlignmentOptions.Center;
+        text.raycastTarget = false;
+    }
+
     private void EnsureCloseButton()
     {
         if (joinPopup == null) return;
@@ -295,7 +399,7 @@ public class LoadJoinClassScene : MonoBehaviour
         rt.anchorMax = new Vector2(1f, 1f);
         rt.pivot = new Vector2(1f, 1f);
         rt.anchoredPosition = new Vector2(-10f, -10f);
-        rt.sizeDelta = new Vector2(44f, 44f);
+        rt.sizeDelta = new Vector2(42f, 42f);
 
         var txt = new GameObject("Label");
         txt.transform.SetParent(go.transform, false);

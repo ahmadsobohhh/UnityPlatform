@@ -381,6 +381,7 @@ public class StudentCharacterSelect : MonoBehaviour
     }
     public void SignOut()
     {
+        ClassSelection.ClearForSignOut();
         auth.SignOut();
         SceneManager.LoadScene("WelcomePage");
     }

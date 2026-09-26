@@ -97,6 +97,8 @@ public class TeacherClassManager : MonoBehaviour
 
     void Start()
     {
+        ApplyCreateClassPanelPolish();
+
         // Wire up buttons
         if (joinBtn) joinBtn.onClick.AddListener(JoinSelected);
         if (createBtn) createBtn.onClick.AddListener(ShowCreatePanel);
@@ -115,9 +117,344 @@ public class TeacherClassManager : MonoBehaviour
         }
         else
         {
+            ApplyClassDetailPolish();
             EnsureBackButtonWiring();
-            EnsureEditListButton();
             StartCoroutine(LoadSelectedClassDetailsRoutine());
+        }
+    }
+
+    private void ApplyCreateClassPanelPolish()
+    {
+        if (createClassPanel == null)
+            return;
+
+        var panelRect = createClassPanel.GetComponent<RectTransform>();
+        if (panelRect != null)
+        {
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.anchoredPosition = new Vector2(0f, 12f);
+            panelRect.sizeDelta = new Vector2(660f, 360f);
+        }
+
+        var panelImage = createClassPanel.GetComponent<Image>();
+        if (panelImage != null)
+        {
+            panelImage.sprite = null;
+            panelImage.color = new Color(0.035f, 0.027f, 0.02f, 0.96f);
+        }
+
+        var outline = createClassPanel.GetComponent<Outline>();
+        if (outline == null)
+            outline = createClassPanel.AddComponent<Outline>();
+        outline.effectColor = new Color(0.82f, 0.65f, 0.30f, 0.62f);
+        outline.effectDistance = new Vector2(2f, -2f);
+
+        RectTransform title = FindPanelRect(createClassPanel, "CreateTitle");
+        if (title != null)
+        {
+            SetRect(title, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -34f), new Vector2(560f, 58f), new Vector2(0.5f, 1f));
+            var text = title.GetComponent<TMP_Text>();
+            if (text != null)
+            {
+                text.text = "Create a New Class";
+                text.fontSize = 42f;
+                text.fontStyle = FontStyles.Bold;
+                text.color = new Color(1f, 0.92f, 0.68f, 1f);
+                text.alignment = TextAlignmentOptions.Center;
+            }
+        }
+
+        RectTransform label = FindPanelRect(createClassPanel, "ClassNameLabel");
+        if (label != null)
+        {
+            SetRect(label, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(-230f, 54f), new Vector2(120f, 32f), new Vector2(0f, 0.5f));
+            var text = label.GetComponent<TMP_Text>();
+            if (text != null)
+            {
+                text.text = "CLASS NAME";
+                text.fontSize = 19f;
+                text.fontStyle = FontStyles.Bold;
+                text.color = new Color(0.92f, 0.82f, 0.62f, 0.9f);
+                text.alignment = TextAlignmentOptions.MidlineLeft;
+            }
+        }
+
+        if (createClassNameInput != null)
+        {
+            var inputRect = createClassNameInput.GetComponent<RectTransform>();
+            SetRect(inputRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 6f), new Vector2(520f, 62f), new Vector2(0.5f, 0.5f));
+            var inputImage = createClassNameInput.targetGraphic as Image;
+            if (inputImage != null)
+            {
+                inputImage.sprite = null;
+                inputImage.color = new Color(0.09f, 0.07f, 0.045f, 0.96f);
+            }
+            if (createClassNameInput.textComponent != null)
+            {
+                createClassNameInput.textComponent.fontSize = 25f;
+                createClassNameInput.textComponent.color = new Color(1f, 0.96f, 0.84f, 1f);
+            }
+            var placeholder = createClassNameInput.placeholder as TMP_Text;
+            if (placeholder != null)
+            {
+                placeholder.text = "e.g. Grade 6 Explorers";
+                placeholder.fontSize = 23f;
+                placeholder.color = new Color(0.72f, 0.65f, 0.53f, 0.76f);
+            }
+        }
+
+        RectTransform buttonRow = FindPanelRect(createClassPanel, "ButtonRow");
+        if (buttonRow != null)
+        {
+            SetRect(buttonRow, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 38f), new Vector2(450f, 58f), new Vector2(0.5f, 0f));
+        }
+
+        StyleDialogButton(createConfirmBtn, "CREATE CLASS", true);
+        var cancel = FindPanelRect(createClassPanel, "CreateCancelBtn");
+        StyleDialogButton(cancel != null ? cancel.GetComponent<Button>() : null, "CANCEL", false);
+    }
+
+    private void ApplyClassDetailPolish()
+    {
+        Canvas sceneCanvas = FindSceneCanvas();
+        if (sceneCanvas != null)
+        {
+            var scaler = sceneCanvas.GetComponent<CanvasScaler>();
+            if (scaler != null)
+            {
+                scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scaler.referenceResolution = new Vector2(1920f, 1080f);
+                scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+                scaler.matchWidthOrHeight = 0.5f;
+            }
+        }
+
+        var background = FindSceneRect("Background");
+        if (background != null)
+        {
+            background.anchorMin = Vector2.zero;
+            background.anchorMax = Vector2.one;
+            background.pivot = new Vector2(0.5f, 0.5f);
+            background.anchoredPosition = Vector2.zero;
+            background.sizeDelta = Vector2.zero;
+        }
+
+        var panel = FindSceneRect("StudentListPanel");
+        if (panel != null)
+        {
+            panel.anchorMin = new Vector2(0.10f, 0.16f);
+            panel.anchorMax = new Vector2(0.90f, 0.84f);
+            panel.pivot = new Vector2(0.5f, 0.5f);
+            panel.anchoredPosition = Vector2.zero;
+            panel.sizeDelta = Vector2.zero;
+
+            var image = panel.GetComponent<Image>();
+            if (image != null)
+            {
+                image.sprite = null;
+                image.color = new Color(0.035f, 0.026f, 0.018f, 0.91f);
+            }
+
+            var outline = panel.GetComponent<Outline>();
+            if (outline == null)
+                outline = panel.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.88f, 0.71f, 0.38f, 0.52f);
+            outline.effectDistance = new Vector2(2f, -2f);
+
+            EnsureClassDetailHeading(panel);
+        }
+
+        if (classInviteCodeText != null)
+        {
+            var rect = classInviteCodeText.rectTransform;
+            rect.anchorMin = new Vector2(0.63f, 0.87f);
+            rect.anchorMax = new Vector2(0.96f, 0.97f);
+            rect.pivot = new Vector2(1f, 0.5f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = Vector2.zero;
+            classInviteCodeText.fontSize = 24f;
+            classInviteCodeText.fontStyle = FontStyles.Bold;
+            classInviteCodeText.alignment = TextAlignmentOptions.MidlineRight;
+            classInviteCodeText.color = new Color(1f, 0.88f, 0.58f, 1f);
+        }
+
+        if (studentsListText != null)
+        {
+            var rect = studentsListText.rectTransform;
+            rect.anchorMin = new Vector2(0.05f, 0.12f);
+            rect.anchorMax = new Vector2(0.61f, 0.70f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = Vector2.zero;
+            studentsListText.fontSize = 28f;
+            studentsListText.fontStyle = FontStyles.Normal;
+            studentsListText.alignment = TextAlignmentOptions.TopLeft;
+            studentsListText.color = new Color(1f, 0.96f, 0.84f, 0.96f);
+        }
+
+        StyleClassDetailButton("BackBtn", new Vector2(0f, 0f), new Vector2(0f, 0f),
+            new Vector2(48f, 44f), "BACK");
+        StyleClassDetailButton("SignoutBtn", new Vector2(1f, 0f), new Vector2(1f, 0f),
+            new Vector2(-48f, 44f), "SIGN OUT");
+    }
+
+    private void EnsureClassDetailHeading(RectTransform panel)
+    {
+        Transform existing = panel.Find("ClassDetailHeading");
+        TMP_Text heading;
+        if (existing == null)
+        {
+            var go = new GameObject("ClassDetailHeading", typeof(RectTransform), typeof(TextMeshProUGUI));
+            go.transform.SetParent(panel, false);
+            heading = go.GetComponent<TextMeshProUGUI>();
+        }
+        else
+        {
+            heading = existing.GetComponent<TMP_Text>();
+        }
+
+        if (heading == null)
+            return;
+
+        var rect = heading.rectTransform;
+        rect.anchorMin = new Vector2(0.05f, 0.84f);
+        rect.anchorMax = new Vector2(0.60f, 0.97f);
+        rect.pivot = new Vector2(0f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = Vector2.zero;
+        heading.text = string.IsNullOrWhiteSpace(ClassSelection.CurrentClassName)
+            ? "CLASS COMMAND DECK"
+            : ClassSelection.CurrentClassName.ToUpperInvariant();
+        heading.fontSize = 38f;
+        heading.fontStyle = FontStyles.Bold;
+        heading.alignment = TextAlignmentOptions.MidlineLeft;
+        heading.color = new Color(1f, 0.94f, 0.76f, 1f);
+        heading.raycastTarget = false;
+
+        Transform rosterExisting = panel.Find("CrewRosterHeading");
+        TMP_Text rosterHeading;
+        if (rosterExisting == null)
+        {
+            var go = new GameObject("CrewRosterHeading", typeof(RectTransform), typeof(TextMeshProUGUI));
+            go.transform.SetParent(panel, false);
+            rosterHeading = go.GetComponent<TextMeshProUGUI>();
+        }
+        else
+        {
+            rosterHeading = rosterExisting.GetComponent<TMP_Text>();
+        }
+
+        if (rosterHeading == null)
+            return;
+
+        var rosterRect = rosterHeading.rectTransform;
+        rosterRect.anchorMin = new Vector2(0.05f, 0.70f);
+        rosterRect.anchorMax = new Vector2(0.61f, 0.79f);
+        rosterRect.pivot = new Vector2(0f, 0.5f);
+        rosterRect.anchoredPosition = Vector2.zero;
+        rosterRect.sizeDelta = Vector2.zero;
+        rosterHeading.text = "CREW ROSTER";
+        rosterHeading.fontSize = 19f;
+        rosterHeading.fontStyle = FontStyles.Bold;
+        rosterHeading.alignment = TextAlignmentOptions.MidlineLeft;
+        rosterHeading.color = new Color(0.87f, 0.70f, 0.40f, 1f);
+        rosterHeading.raycastTarget = false;
+    }
+
+    private void StyleClassDetailButton(string name, Vector2 anchorMin, Vector2 anchorMax,
+        Vector2 position, string label)
+    {
+        var rect = FindSceneRect(name);
+        if (rect == null)
+            return;
+
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = anchorMin.x < 0.5f ? Vector2.zero : new Vector2(1f, 0f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(170f, 54f);
+        StyleDialogButton(rect.GetComponent<Button>(), label, false);
+    }
+
+    private Canvas FindSceneCanvas()
+    {
+        var scene = SceneManager.GetActiveScene();
+        foreach (var root in scene.GetRootGameObjects())
+        {
+            var canvas = root.GetComponentInChildren<Canvas>(true);
+            if (canvas != null)
+                return canvas;
+        }
+
+        return null;
+    }
+
+    private RectTransform FindSceneRect(string objectName)
+    {
+        var scene = SceneManager.GetActiveScene();
+        foreach (var root in scene.GetRootGameObjects())
+        {
+            foreach (var rect in root.GetComponentsInChildren<RectTransform>(true))
+            {
+                if (rect != null && rect.name == objectName)
+                    return rect;
+            }
+        }
+
+        return null;
+    }
+
+    private static RectTransform FindPanelRect(GameObject panel, string objectName)
+    {
+        foreach (var rect in panel.GetComponentsInChildren<RectTransform>(true))
+        {
+            if (rect != null && rect.name == objectName)
+                return rect;
+        }
+
+        return null;
+    }
+
+    private static void SetRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax,
+        Vector2 position, Vector2 size, Vector2 pivot)
+    {
+        if (rect == null)
+            return;
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = pivot;
+        rect.anchoredPosition = position;
+        rect.sizeDelta = size;
+    }
+
+    private static void StyleDialogButton(Button button, string label, bool primary)
+    {
+        if (button == null)
+            return;
+
+        var image = button.targetGraphic as Image;
+        if (image != null)
+        {
+            image.sprite = null;
+            image.color = primary
+                ? new Color(0.45f, 0.30f, 0.09f, 0.98f)
+                : new Color(0.16f, 0.12f, 0.075f, 0.96f);
+        }
+
+        var text = button.GetComponentInChildren<TMP_Text>(true);
+        if (text != null)
+        {
+            text.text = label;
+            text.fontSize = 22f;
+            text.fontStyle = FontStyles.Bold;
+            text.color = new Color(1f, 0.92f, 0.70f, 1f);
+            text.alignment = TextAlignmentOptions.Center;
         }
     }
 
@@ -941,6 +1278,7 @@ public class TeacherClassManager : MonoBehaviour
     // Sign out and return to WelcomePage
     public void SignOut()
     {
+        ClassSelection.ClearForSignOut();
         auth.SignOut();
         SceneManager.LoadScene("WelcomePage");
     }
