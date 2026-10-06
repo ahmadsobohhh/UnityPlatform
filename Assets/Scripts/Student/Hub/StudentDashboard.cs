@@ -21,6 +21,8 @@ namespace ImagineQuest.Student
         private IStudentDashboardRepository repository;
         private FirebaseAuth auth;
         private RectTransform panel;
+        private RectTransform powersOverlay;
+        private Button powersButton;
         private TMP_Text nameText, avatarFallback, levelText, crystalsText, goldText, heartsText, statusText;
         private Image avatarImage;
         private Button refreshButton;
@@ -38,12 +40,14 @@ namespace ImagineQuest.Student
         {
             requestVersion++;
             loading = false;
+            if (powersOverlay != null) powersOverlay.gameObject.SetActive(false);
             if (auth != null) auth.StateChanged -= OnAuthChanged;
         }
 
         private void OnDestroy()
         {
             if (panel != null) Destroy(panel.gameObject);
+            if (powersOverlay != null) Destroy(powersOverlay.gameObject);
         }
 
         private void OnApplicationFocus(bool focused)
@@ -160,7 +164,7 @@ namespace ImagineQuest.Student
             nameText = Text("StudentName", panel, new Vector2(0.09f, 0.70f), new Vector2(0.76f, 0.96f), 32);
             nameText.fontStyle = FontStyles.Bold;
             nameText.richText = false;
-            statusText = Text("Status", panel, new Vector2(0.09f, 0.52f), new Vector2(0.82f, 0.70f), 18);
+            statusText = Text("Status", panel, new Vector2(0.09f, 0.52f), new Vector2(0.65f, 0.70f), 18);
             statusText.color = new Color(0.88f, 0.84f, 0.74f);
 
             levelText = Stat("Level / XP", "Economy · Progress", 0.015f, 0.375f, new Color(0.84f, 0.73f, 1f));
@@ -177,6 +181,7 @@ namespace ImagineQuest.Student
             var refreshLabel = Text("Label", refresh, new Vector2(0.06f, 0.05f), new Vector2(0.94f, 0.95f), 22);
             refreshLabel.text = "Refresh";
             refreshLabel.alignment = TextAlignmentOptions.Center;
+            BuildPowersPreview();
 
             // Keep the existing class list and its generated heading below the status area.
             var content = transform.Find("ContentPanel") as RectTransform;
@@ -188,6 +193,90 @@ namespace ImagineQuest.Student
             // The status panel must not draw over modal dialogs or the scene fade.
             var bottomBar = transform.Find("BottomBar");
             if (bottomBar != null) panel.SetSiblingIndex(bottomBar.GetSiblingIndex());
+            if (bottomBar != null) powersOverlay.SetSiblingIndex(bottomBar.GetSiblingIndex());
+        }
+
+        // UI-only examples: never infer ownership, costs or eligibility from the wallet.
+        // Keep this separate from Render/Refresh so preview data cannot affect student data.
+        private void BuildPowersPreview()
+        {
+            powersButton = PreviewButton("OpenPowers", panel,
+                new Vector2(0.67f, 0.62f), new Vector2(0.82f, 0.90f), "Powers");
+            powersOverlay = Rect("PowersPreviewOverlay", transform, Vector2.zero, Vector2.one);
+            var shade = powersOverlay.gameObject.AddComponent<Image>();
+            shade.color = new Color(0f, 0f, 0f, 0.78f);
+            shade.raycastTarget = true;
+            var window = Rect("PowersWindow", powersOverlay,
+                new Vector2(0.12f, 0.16f), new Vector2(0.88f, 0.88f));
+            var background = window.gameObject.AddComponent<Image>();
+            background.color = new Color(0.06f, 0.055f, 0.09f, 1f);
+
+            var title = Text("Title", window, new Vector2(0.04f, 0.88f), new Vector2(0.74f, 0.97f), 32);
+            title.text = "Powers · Preview";
+            title.fontStyle = FontStyles.Bold;
+            var close = PreviewButton("ClosePowers", window,
+                new Vector2(0.79f, 0.88f), new Vector2(0.96f, 0.97f), "Close");
+            close.onClick.AddListener(() =>
+            {
+                powersOverlay.gameObject.SetActive(false);
+                powersButton.Select();
+            });
+            var intro = Text("Explanation", window, new Vector2(0.04f, 0.75f), new Vector2(0.96f, 0.87f), 19);
+            intro.enableWordWrapping = true;
+            intro.text = "Level up to unlock classroom privileges. Crystals will be needed to activate them. These examples are not your actual powers.";
+
+            PowerPreviewCard(window, "Lunch Power", "Leave class five minutes early for lunch, as permitted by your teacher.",
+                "Available · example only", "Crystal cost: TBD", 0.53f);
+            PowerPreviewCard(window, "Evaluation Power", "Ask your teacher for a clue on one evaluation question.",
+                "Locked · example only", "Crystal cost: TBD", 0.31f);
+            PowerPreviewCard(window, "Report Card Power", "Your teacher removes your lowest semester mark. Once per school year.",
+                "Locked · example only", "Crystal cost: TBD", 0.09f);
+            var footer = Text("PreviewNotice", window, new Vector2(0.04f, 0.015f), new Vector2(0.96f, 0.075f), 16);
+            footer.text = "Preview only · Unlock levels and costs await configuration. No Crystals will be spent.";
+            footer.enableWordWrapping = true;
+
+            powersButton.onClick.AddListener(() =>
+            {
+                powersOverlay.gameObject.SetActive(true);
+                close.Select();
+            });
+            powersOverlay.gameObject.SetActive(false);
+        }
+
+        private void PowerPreviewCard(Transform parent, string title, string description,
+            string state, string cost, float bottom)
+        {
+            var card = Rect(title, parent, new Vector2(0.04f, bottom), new Vector2(0.96f, bottom + 0.20f));
+            card.gameObject.AddComponent<Image>().color = new Color(0.13f, 0.11f, 0.19f, 1f);
+            var heading = Text("Name", card, new Vector2(0.025f, 0.65f), new Vector2(0.66f, 0.97f), 24);
+            heading.text = title;
+            heading.fontStyle = FontStyles.Bold;
+            var detail = Text("Description", card, new Vector2(0.025f, 0.28f), new Vector2(0.66f, 0.65f), 18);
+            detail.text = description;
+            detail.enableWordWrapping = true;
+            var status = Text("State", card, new Vector2(0.025f, 0.03f), new Vector2(0.66f, 0.28f), 16);
+            status.text = state;
+            status.color = new Color(0.84f, 0.73f, 1f);
+            var price = Text("Cost", card, new Vector2(0.70f, 0.62f), new Vector2(0.975f, 0.94f), 18);
+            price.text = cost;
+            price.alignment = TextAlignmentOptions.Center;
+            var use = PreviewButton("UsePower", card,
+                new Vector2(0.70f, 0.12f), new Vector2(0.975f, 0.53f), "Use Power (soon)");
+            use.interactable = false;
+            // Deliberately no click handler or backend dependency.
+        }
+
+        private Button PreviewButton(string name, Transform parent, Vector2 min, Vector2 max, string caption)
+        {
+            var rect = Rect(name, parent, min, max);
+            var image = rect.gameObject.AddComponent<Image>();
+            image.color = new Color(0.27f, 0.23f, 0.17f);
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            var label = Text("Label", rect, new Vector2(0.04f, 0.05f), new Vector2(0.96f, 0.95f), 20);
+            label.text = caption;
+            label.alignment = TextAlignmentOptions.Center;
+            return button;
         }
 
         private TMP_Text Stat(string label, string caption, float left, float right, Color accent)
