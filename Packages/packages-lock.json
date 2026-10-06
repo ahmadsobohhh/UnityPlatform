@@ -308,6 +308,12 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.webviewtoolkit.core": {
+      "version": "file:com.webviewtoolkit.core",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.unity.modules.accessibility": {
       "version": "1.0.0",
       "depth": 0,

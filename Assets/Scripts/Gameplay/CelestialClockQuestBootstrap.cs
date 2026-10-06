@@ -21,6 +21,13 @@ namespace ImagineQuest.Gameplay
         private const string QuestTitle = "THE RIDDLE OF THE CELESTIAL CLOCK";
         private const int RequiredSealsBeforeFinale = 3;
 
+        [Header("Quest video placeholders (YouTube requires embedded browser)")]
+        [SerializeField] private string openingVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
+        [SerializeField] private string teachingVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
+        [SerializeField] private string completionVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
+        private UrlVideoSequencePlayer questVideo;
+        private bool videoVisible;
+
         [Header("Migrated visual assets")]
         [SerializeField] private GameObject colonialShipPrefab;
         [SerializeField] private GameObject pirateCaptainPrefab;
@@ -86,12 +93,57 @@ namespace ImagineQuest.Gameplay
 
         private void Start()
         {
-            ShowBriefing(0);
+            // Keep the scene's configured placeholder authoritative. Older launcher
+            // objects may still carry a retired MP4 URL in a serialized session.
+            // The opening video now leads directly into exploration. Keeping the
+            // briefing card out of this flow prevents it from reappearing when a
+            // teaching video closes.
+            PlayQuestVideo(openingVideoUrl,
+                BeginExploration);
+        }
+
+        private void PlayQuestVideo(string url, Action completed, Action exited = null)
+        {
+            if (string.IsNullOrWhiteSpace(url) || url.Contains("ForBigger", StringComparison.OrdinalIgnoreCase))
+                url = openingVideoUrl;
+            videoVisible = true;
+            playerController.SetInputEnabled(true);
+            UnlockCursor();
+            if (questVideo == null)
+            {
+                var host = new GameObject("Quest Video Overlay");
+                host.transform.SetParent(transform, false);
+                questVideo = host.AddComponent<UrlVideoSequencePlayer>();
+            }
+            if (activeStation != null)
+            {
+                var camera = Camera.main;
+                var towardPlayer = camera == null ? Vector3.forward
+                    : Vector3.ProjectOnPlane(camera.transform.position - activeStation.transform.position, Vector3.up).normalized;
+                questVideo.WorldAnchor = activeStation.transform.position + Vector3.up * 1.3f + towardPlayer * 0.85f;
+            }
+            else
+            {
+                questVideo.WorldAnchor = null;
+            }
+            Debug.Log("[Quest Video] Opening configured URL: " + url);
+            questVideo.Play(url, () =>
+            {
+                videoVisible = false;
+                playerController.SetInputEnabled(false);
+                UnlockCursor();
+                completed?.Invoke();
+            }, () =>
+            {
+                videoVisible = false;
+                UnlockCursor();
+                if (exited != null) exited(); else completed?.Invoke();
+            });
         }
 
         private void Update()
         {
-            if (Keyboard.current == null)
+            if (videoVisible || Keyboard.current == null)
                 return;
 
             if (Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -638,6 +690,8 @@ namespace ImagineQuest.Gameplay
             briefingBodyText = CreateText("Briefing Copy", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 12f), new Vector2(820f, 205f), 31f, TextAlignmentOptions.Center, new Color(0.95f, 0.97f, 1f));
             briefingBodyText.textWrappingMode = TextWrappingModes.Normal;
+            briefingSpeakerText.text = "CAPTAIN ESME";
+            briefingBodyText.text = "The Celestial Clock has fallen silent. Prepare the Aurora for its next learning voyage.";
             briefingStepText = CreateText("Briefing Step", card.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 132f), new Vector2(350f, 28f), 17f, TextAlignmentOptions.Center, new Color(0.58f, 0.7f, 0.9f));
             briefingPrimaryButton = CreateButton("Briefing Primary", card.transform, "CONTINUE", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
@@ -747,8 +801,10 @@ namespace ImagineQuest.Gameplay
             briefingVisible = true;
             briefingIndex = Mathf.Clamp(index, 0, briefingLines.Length - 1);
             var line = briefingLines[briefingIndex];
-            briefingSpeakerText.text = line.Speaker;
-            briefingBodyText.text = line.Body;
+            briefingSpeakerText.text = string.IsNullOrWhiteSpace(line.Speaker) ? "CAPTAIN ESME" : line.Speaker;
+            briefingBodyText.text = string.IsNullOrWhiteSpace(line.Body)
+                ? "The Celestial Clock has fallen silent. Prepare the Aurora for its next learning voyage."
+                : line.Body;
             briefingStepText.text = "BRIEFING " + (briefingIndex + 1) + " OF " + briefingLines.Length;
             briefingPrimaryButton.GetComponentInChildren<TMP_Text>().text = briefingIndex == briefingLines.Length - 1
                 ? "SET SAIL"
@@ -779,7 +835,7 @@ namespace ImagineQuest.Gameplay
 
         public void OpenStation(CelestialClockStation station)
         {
-            if (station == null || station.IsComplete || station.IsLocked || briefingVisible || lessonVisible || pauseVisible)
+            if (station == null || station.IsComplete || station.IsLocked || videoVisible || briefingVisible || lessonVisible || pauseVisible)
                 return;
 
             activeStation = station;
@@ -788,7 +844,12 @@ namespace ImagineQuest.Gameplay
             interactionText.gameObject.SetActive(false);
             playerController.SetInputEnabled(false);
             UnlockCursor();
-            ShowTeachingNote();
+            lessonPanel.SetActive(false);
+            PlayQuestVideo(teachingVideoUrl, () =>
+            {
+                lessonPanel.SetActive(true);
+                ShowTeachingNote();
+            }, CloseLesson);
         }
 
         private void ShowTeachingNote()
@@ -959,8 +1020,7 @@ namespace ImagineQuest.Gameplay
             completionSummaryText.text = "You restored all four seals and woke the Celestial Clock.\n\n" +
                 "Practice complete: " + CompletedCount + " seals  •  " + provisionalXp + " provisional XP recorded\n\n" +
                 "Your teacher can now see this completion after the Firebase classroom backend is deployed.";
-            completionPanel.SetActive(true);
-            playerController.SetInputEnabled(false);
+            PlayQuestVideo(completionVideoUrl, () => completionPanel.SetActive(true));
             UnlockCursor();
         }
 
@@ -1038,7 +1098,7 @@ namespace ImagineQuest.Gameplay
 
         public void UpdateInteractionPrompt(CelestialClockStation station)
         {
-            if (interactionText == null || lessonVisible || briefingVisible || pauseVisible || journalVisible || questComplete)
+            if (interactionText == null || videoVisible || lessonVisible || briefingVisible || pauseVisible || journalVisible || questComplete)
                 return;
 
             if (station == null)
@@ -1415,7 +1475,8 @@ namespace ImagineQuest.Gameplay
                 verticalVelocity += Physics.gravity.y * Time.deltaTime;
             characterController.Move((direction * movementSpeed + Vector3.up * verticalVelocity) * Time.deltaTime);
 
-            var look = Mouse.current.delta.ReadValue() * sensitivity;
+            var look = Cursor.lockState == CursorLockMode.Locked
+                ? Mouse.current.delta.ReadValue() * sensitivity : Vector2.zero;
             transform.Rotate(0f, look.x, 0f);
             pitch = Mathf.Clamp(pitch - look.y, -72f, 72f);
             playerCamera.localRotation = Quaternion.Euler(pitch, 0f, 0f);
