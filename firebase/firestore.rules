@@ -192,6 +192,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Hearts are classroom standing, not spendable currency. Teacher-authorized
+    // server workflows own deductions/restoration; students can only view them.
+    match /studentStanding/{uid} {
+      allow read: if isSelf(uid);
+      allow write: if false;
+    }
+
     match /walletLedger/{ledgerId} {
       allow read: if signedIn() && resource.data.uid == request.auth.uid;
       allow write: if false;

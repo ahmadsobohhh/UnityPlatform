@@ -3392,6 +3392,7 @@ GameObject:
   - component: {fileID: 1702762939}
   - component: {fileID: 1702762943}
   - component: {fileID: 1702762944}
+  - component: {fileID: 1702762945}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -3618,6 +3619,37 @@ MonoBehaviour:
   defaultAssignmentId: pirate-voyage
   questSceneName: CelestialClockQuest
   introVideoUrl: 
+--- !u!114 &1702762945
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1702762933}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cd3097ea90054f9fb51130fa3f8c4c24, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: GameRuntime::ImagineQuest.Student.StudentDashboard
+  avatarSprites:
+  - {fileID: 4356106560750853234, guid: 4d6ed94e1cf1a5444a1fd006dc0e05cb, type: 3}
+  - {fileID: -868432156051414525, guid: a47aa0921e729cd4488e0a6522a48bd8, type: 3}
+  - {fileID: -8462831695681209323, guid: edba387b1c6c3644e82009b3bb2f7585, type: 3}
+  - {fileID: -1948005275322341602, guid: 3a04633402bb5b545aa5e481e520d97d, type: 3}
+  - {fileID: -3033014166164026303, guid: e0db70c1b19bb2a4198a35f40e36ecb4, type: 3}
+  - {fileID: 8028053921071451741, guid: a1b41e48e247c344f8d7248489538b46, type: 3}
+  - {fileID: 7614307356518147038, guid: 5c96d098cc0d370498146affd9c4cd5a, type: 3}
+  - {fileID: 4225369116433708892, guid: 874c5a4aaedeec943a78e8c8413e2a6f, type: 3}
+  avatarIds:
+  - hero
+  - mage
+  - knight
+  - bandit
+  - monk
+  - archer
+  - samurai
+  - scholar
+  font: {fileID: 11400000, guid: b12bb4b197a7383459bd463768c1a11f, type: 2}
 --- !u!114 &1702762944
 MonoBehaviour:
   m_ObjectHideFlags: 0

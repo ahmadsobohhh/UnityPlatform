@@ -292,12 +292,14 @@ public class StudentClassLoader : MonoBehaviour
         if (titleRt == null)
             titleRt = titleGo.AddComponent<RectTransform>();
 
-        float overlayY = overlayRt != null ? overlayRt.anchoredPosition.y : 0f;
-        float overlayHalfHeight = overlayRt != null ? overlayRt.rect.height * 0.5f : 120f;
-        titleRt.anchorMin = new Vector2(0.5f, 0.5f);
-        titleRt.anchorMax = new Vector2(0.5f, 0.5f);
+        // Match the panel's top anchor; its center is no longer the canvas center
+        // once StudentDashboard reserves space for the status header.
+        float topAnchor = overlayRt != null ? overlayRt.anchorMax.y : 0.5f;
+        float topOffset = overlayRt != null ? overlayRt.offsetMax.y : 120f;
+        titleRt.anchorMin = new Vector2(0.5f, topAnchor);
+        titleRt.anchorMax = new Vector2(0.5f, topAnchor);
         titleRt.pivot = new Vector2(0.5f, 0f);
-        titleRt.anchoredPosition = new Vector2(0f, overlayY + overlayHalfHeight + 14f);
+        titleRt.anchoredPosition = new Vector2(0f, topOffset + 14f);
         titleRt.sizeDelta = new Vector2(480f, 58f);
         titleRt.SetAsLastSibling();
 
