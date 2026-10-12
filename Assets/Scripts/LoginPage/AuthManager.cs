@@ -305,6 +305,9 @@ public class AuthManager : MonoBehaviour
         // Check if document exists and get role
         if (userDocTask.Result.Exists)
         {
+            ImagineQuest.Gameplay.StudentAvatarIdentity.Cache(User.UserId,
+                userDocTask.Result.ContainsField("avatarId") ? userDocTask.Result.GetValue<string>("avatarId") : "navigator",
+                userDocTask.Result.ContainsField("characterColor") ? userDocTask.Result.GetValue<string>("characterColor") : "FFFFFF");
             string role = userDocTask.Result.GetValue<string>("role"); // get role
             Debug.Log("User role: " + role);
 

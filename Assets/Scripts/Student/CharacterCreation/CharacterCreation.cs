@@ -215,6 +215,8 @@ public class CharacterCreation : MonoBehaviour
             };
 
             await db.Collection("users").Document(user.UserId).UpdateAsync(updates);
+            ImagineQuest.Gameplay.StudentAvatarIdentity.Cache(user.UserId, selected.id,
+                ColorUtility.ToHtmlStringRGB(TintColors[currentColorIndex]));
             Debug.Log($"Character created: {selected.displayName}");
 
             SceneTransition.LoadScene("StudentHub");

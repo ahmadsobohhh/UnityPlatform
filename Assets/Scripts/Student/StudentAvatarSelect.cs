@@ -42,6 +42,8 @@ public class StudentAvatarSelect : MonoBehaviour
                 .Document(user.UserId)
                 .UpdateAsync(updates);
 
+            ImagineQuest.Gameplay.StudentAvatarIdentity.Cache(user.UserId, avatarId, "FFFFFF");
+
             Debug.Log("Avatar saved successfully.");
 
             SceneTransition.LoadScene("StudentHub");

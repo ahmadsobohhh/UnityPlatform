@@ -25,6 +25,8 @@ public class AudioManager : MonoBehaviour
     private AudioSource sfxSource;
     private Slider boundMusicSlider;
     private Slider boundEffectsSlider;
+    private float musicLevel = 1f;
+    private bool musicDucked;
 
     private const string MusicVolKey = "MusicVolume";
     private const string EffectsVolKey = "EffectsVolume";
@@ -35,7 +37,7 @@ public class AudioManager : MonoBehaviour
         set
         {
             PlayerPrefs.SetFloat(MusicVolKey, value);
-            if (musicSource != null) musicSource.volume = value;
+            if (musicSource != null) musicSource.volume = value * musicLevel * (musicDucked ? 0.18f : 1f);
         }
     }
 
@@ -43,6 +45,22 @@ public class AudioManager : MonoBehaviour
     {
         get => PlayerPrefs.GetFloat(EffectsVolKey, defaultEffectsVolume);
         set => PlayerPrefs.SetFloat(EffectsVolKey, value);
+    }
+
+    public void PlayMusic(AudioClip clip, float level = 1f)
+    {
+        if (clip == null || musicSource == null) return;
+        musicLevel = Mathf.Clamp01(level);
+        musicSource.volume = MusicVolume * musicLevel * (musicDucked ? 0.18f : 1f);
+        if (musicSource.clip != clip) musicSource.clip = clip;
+        if (!musicSource.isPlaying) musicSource.Play();
+    }
+
+    public void SetMusicDucked(bool ducked)
+    {
+        musicDucked = ducked;
+        if (musicSource != null)
+            musicSource.volume = MusicVolume * musicLevel * (musicDucked ? 0.18f : 1f);
     }
 
     private void Awake()
@@ -90,6 +108,11 @@ public class AudioManager : MonoBehaviour
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        if (scene.name != "QuestArena" && scene.name != "CelestialClockQuest")
+        {
+            SetMusicDucked(false);
+            if (backgroundMusic != null) PlayMusic(backgroundMusic);
+        }
         boundMusicSlider = null;
         boundEffectsSlider = null;
         BindSliders();
@@ -195,7 +218,7 @@ public class AudioManager : MonoBehaviour
         if (musicSource.clip == null && backgroundMusic != null)
             musicSource.clip = backgroundMusic;
 
-        musicSource.volume = MusicVolume;
+        musicSource.volume = MusicVolume * musicLevel * (musicDucked ? 0.18f : 1f);
 
         if (musicSource.clip != null && !musicSource.isPlaying)
             musicSource.Play();
@@ -216,6 +239,9 @@ public class AudioManager : MonoBehaviour
     /// </summary>
     public void ChangeMusic(AudioClip newClip)
     {
+        musicLevel = 1f;
+        musicDucked = false;
+        musicSource.volume = MusicVolume;
         if (musicSource.clip == newClip) return;
         musicSource.Stop();
         musicSource.clip = newClip;

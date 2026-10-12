@@ -10,13 +10,10 @@ using UnityEngine.UI;
 namespace ImagineQuest.Gameplay
 {
     /// <summary>
-    /// Student-facing assignment gate shown only after a learner opens a class.
+    /// Student-facing arena entry shown only after a learner opens a class.
     /// </summary>
     public sealed class StudentQuestLobby : MonoBehaviour
     {
-        private const string AssignmentId = "pirate-voyage";
-        private const string AssignmentCollection = "questAssignments";
-
         private Button playButton;
         private TMP_Text buttonLabel;
         private TMP_Text statusLabel;
@@ -64,14 +61,14 @@ namespace ImagineQuest.Gameplay
 
             var eyebrow = QuestLobbyUi.CreateText("Eyebrow", runtimeCard.transform,
                 new Vector2(0.08f, 0.82f), new Vector2(0.92f, 0.94f), 17f);
-            eyebrow.text = "ASSIGNED QUEST";
+            eyebrow.text = "CLASS ADVENTURES";
             eyebrow.fontStyle = FontStyles.Bold;
             eyebrow.alignment = TextAlignmentOptions.MidlineLeft;
             eyebrow.color = QuestLobbyUi.MutedGold;
 
             var title = QuestLobbyUi.CreateText("Title", runtimeCard.transform,
                 new Vector2(0.08f, 0.61f), new Vector2(0.92f, 0.82f), 27f);
-            title.text = "The Celestial Clock";
+            title.text = "Quest Arena";
             title.fontStyle = FontStyles.Bold;
             title.alignment = TextAlignmentOptions.MidlineLeft;
             title.color = QuestLobbyUi.Cream;
@@ -83,7 +80,7 @@ namespace ImagineQuest.Gameplay
             statusLabel.color = new Color(0.90f, 0.84f, 0.72f, 0.94f);
 
             playButton = QuestLobbyUi.CreateButton("PlayPirateQuestButton", runtimeCard.transform,
-                "BEGIN QUEST", new Vector2(0.08f, 0.07f), new Vector2(0.92f, 0.23f));
+                "ENTER ARENA", new Vector2(0.08f, 0.07f), new Vector2(0.92f, 0.23f));
             buttonLabel = playButton.GetComponentInChildren<TMP_Text>();
             playButton.onClick.AddListener(() => launcher.LaunchPirateQuest());
         }
@@ -107,34 +104,12 @@ namespace ImagineQuest.Gameplay
                 yield break;
             }
 
-            SetLocked("Checking your teacher's quest assignment...", "CHECKING QUEST");
-            var task = FirebaseFirestore.DefaultInstance.Collection("classes").Document(classId)
-                .Collection(AssignmentCollection).Document(AssignmentId).GetSnapshotAsync();
-            yield return new WaitUntil(() => task.IsCompleted);
-
             if (!SessionStillMatches())
                 yield break;
-
-            if (task.IsFaulted || task.IsCanceled)
-            {
-                Debug.LogError("[StudentQuestLobby] Could not read class quest assignment: " + task.Exception);
-                SetLocked("This class has no available quest assignment right now.", "QUEST UNAVAILABLE");
-                yield break;
-            }
-
-            var assignment = task.Result;
-            bool unlocked = assignment.Exists && assignment.ContainsField("isUnlocked") &&
-                            assignment.GetValue<bool>("isUnlocked");
-            if (!unlocked)
-            {
-                SetLocked("Waiting for your teacher to unlock this mission.", "QUEST LOCKED");
-                yield break;
-            }
-
             if (statusLabel != null)
-                statusLabel.text = "Ready for launch. Your teacher has opened this mission for the class.";
+                statusLabel.text = "Explore the ship and choose a quest at the glowing chart table. Your teacher controls which quests are available.";
             if (buttonLabel != null)
-                buttonLabel.text = "BEGIN CELESTIAL CLOCK";
+                buttonLabel.text = "ENTER ARENA";
             if (playButton != null)
                 playButton.interactable = true;
         }
@@ -199,7 +174,7 @@ namespace ImagineQuest.Gameplay
 
             var eyebrow = QuestLobbyUi.CreateText("Eyebrow", runtimeCard.transform,
                 new Vector2(0.08f, 0.82f), new Vector2(0.92f, 0.94f), 17f);
-            eyebrow.text = "CLASS QUEST";
+            eyebrow.text = "SELECT CLASS QUESTS";
             eyebrow.fontStyle = FontStyles.Bold;
             eyebrow.alignment = TextAlignmentOptions.MidlineLeft;
             eyebrow.color = QuestLobbyUi.MutedGold;
@@ -333,13 +308,17 @@ namespace ImagineQuest.Gameplay
             if (statusLabel != null)
             {
                 statusLabel.text = unlocked
-                    ? "Open for students. They can launch it from their class page."
-                    : "Locked. Students can see the mission but cannot launch it yet.";
+                    ? "Selected for this class. Students can play this quest from the arena's chart table."
+                    : "Not selected. Students can explore the arena, but this quest is unavailable until you select it.";
             }
             if (toggleLabel != null)
-                toggleLabel.text = unlocked ? "LOCK QUEST" : "UNLOCK FOR CLASS";
+                toggleLabel.text = unlocked ? "DESELECT QUEST" : "SELECT QUEST";
             if (toggleButton != null)
+            {
                 toggleButton.interactable = true;
+                toggleButton.GetComponent<Image>().color = unlocked
+                    ? new Color(0.15f, 0.35f, 0.22f) : new Color(0.43f, 0.28f, 0.075f);
+            }
         }
 
         private void SetUnavailable(string message)

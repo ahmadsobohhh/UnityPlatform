@@ -224,7 +224,7 @@ namespace ImagineQuest.Gameplay
             var volumeSlider = MakeSlider("Volume", root.transform, new Vector2(0.32f, 0.13f), new Vector2(0.94f, 0.17f));
             volumeSlider.value = volume;
             volumeSlider.onValueChanged.AddListener(value => { volume = value; ApplyVolume(); });
-            Label("Input hint", root.transform, new Vector2(0.03f, 0.01f), new Vector2(0.72f, 0.1f)).text = "WASD move | Tab: look / controls";
+            Label("Input hint", root.transform, new Vector2(0.03f, 0.01f), new Vector2(0.72f, 0.1f)).text = "Tab: cursor / controls | Esc: exit";
             var skip = Rect("Exit Video", root.transform, new Vector2(0.75f, 0.025f), new Vector2(0.96f, 0.1f));
             skip.gameObject.AddComponent<Image>().color = new Color(0.35f, 0.23f, 0.09f);
             var button = skip.gameObject.AddComponent<Button>();

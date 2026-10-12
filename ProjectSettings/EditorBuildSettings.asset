@@ -38,6 +38,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Gameplay/CelestialClockQuest.unity
     guid: 24d90be6f478df44ea61e2770ee36310
+  - enabled: 1
+    path: Assets/Scenes/Gameplay/QuestArena.unity
+    guid: e7a61d9902fc4ccfbcae74d4e6970bc1
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0

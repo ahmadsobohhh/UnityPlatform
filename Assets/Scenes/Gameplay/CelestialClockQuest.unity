@@ -148,16 +148,34 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b201d901bbe23d4f8ba30088a6fb760, type: 3}
   m_Name: 
   m_EditorClassIdentifier: GameRuntime::ImagineQuest.Gameplay.CelestialClockQuestBootstrap
+  arenaOnly: 0
+  dummyQuestVideoUrl: https://www.youtube.com/watch?v=zQ8caaUxIvY
   colonialShipPrefab: {fileID: 1183078024404704, guid: 1b78331b52629c7479714da987b1a28b, type: 3}
   pirateCaptainPrefab: {fileID: 6847493923143034935, guid: ffe3ad23be052d84c83952a08a0f52c7, type: 3}
+  piratePlayerPrefabs:
+  - {fileID: 6847493923143034935, guid: ffe3ad23be052d84c83952a08a0f52c7, type: 3}
+  - {fileID: 3719544926778543666, guid: acd8c4148cf99584195b07aeb0585f26, type: 3}
+  - {fileID: 6683935388492207202, guid: c48ccd4514b92c8458f9a430ebfa94d5, type: 3}
+  - {fileID: 6190494237641194361, guid: a96f442e4c9dde2419e2d5d3429bdb1b, type: 3}
+  - {fileID: 7726325505321076126, guid: 54d96ebabc3051b478368267348bcec4, type: 3}
   treasureChestPrefab: {fileID: 1671758998919492, guid: 82fc0e4611497ae46a3f38db39d20eec, type: 3}
+  pirateHumanoidAvatar: {fileID: 9000000, guid: 067eed6340abfa94383b955a0cb27fad, type: 3}
+  pirateLocomotionController: {fileID: 9100000, guid: 563aa7254d1b4f279fcd01d869679e80, type: 2}
+  arenaSkybox: {fileID: 2100000, guid: 50817f43cdb44a1589e07847d4854ded, type: 2}
+  arenaWater: {fileID: 2100000, guid: 3440f18d4a204a5daec9c0c6dc409337, type: 2}
+  interactableOutline: {fileID: 2100000, guid: e5e91b3fc1a941acb233792b813cd83b, type: 2}
+  arenaMusic: {fileID: 8300000, guid: 1a384874ceccb1144af8aa7390635982, type: 3}
   questDefinition: {fileID: 11400000, guid: 5520b8057a1444841ad2824078fb41a5, type: 2}
   openingVideoUrl: https://www.youtube.com/watch?v=zQ8caaUxIvY
   teachingVideoUrl: https://www.youtube.com/watch?v=zQ8caaUxIvY
   completionVideoUrl: https://www.youtube.com/watch?v=zQ8caaUxIvY
+  sailFractionVideoUrl: https://www.youtube.com/watch?v=zQ8caaUxIvY
+  compassAngleVideoUrl: https://www.youtube.com/watch?v=zQ8caaUxIvY
+  starEquationVideoUrl: https://www.youtube.com/watch?v=zQ8caaUxIvY
+  celestialClockVideoUrl: https://www.youtube.com/watch?v=zQ8caaUxIvY
   shipScale: 0.28
-  lookSensitivity: 0.13
-  moveSpeed: 4.6
+  lookSensitivity: 0.1
+  moveSpeed: 1.4
 --- !u!4 &1810151046
 Transform:
   m_ObjectHideFlags: 0

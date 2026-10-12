@@ -1,11 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Collections;
+using Firebase.Auth;
+using Firebase.Firestore;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using ImagineQuest.QuestFramework;
 
 namespace ImagineQuest.Gameplay
@@ -18,26 +22,44 @@ namespace ImagineQuest.Gameplay
     /// </summary>
     public sealed class CelestialClockQuestBootstrap : MonoBehaviour
     {
-        private const string QuestTitle = "THE RIDDLE OF THE CELESTIAL CLOCK";
+        private const string QuestTitle = "QUEST ARENA  •  THE RIDDLE OF THE CELESTIAL CLOCK";
         private const int RequiredSealsBeforeFinale = 3;
+
+        [Header("Ship hub")]
+        [SerializeField] private bool arenaOnly;
+        [SerializeField] private string dummyQuestVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
+        private Transform questChart;
 
         [Header("Quest video placeholders (YouTube requires embedded browser)")]
         [SerializeField] private string openingVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
         [SerializeField] private string teachingVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
         [SerializeField] private string completionVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
+        [SerializeField] private string sailFractionVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
+        [SerializeField] private string compassAngleVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
+        [SerializeField] private string starEquationVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
+        [SerializeField] private string celestialClockVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
         private UrlVideoSequencePlayer questVideo;
         private bool videoVisible;
 
         [Header("Migrated visual assets")]
         [SerializeField] private GameObject colonialShipPrefab;
         [SerializeField] private GameObject pirateCaptainPrefab;
+        [SerializeField] private GameObject[] piratePlayerPrefabs;
         [SerializeField] private GameObject treasureChestPrefab;
+        [SerializeField] private Avatar pirateHumanoidAvatar;
+        [SerializeField] private RuntimeAnimatorController pirateLocomotionController;
+        [SerializeField] private Material arenaSkybox;
+        [SerializeField] private Material arenaWater;
+        [SerializeField] private Material interactableOutline;
+        [SerializeField] private AudioClip arenaMusic;
         [SerializeField] private QuestDefinition questDefinition;
         [SerializeField, Range(0.15f, 0.5f)] private float shipScale = 0.28f;
 
         [Header("Comfort and presentation")]
-        [SerializeField, Range(0.05f, 0.3f)] private float lookSensitivity = 0.13f;
-        [SerializeField, Range(3f, 8f)] private float moveSpeed = 4.6f;
+        [SerializeField, Range(0.05f, 0.3f)] private float lookSensitivity = 0.1f;
+        [SerializeField, Range(0.8f, 3f)] private float moveSpeed = 1.4f;
+        private readonly List<Collider> deckSurfaces = new List<Collider>();
+        private Transform shipRoot;
 
         private readonly List<CelestialClockStation> stations = new List<CelestialClockStation>();
         private readonly List<Button> answerButtons = new List<Button>();
@@ -50,6 +72,7 @@ namespace ImagineQuest.Gameplay
         private TMP_Text xpText;
         private TMP_Text interactionText;
         private TMP_Text journalText;
+        private TMP_Text journalTitleText;
         private GameObject briefingPanel;
         private TMP_Text briefingSpeakerText;
         private TMP_Text briefingBodyText;
@@ -66,6 +89,11 @@ namespace ImagineQuest.Gameplay
         private GameObject pausePanel;
         private GameObject completionPanel;
         private TMP_Text completionSummaryText;
+        private GameObject questPickerPanel;
+        private TMP_Text questPickerDetail;
+        private Button playSelectedQuest;
+        private PirateAvatarStyler playerStyler;
+        private Coroutine assignmentRefresh;
         private bool briefingVisible;
         private bool lessonVisible;
         private bool journalVisible;
@@ -84,8 +112,14 @@ namespace ImagineQuest.Gameplay
 
         private void Awake()
         {
-            EnsurePersistence();
-            ValidateContentDefinition();
+            // Also recognize the scene by name when an already-open editor instance
+            // still has the old serialized component values after a script reload.
+            arenaOnly = arenaOnly || gameObject.scene.name == "QuestArena";
+            if (!arenaOnly)
+            {
+                EnsurePersistence();
+                ValidateContentDefinition();
+            }
             ConfigureAtmosphere();
             BuildWorld();
             BuildInterface();
@@ -93,21 +127,45 @@ namespace ImagineQuest.Gameplay
 
         private void Start()
         {
-            // Keep the scene's configured placeholder authoritative. Older launcher
-            // objects may still carry a retired MP4 URL in a serialized session.
-            // The opening video now leads directly into exploration. Keeping the
-            // briefing card out of this flow prevents it from reappearing when a
-            // teaching video closes.
-            PlayQuestVideo(openingVideoUrl,
-                BeginExploration);
+            // The ship is the persistent quest arena. Learners arrive in control and
+            // deliberately start story/video content by interacting with the captain
+            // or one of the lesson fixtures instead of being trapped in an autoplay.
+            BeginExploration();
+            RestoreSavedAvatar();
+            if (arenaMusic != null)
+            {
+                if (AudioManager.Instance == null)
+                    new GameObject("Audio Manager").AddComponent<AudioManager>();
+                AudioManager.Instance.PlayMusic(arenaMusic, 0.55f);
+            }
         }
 
-        private void PlayQuestVideo(string url, Action completed, Action exited = null)
+        private async void RestoreSavedAvatar()
+        {
+            var user = FirebaseAuth.DefaultInstance.CurrentUser;
+            if (user == null) return;
+            try
+            {
+                var profile = await FirebaseFirestore.DefaultInstance.Collection("users").Document(user.UserId).GetSnapshotAsync();
+                if (this == null || FirebaseAuth.DefaultInstance.CurrentUser?.UserId != user.UserId || !profile.Exists) return;
+                StudentAvatarIdentity.Cache(user.UserId,
+                    profile.ContainsField("avatarId") ? profile.GetValue<string>("avatarId") : "navigator",
+                    profile.ContainsField("characterColor") ? profile.GetValue<string>("characterColor") : "FFFFFF");
+                if (playerStyler != null) playerStyler.Apply(StudentAvatarIdentity.AvatarId, StudentAvatarIdentity.ColorHex);
+            }
+            catch (Exception)
+            {
+                Debug.LogWarning("[Quest Arena] Saved appearance unavailable; using this account's cached or default skin.");
+            }
+        }
+
+        private void PlayQuestVideo(string url, Action completed, Action exited = null, Vector3? worldAnchor = null)
         {
             if (string.IsNullOrWhiteSpace(url) || url.Contains("ForBigger", StringComparison.OrdinalIgnoreCase))
                 url = openingVideoUrl;
             videoVisible = true;
-            playerController.SetInputEnabled(true);
+            AudioManager.Instance?.SetMusicDucked(true);
+            playerController.SetInputEnabled(false);
             UnlockCursor();
             if (questVideo == null)
             {
@@ -115,7 +173,12 @@ namespace ImagineQuest.Gameplay
                 host.transform.SetParent(transform, false);
                 questVideo = host.AddComponent<UrlVideoSequencePlayer>();
             }
-            if (activeStation != null)
+            if (worldAnchor.HasValue)
+            {
+                questVideo.WorldAnchor = worldAnchor;
+                playerController.FocusProjection(worldAnchor);
+            }
+            else if (activeStation != null)
             {
                 var camera = Camera.main;
                 var towardPlayer = camera == null ? Vector3.forward
@@ -130,12 +193,16 @@ namespace ImagineQuest.Gameplay
             questVideo.Play(url, () =>
             {
                 videoVisible = false;
+                AudioManager.Instance?.SetMusicDucked(false);
+                playerController.FocusProjection(null);
                 playerController.SetInputEnabled(false);
                 UnlockCursor();
                 completed?.Invoke();
             }, () =>
             {
                 videoVisible = false;
+                AudioManager.Instance?.SetMusicDucked(false);
+                playerController.FocusProjection(null);
                 UnlockCursor();
                 if (exited != null) exited(); else completed?.Invoke();
             });
@@ -160,7 +227,7 @@ namespace ImagineQuest.Gameplay
                     return;
                 }
 
-                if (!briefingVisible && !completionPanel.activeSelf)
+                if (!briefingVisible && (completionPanel == null || !completionPanel.activeSelf))
                     TogglePause();
             }
 
@@ -191,10 +258,15 @@ namespace ImagineQuest.Gameplay
 
         private void ConfigureAtmosphere()
         {
-            RenderSettings.ambientLight = new Color(0.13f, 0.19f, 0.36f);
+            if (arenaSkybox != null)
+                RenderSettings.skybox = arenaSkybox;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.3f, 0.38f, 0.55f);
+            RenderSettings.ambientEquatorColor = new Color(0.28f, 0.23f, 0.20f);
+            RenderSettings.ambientGroundColor = new Color(0.10f, 0.13f, 0.18f);
             RenderSettings.fog = true;
-            RenderSettings.fogColor = new Color(0.018f, 0.055f, 0.14f);
-            RenderSettings.fogDensity = 0.012f;
+            RenderSettings.fogColor = new Color(0.19f, 0.18f, 0.26f);
+            RenderSettings.fogDensity = 0.006f;
         }
 
         private void BuildWorld()
@@ -203,9 +275,12 @@ namespace ImagineQuest.Gameplay
             CreateOcean();
             CreateStarfield();
             CreateShipAndDeck();
+            CreateLivingHorizon();
             CreatePlayer();
             CreateCaptain();
-            CreateQuestStations();
+            if (arenaOnly) CreateCrew();
+            if (!arenaOnly)
+                CreateQuestStations();
         }
 
         private void CreateMoonlight()
@@ -231,14 +306,12 @@ namespace ImagineQuest.Gameplay
 
         private void CreateOcean()
         {
-            var oceanMaterial = CreateMaterial(new Color(0.015f, 0.11f, 0.28f));
+            var oceanMaterial = arenaWater != null ? arenaWater : CreateMaterial(new Color(0.015f, 0.11f, 0.28f));
             var ocean = CreatePrimitive("Astral Ocean", PrimitiveType.Plane, new Vector3(0f, 0.2f, 4f),
-                new Vector3(12f, 1f, 12f), oceanMaterial);
-            ocean.AddComponent<CelestialOceanMotion>().Configure(0.1f, 0.65f);
+                new Vector3(60f, 1f, 60f), oceanMaterial);
 
-            var underglow = CreatePrimitive("Astral Ocean Underglow", PrimitiveType.Plane, new Vector3(0f, 0.05f, 4f),
-                new Vector3(12.5f, 1f, 12.5f), CreateMaterial(new Color(0.025f, 0.27f, 0.4f), true));
-            underglow.AddComponent<CelestialOceanMotion>().Configure(0.08f, 0.48f);
+            if (arenaWater == null)
+                ocean.AddComponent<CelestialOceanMotion>().Configure(0.04f, 0.48f);
         }
 
         private void CreateStarfield()
@@ -265,14 +338,24 @@ namespace ImagineQuest.Gameplay
             if (colonialShipPrefab != null)
             {
                 var ship = Instantiate(colonialShipPrefab, Vector3.zero, Quaternion.identity);
+                shipRoot = ship.transform;
                 ship.name = "Aurora — Migrated Colonial Ship";
                 ship.transform.localScale = Vector3.one * shipScale;
 
-                // The imported environment has artist-authored colliders for a much larger
-                // scene. A clear invisible deck below gives this focused quest predictable
-                // movement while preserving all of the detailed ship visuals.
+                // Collision follows the visible geometry and changes in deck height.
                 foreach (var collider in ship.GetComponentsInChildren<Collider>(true))
                     collider.enabled = false;
+                AddDetailedShipColliders(ship);
+                foreach (var collider in ship.GetComponentsInChildren<MeshCollider>())
+                {
+                    var surfaceName = collider.name.ToLowerInvariant();
+                    if (surfaceName.Contains("floor") || surfaceName.Contains("stair") ||
+                        surfaceName.Contains("small_steps") || surfaceName.Contains("wheel_area") || surfaceName.Contains("ship_body"))
+                        deckSurfaces.Add(collider);
+                }
+                foreach (var part in ship.GetComponentsInChildren<Transform>())
+                    if (part.name.StartsWith("Sail_", StringComparison.OrdinalIgnoreCase))
+                        part.gameObject.AddComponent<AuroraSailWind>();
             }
             else
             {
@@ -283,10 +366,48 @@ namespace ImagineQuest.Gameplay
             CreateDeckDressing();
         }
 
+        private static void AddDetailedShipColliders(GameObject ship)
+        {
+            // Static collision follows the solid surfaces. Rigging stays non-blocking.
+            var collisionNames = new[]
+            {
+                "mast", "cannon", "barrel", "boxes", "treasure", "hatch", "door",
+                "wheel", "stair", "sandbag", "rail", "basket", "floor", "ship_body", "small_steps"
+            };
+
+            foreach (var filter in ship.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (filter.sharedMesh == null)
+                    continue;
+
+                var objectName = filter.gameObject.name.ToLowerInvariant();
+                var shouldCollide = false;
+                for (var index = 0; index < collisionNames.Length; index++)
+                {
+                    if (!objectName.Contains(collisionNames[index]))
+                        continue;
+                    shouldCollide = true;
+                    break;
+                }
+
+                if (!shouldCollide)
+                    continue;
+
+                var meshCollider = filter.GetComponent<MeshCollider>();
+                if (meshCollider == null)
+                    meshCollider = filter.gameObject.AddComponent<MeshCollider>();
+                meshCollider.sharedMesh = filter.sharedMesh;
+                meshCollider.convex = false;
+                meshCollider.enabled = true;
+            }
+        }
+
         private void CreateFallbackShip()
         {
             var fallbackDeck = CreatePrimitive("Aurora Deck Placeholder", PrimitiveType.Cube, new Vector3(0f, 0.72f, 2f),
                 new Vector3(6f, 0.55f, 20f), CreateMaterial(new Color(0.19f, 0.07f, 0.025f)));
+            fallbackDeck.GetComponent<Collider>().enabled = true;
+            deckSurfaces.Add(fallbackDeck.GetComponent<Collider>());
             var mast = CreatePrimitive("Aurora Mast", PrimitiveType.Cylinder, new Vector3(0f, 6f, 2f),
                 new Vector3(0.42f, 5.4f, 0.42f), CreateMaterial(new Color(0.13f, 0.045f, 0.015f)));
             mast.transform.localScale = new Vector3(0.42f, 5.4f, 0.42f);
@@ -294,13 +415,8 @@ namespace ImagineQuest.Gameplay
 
         private void CreateDeckBounds()
         {
-            var deck = new GameObject("Invisible Playable Deck");
-            var deckCollider = deck.AddComponent<BoxCollider>();
-            // The imported ship's main deck is near y=6 before its 0.28 display scale,
-            // so the walkable surface lands just under y=1.72 in this focused scene.
-            deckCollider.center = new Vector3(0f, 1.58f, 1.9f);
-            deckCollider.size = new Vector3(6.15f, 0.28f, 20.8f);
-
+            // Each ship version has a visible solid deck. An invisible floor across
+            // the ship would float above the lower parts of that deck.
             CreateBarrier("Port Safety Rail", new Vector3(-3.08f, 2.85f, 1.9f), new Vector3(0.22f, 2.2f, 20.8f));
             CreateBarrier("Starboard Safety Rail", new Vector3(3.08f, 2.85f, 1.9f), new Vector3(0.22f, 2.2f, 20.8f));
             CreateBarrier("Stern Safety Rail", new Vector3(0f, 2.85f, -8.45f), new Vector3(6.15f, 2.2f, 0.22f));
@@ -311,17 +427,26 @@ namespace ImagineQuest.Gameplay
         {
             if (treasureChestPrefab != null)
             {
-                var chest = Instantiate(treasureChestPrefab, new Vector3(0f, 1.73f, 11.1f), Quaternion.Euler(0f, 180f, 0f));
-                chest.name = "Captain's Celestial Chart Chest";
+                var chestPosition = DeckPosition(0f, 11.1f);
+                var chest = Instantiate(treasureChestPrefab, chestPosition, Quaternion.Euler(0f, 180f, 0f));
+                chest.name = "Captain's Reward Chest";
                 chest.transform.localScale = Vector3.one * shipScale;
                 foreach (var collider in chest.GetComponentsInChildren<Collider>(true))
                     collider.enabled = false;
+                var renderers = chest.GetComponentsInChildren<Renderer>();
+                var bottom = float.PositiveInfinity;
+                foreach (var renderer in renderers)
+                    bottom = Mathf.Min(bottom, renderer.bounds.min.y);
+                if (!float.IsInfinity(bottom))
+                    chest.transform.position += Vector3.up * (chestPosition.y - bottom);
+                AddDetailedShipColliders(chest);
+                AddShipInteraction(chest, QuestArenaShipAction.TreasureChest, "OPEN THE REWARD CHEST");
             }
 
-            CreateLantern(new Vector3(-2.5f, 1.84f, -5.7f));
-            CreateLantern(new Vector3(2.5f, 1.84f, -1.1f));
-            CreateLantern(new Vector3(-2.5f, 1.84f, 3.2f));
-            CreateLantern(new Vector3(2.5f, 1.84f, 7.8f));
+            CreateLantern(DeckPosition(-2.5f, -5.7f));
+            CreateLantern(DeckPosition(2.5f, -1.1f));
+            CreateLantern(DeckPosition(-2.5f, 3.2f));
+            CreateLantern(DeckPosition(2.5f, 7.8f));
         }
 
         private static void CreateLantern(Vector3 position)
@@ -338,6 +463,7 @@ namespace ImagineQuest.Gameplay
             light.range = 5f;
             light.intensity = 1.45f;
             light.color = new Color(1f, 0.55f, 0.22f);
+            lightObject.AddComponent<AuroraLanternFlicker>();
         }
 
         private static void CreateBarrier(string name, Vector3 center, Vector3 size)
@@ -352,20 +478,28 @@ namespace ImagineQuest.Gameplay
         {
             var player = new GameObject("Student Navigator");
             player.tag = "Player";
-            player.transform.position = new Vector3(0f, 1.73f, -5.8f);
+            player.transform.position = DeckPosition(0.45f, -5.8f);
 
             var controller = player.AddComponent<CharacterController>();
-            controller.height = 1.78f;
-            controller.radius = 0.31f;
-            controller.center = new Vector3(0f, 0.89f, 0f);
-            controller.stepOffset = 0.25f;
+            controller.height = 1.08f;
+            controller.radius = 0.18f;
+            controller.center = new Vector3(0f, 0.54f, 0f);
+            controller.stepOffset = 0.16f;
+            controller.skinWidth = 0.015f;
+            controller.slopeLimit = 48f;
+
+            CreateSelectedPlayerVisual(player.transform);
+
+            var cameraPivot = new GameObject("Third Person Camera Pivot");
+            cameraPivot.transform.SetParent(player.transform, false);
+            cameraPivot.transform.localPosition = new Vector3(0f, 0.80f, 0f);
 
             var cameraObject = new GameObject("Navigator Camera");
             cameraObject.tag = "MainCamera";
-            cameraObject.transform.SetParent(player.transform, false);
-            cameraObject.transform.localPosition = new Vector3(0f, 0.72f, 0f);
+            cameraObject.transform.SetParent(cameraPivot.transform, false);
+            cameraObject.transform.localPosition = new Vector3(0f, 0f, -1.25f);
             var camera = cameraObject.AddComponent<Camera>();
-            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.clearFlags = CameraClearFlags.Skybox;
             camera.backgroundColor = new Color(0.015f, 0.035f, 0.11f);
             camera.nearClipPlane = 0.05f;
             camera.farClipPlane = 125f;
@@ -376,20 +510,281 @@ namespace ImagineQuest.Gameplay
             playerController.SetInputEnabled(false);
         }
 
-        private void CreateCaptain()
+        private void CreateSelectedPlayerVisual(Transform playerRoot)
         {
-            var captainPosition = new Vector3(0f, 1.73f, -2.25f);
-            if (pirateCaptainPrefab != null)
+            GameObject prefab = null;
+            if (piratePlayerPrefabs != null && piratePlayerPrefabs.Length > 0)
+                prefab = piratePlayerPrefabs[piratePlayerPrefabs.Length - 1];
+            if (prefab == null)
+                prefab = pirateCaptainPrefab;
+
+            if (prefab == null)
             {
-                var captain = Instantiate(pirateCaptainPrefab, captainPosition, Quaternion.Euler(0f, 180f, 0f));
-                captain.name = "Captain Esme";
-                captain.transform.localScale = Vector3.one * 0.52f;
+                var fallback = CreatePrimitive("Student Pirate", PrimitiveType.Capsule,
+                    playerRoot.position + Vector3.up * 0.9f, new Vector3(0.65f, 0.9f, 0.65f),
+                    CreateMaterial(new Color(0.12f, 0.42f, 0.72f)));
+                fallback.transform.SetParent(playerRoot, true);
+                Destroy(fallback.GetComponent<Collider>());
                 return;
             }
 
-            var fallbackCaptain = CreatePrimitive("Captain Esme", PrimitiveType.Capsule, captainPosition + Vector3.up,
-                new Vector3(0.8f, 1.1f, 0.8f), CreateMaterial(new Color(0.42f, 0.08f, 0.09f)));
-            fallbackCaptain.AddComponent<CelestialPulse>().Configure(0.05f, 1f);
+            var visual = Instantiate(prefab, playerRoot);
+            visual.name = "Selected Pirate Avatar";
+            visual.transform.localPosition = Vector3.zero;
+            visual.transform.localRotation = Quaternion.identity;
+            visual.transform.localScale = Vector3.one * 0.52f;
+            ConfigurePirateAnimator(visual);
+            foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
+                collider.enabled = false;
+
+            playerStyler = visual.AddComponent<PirateAvatarStyler>();
+            playerStyler.Apply(StudentAvatarIdentity.AvatarId, StudentAvatarIdentity.ColorHex);
+            AlignVisualFeetToPlayerRoot(visual, playerRoot);
+            visual.AddComponent<PirateVisualGrounding>().Configure(playerRoot, playerRoot.GetComponent<CharacterController>());
+        }
+
+        private static void AlignVisualFeetToPlayerRoot(GameObject visual, Transform playerRoot)
+        {
+            // Imported bounds cover all animation poses and inactive outfits. Use
+            // the evaluated vertices of active meshes to locate the actual feet.
+            var animator = visual.GetComponentInChildren<Animator>();
+            if (animator != null && animator.runtimeAnimatorController != null)
+            {
+                animator.Play(0, 0, 0f);
+                animator.Update(0f);
+            }
+            var lowestVertex = float.PositiveInfinity;
+            var sample = new Mesh();
+            foreach (var renderer in visual.GetComponentsInChildren<SkinnedMeshRenderer>())
+            {
+                if (!renderer.enabled || !renderer.gameObject.activeInHierarchy || renderer.sharedMesh == null)
+                    continue;
+                // Compensate the renderer scale; TransformPoint applies that scale
+                // once when converting the baked vertices to world space.
+                renderer.BakeMesh(sample, true);
+                foreach (var vertex in sample.vertices)
+                {
+                    var height = renderer.transform.TransformPoint(vertex).y;
+                    lowestVertex = Mathf.Min(lowestVertex, height);
+                }
+                sample.Clear();
+            }
+            if (Application.isPlaying) Destroy(sample); else DestroyImmediate(sample);
+            if (!float.IsInfinity(lowestVertex))
+            {
+                // This humanoid measures about one metre at scale 0.52, matching the
+                // scaled ship. Foot correction never resizes the character.
+                visual.transform.position += Vector3.up * (playerRoot.position.y - lowestVertex);
+            }
+        }
+
+        private void CreateCaptain()
+        {
+            // Leave the arena captain slot empty until a replacement skin is chosen.
+            // Ship fixtures and crew must still be created without a captain NPC.
+            if (arenaOnly)
+            {
+                CreateShipHubInteractions();
+                return;
+            }
+            var captainPosition = DeckPosition(-1.25f, -3.1f);
+            var helm = FindShipHelm();
+            if (helm != null)
+            {
+                var centre = new Vector2(helm.transform.position.x, helm.transform.position.z);
+                var candidates = new[]
+                {
+                    centre + new Vector2(1.5f, -0.6f), centre + new Vector2(-1.5f, -0.6f),
+                    centre + new Vector2(1f, -1f), centre + new Vector2(-1f, -1f),
+                    centre + new Vector2(1f, 0.3f), centre + new Vector2(-1f, 0.3f),
+                    centre + new Vector2(1.4f, 0.7f), centre + new Vector2(-1.4f, 0.7f),
+                    centre + new Vector2(1.6f, 1.1f), centre + new Vector2(-1.6f, 1.1f)
+                };
+                if (ArenaDeckPlacement.TryClearArea(deckSurfaces, candidates, new Vector2(0.6f, 0.6f), out var clear))
+                    captainPosition = clear;
+            }
+            GameObject captain;
+            var captainPrefab = pirateCaptainPrefab;
+            if (captainPrefab != null)
+            {
+                captain = Instantiate(captainPrefab, captainPosition, Quaternion.identity);
+                captain.name = "Captain Esme";
+                captain.transform.localScale = Vector3.one * 0.52f;
+                ConfigurePirateAnimator(captain);
+                captain.AddComponent<PirateAvatarStyler>().Apply("hero");
+                AlignVisualFeetToPlayerRoot(captain, captain.transform);
+                foreach (var collider in captain.GetComponentsInChildren<Collider>(true))
+                    collider.enabled = false;
+                var body = captain.AddComponent<CapsuleCollider>();
+                var visualScale = captain.transform.lossyScale.y;
+                body.height = 1f / visualScale;
+                body.radius = 0.18f / visualScale;
+                body.center = Vector3.up * ((captainPosition.y + 0.5f - captain.transform.position.y) / visualScale);
+            }
+            else
+            {
+                captain = CreatePrimitive("Captain Esme", PrimitiveType.Capsule, captainPosition + Vector3.up,
+                    new Vector3(0.8f, 1.1f, 0.8f), CreateMaterial(new Color(0.42f, 0.08f, 0.09f)));
+                captain.AddComponent<CelestialPulse>().Configure(0.05f, 1f);
+                Destroy(captain.GetComponent<Collider>());
+            }
+
+            AddShipInteraction(captain, QuestArenaShipAction.Captain, "TALK TO CAPTAIN ESME");
+            CreateShipHubInteractions();
+        }
+
+        private void ConfigurePirateAnimator(GameObject pirate)
+        {
+            var animator = pirate.GetComponentInChildren<Animator>();
+            if (animator == null || pirateLocomotionController == null || pirateHumanoidAvatar == null)
+                return;
+            if (animator.avatar == null || !animator.avatar.isValid || !animator.avatar.isHuman)
+                animator.avatar = pirateHumanoidAvatar;
+            animator.runtimeAnimatorController = pirateLocomotionController;
+            animator.applyRootMotion = false;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            animator.Rebind();
+            animator.SetFloat("Speed", 0f);
+            animator.SetBool("isGrounded", true);
+            animator.Update(0f);
+            animator.speed = 1f;
+        }
+
+        private Vector3 DeckPosition(float x, float z)
+        {
+            Physics.SyncTransforms();
+            var ray = new Ray(new Vector3(x, 15f, z), Vector3.down);
+            var highest = float.NegativeInfinity;
+            foreach (var surface in deckSurfaces)
+                if (surface.enabled && surface.Raycast(ray, out var hit, 25f) && hit.normal.y > 0.6f)
+                    highest = Mathf.Max(highest, hit.point.y);
+            return new Vector3(x, float.IsNegativeInfinity(highest) ? 1.73f : highest + 0.015f, z);
+        }
+
+        private void CreateLivingHorizon()
+        {
+            var rockMaterial = CreateMaterial(new Color(0.07f, 0.105f, 0.15f));
+            for (var index = 0; index < 9; index++)
+            {
+                var angle = index * 0.62f;
+                var distance = 60f + index % 3 * 9f;
+                var rock = CreatePrimitive("Distant sea rock", PrimitiveType.Sphere,
+                    new Vector3(Mathf.Sin(angle) * distance, 0.05f, Mathf.Cos(angle) * distance),
+                    new Vector3(7f + index % 3 * 2f, 2.5f + index % 4, 5f), rockMaterial);
+                rock.transform.rotation = Quaternion.Euler(0f, index * 41f, 0f);
+            }
+            var gullMaterial = CreateMaterial(new Color(0.58f, 0.62f, 0.69f));
+            for (var index = 0; index < 5; index++)
+            {
+                var gull = new GameObject("Circling sea gull " + (index + 1));
+                var left = CreatePrimitive("Left wing", PrimitiveType.Cube, Vector3.zero,
+                    new Vector3(0.22f, 0.018f, 0.09f), gullMaterial);
+                var right = CreatePrimitive("Right wing", PrimitiveType.Cube, Vector3.zero,
+                    new Vector3(0.22f, 0.018f, 0.09f), gullMaterial);
+                left.transform.SetParent(gull.transform, false);
+                right.transform.SetParent(gull.transform, false);
+                left.transform.localPosition = new Vector3(-0.10f, 0f, 0f);
+                right.transform.localPosition = new Vector3(0.10f, 0f, 0f);
+                gull.AddComponent<AuroraGullFlight>().Configure(left.transform, right.transform, index * 1.1f);
+            }
+        }
+
+        private void CreateShipHubInteractions()
+        {
+            var chartCandidates = new[]
+            {
+                new Vector2(1f, 3f), new Vector2(-1f, 3f), new Vector2(1f, -1.5f),
+                new Vector2(1f, -2f), new Vector2(0f, -4f), new Vector2(0f, 7f)
+            };
+            var chartPosition = ArenaDeckPlacement.TryClearArea(deckSurfaces, chartCandidates,
+                new Vector2(1.25f, 0.86f), out var clearDeck) ? clearDeck : DeckPosition(1f, 3f);
+            var timber = CreateMaterial(new Color(0.30f, 0.14f, 0.045f));
+            var chart = CreatePrimitive("Quest Chart Table", PrimitiveType.Cube, chartPosition + Vector3.up * 0.58f,
+                new Vector3(1.1f, 0.09f, 0.72f), timber);
+            questChart = chart.transform;
+            for (var index = 0; index < 4; index++)
+            {
+                var offset = new Vector3(index % 2 == 0 ? -0.43f : 0.43f, 0.27f, index < 2 ? -0.24f : 0.24f);
+                var leg = CreatePrimitive("Chart table leg", PrimitiveType.Cube, chartPosition + offset,
+                    new Vector3(0.07f, 0.54f, 0.07f), timber);
+                leg.GetComponent<Collider>().enabled = true;
+            }
+            var parchment = CreatePrimitive("Sea chart parchment", PrimitiveType.Cube,
+                chartPosition + Vector3.up * 0.634f, new Vector3(0.8f, 0.012f, 0.52f),
+                CreateMaterial(new Color(0.74f, 0.62f, 0.39f)));
+            AddShipInteraction(chart, QuestArenaShipAction.ChartTable, "OPEN THE QUEST CHART");
+
+            var helm = FindShipHelm();
+            if (helm == null)
+            {
+                helm = CreatePrimitive("Aurora Helm", PrimitiveType.Cylinder, DeckPosition(1.75f, -5.25f) + Vector3.up * 0.65f,
+                    new Vector3(0.55f, 0.04f, 0.55f), timber);
+                helm.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            }
+            AddShipInteraction(helm, QuestArenaShipAction.Helm, "TAKE THE HELM");
+
+            var telescopePosition = DeckPosition(2.35f, 3.1f);
+            CreatePrimitive("Telescope stand", PrimitiveType.Cylinder, telescopePosition + Vector3.up * 0.33f,
+                new Vector3(0.045f, 0.33f, 0.045f), timber);
+            var telescope = CreatePrimitive("Captain's Telescope", PrimitiveType.Cylinder, telescopePosition + Vector3.up * 0.75f,
+                new Vector3(0.09f, 0.23f, 0.09f), CreateMaterial(new Color(0.62f, 0.38f, 0.08f)));
+            telescope.transform.rotation = Quaternion.Euler(68f, 0f, 0f);
+            AddShipInteraction(telescope, QuestArenaShipAction.Telescope, "LOOK THROUGH THE TELESCOPE");
+
+            var bellPosition = DeckPosition(-2.3f, 6.8f);
+            CreatePrimitive("Bell post", PrimitiveType.Cube, bellPosition + new Vector3(-0.16f, 0.56f, 0f),
+                new Vector3(0.07f, 1.12f, 0.07f), timber);
+            CreatePrimitive("Bell bracket", PrimitiveType.Cube, bellPosition + Vector3.up * 1.1f,
+                new Vector3(0.4f, 0.07f, 0.07f), timber);
+            var bell = CreatePrimitive("Ship Bell", PrimitiveType.Sphere, bellPosition + Vector3.up * 0.98f,
+                new Vector3(0.22f, 0.24f, 0.22f), CreateMaterial(new Color(0.9f, 0.55f, 0.12f), true));
+            AddShipInteraction(bell, QuestArenaShipAction.ShipBell, "RING THE SHIP'S BELL");
+        }
+
+        private GameObject FindShipHelm()
+        {
+            if (shipRoot != null)
+                foreach (var part in shipRoot.GetComponentsInChildren<Transform>())
+                    if (part.name == "Wheel") return part.gameObject;
+            return null;
+        }
+
+        private void AddShipInteraction(GameObject target, QuestArenaShipAction action, string prompt)
+        {
+            if (target == null)
+                return;
+            var solidCollider = target.GetComponent<Collider>();
+            if (solidCollider != null && action != QuestArenaShipAction.Captain)
+                solidCollider.enabled = true;
+            var interaction = target.AddComponent<QuestArenaShipInteractable>();
+            interaction.Configure(this, action, prompt);
+            var outline = target.AddComponent<QuestArenaOutline>();
+            outline.Configure(interactableOutline, action == QuestArenaShipAction.ChartTable || action == QuestArenaShipAction.Helm
+                ? new Color(1.1f, 0.78f, 0.25f) : new Color(0.25f, 0.85f, 0.9f));
+        }
+
+        private void CreateCrew()
+        {
+            if (piratePlayerPrefabs == null || piratePlayerPrefabs.Length == 0) return;
+            var names = new[] { "Luma — Navigator", "Rook — Boatswain", "Pip — Lookout", "Sage — Quartermaster" };
+            var styles = new[] { "mage", "bandit", "archer", "scholar" };
+            var spots = new[] { new Vector2(1f, -1.5f), new Vector2(-1f, -1.5f), new Vector2(-1f, 3.5f), new Vector2(0f, 7f) };
+            for (var index = 0; index < names.Length; index++)
+            {
+                var candidates = new[] { spots[index], spots[index] + new Vector2(0f, 1f), spots[index] + new Vector2(0f, -1f), spots[index] + new Vector2(-0.5f, 0f) };
+                if (!ArenaDeckPlacement.TryClearArea(deckSurfaces, candidates, new Vector2(0.5f, 0.5f), out var position)) continue;
+                var crew = Instantiate(piratePlayerPrefabs[piratePlayerPrefabs.Length - 1], position,
+                    Quaternion.Euler(0f, index % 2 == 0 ? -65f : 65f, 0f));
+                crew.name = names[index]; crew.transform.localScale = Vector3.one * 0.52f;
+                foreach (var collider in crew.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
+                ConfigurePirateAnimator(crew);
+                crew.AddComponent<PirateAvatarStyler>().Apply(styles[index]);
+                AlignVisualFeetToPlayerRoot(crew, crew.transform);
+                var body = crew.AddComponent<CapsuleCollider>();
+                body.height = 1f / 0.52f; body.radius = 0.18f / 0.52f;
+                body.center = Vector3.up * ((position.y + 0.5f - crew.transform.position.y) / 0.52f);
+                AddShipInteraction(crew, QuestArenaShipAction.Crew, "TALK TO " + names[index].Split('—')[0].Trim().ToUpperInvariant());
+            }
         }
 
         private void CreateQuestStations()
@@ -601,7 +996,7 @@ namespace ImagineQuest.Gameplay
         {
             EnsureUiEventSystem();
 
-            var canvasObject = new GameObject("Celestial Clock Interface");
+            var canvasObject = new GameObject(arenaOnly ? "Quest Arena Interface" : "Celestial Clock Interface");
             var canvas = canvasObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 20;
@@ -611,11 +1006,16 @@ namespace ImagineQuest.Gameplay
             canvasObject.AddComponent<GraphicRaycaster>();
 
             BuildHud(canvasObject.transform);
-            BuildBriefing(canvasObject.transform);
-            BuildLessonPanel(canvasObject.transform);
             BuildJournalPanel(canvasObject.transform);
             BuildPausePanel(canvasObject.transform);
-            BuildCompletionPanel(canvasObject.transform);
+            if (arenaOnly)
+                BuildQuestPicker(canvasObject.transform);
+            else
+            {
+                BuildBriefing(canvasObject.transform);
+                BuildLessonPanel(canvasObject.transform);
+                BuildCompletionPanel(canvasObject.transform);
+            }
         }
 
         /// <summary>
@@ -637,6 +1037,18 @@ namespace ImagineQuest.Gameplay
 
         private void BuildHud(Transform parent)
         {
+            if (arenaOnly)
+            {
+                var arenaName = CreateText("Arena Name", parent, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                    new Vector2(30f, -28f), new Vector2(460f, 42f), 27f, TextAlignmentOptions.Left,
+                    new Color(1f, 0.88f, 0.60f));
+                arenaName.text = "THE AURORA  •  QUEST ARENA";
+                interactionText = CreateText("Interaction Prompt", parent, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                    new Vector2(0f, 65f), new Vector2(820f, 42f), 23f, TextAlignmentOptions.Center,
+                    new Color(1f, 0.92f, 0.66f));
+                interactionText.gameObject.SetActive(false);
+                return;
+            }
             var topStrip = CreatePanel("Top Story Strip", parent, new Vector2(0.5f, 1f), new Vector2(1640f, 108f),
                 new Vector2(0f, -26f), new Color(0.012f, 0.027f, 0.08f, 0.9f), 16);
             var title = CreateText("Quest Title", topStrip.transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
@@ -674,6 +1086,129 @@ namespace ImagineQuest.Gameplay
             pauseButton.onClick.AddListener(TogglePause);
 
             UpdateHud();
+        }
+
+        private void BuildQuestPicker(Transform parent)
+        {
+            questPickerPanel = CreateFullOverlay("Quest Selection", parent, new Color(0.005f, 0.012f, 0.025f, 0.72f));
+            var card = CreatePanel("Quest Chart", questPickerPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(860f, 640f), Vector2.zero, new Color(0.055f, 0.04f, 0.025f, 0.98f), 12);
+            var title = CreateText("Quest Picker Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -54f), new Vector2(730f, 48f), 32f, TextAlignmentOptions.Center,
+                new Color(1f, 0.85f, 0.50f));
+            title.text = "CHOOSE A QUEST";
+            var demoTitle = CreateText("Dummy Quest Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -122f), new Vector2(710f, 40f), 27f, TextAlignmentOptions.Center,
+                new Color(1f, 0.85f, 0.5f));
+            demoTitle.text = "FIRST VOYAGE  •  DUMMY QUEST";
+            var demoCopy = CreateText("Dummy Quest Description", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -172f), new Vector2(710f, 60f), 20f, TextAlignmentOptions.Center,
+                new Color(0.97f, 0.93f, 0.83f));
+            demoCopy.text = "Try the captain's video projection above this table.\nVideo-only demo — no scores, rewards, or saved progress.";
+            var demoPlay = CreateButton("Play Dummy Quest", card.transform, "PLAY DUMMY QUEST",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -238f),
+                new Vector2(480f, 54f), new Color(0.4f, 0.25f, 0.075f));
+            demoPlay.onClick.AddListener(PlayDummyQuest);
+            questPickerDetail = CreateText("Quest Picker Detail", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -70f), new Vector2(710f, 120f), 22f, TextAlignmentOptions.Center,
+                new Color(0.97f, 0.93f, 0.83f));
+            questPickerDetail.textWrappingMode = TextWrappingModes.Normal;
+            playSelectedQuest = CreateButton("Play Selected Quest", card.transform, "PLAY ASSIGNED QUEST",
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 132f),
+                new Vector2(530f, 58f), new Color(0.4f, 0.25f, 0.075f));
+            playSelectedQuest.interactable = false;
+            playSelectedQuest.onClick.AddListener(() => RefreshQuestAssignment(true));
+            var refresh = CreateButton("Refresh Assignments", card.transform, "REFRESH",
+                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-80f, -300f),
+                new Vector2(125f, 34f), new Color(0.14f, 0.10f, 0.06f));
+            refresh.onClick.AddListener(() => RefreshQuestAssignment(false));
+            var back = CreateButton("Close Quest Selection", card.transform, "RETURN TO SHIP",
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 48f),
+                new Vector2(350f, 48f), new Color(0.14f, 0.10f, 0.06f));
+            back.onClick.AddListener(CloseJournal);
+            questPickerPanel.SetActive(false);
+        }
+
+        private void PlayDummyQuest()
+        {
+            if (videoVisible || questChart == null) return;
+            if (assignmentRefresh != null) StopCoroutine(assignmentRefresh);
+            CloseJournal();
+            // Reuse the existing world-space projection, anchored to the actual chart.
+            PlayQuestVideo(string.IsNullOrWhiteSpace(dummyQuestVideoUrl) ? openingVideoUrl : dummyQuestVideoUrl,
+                EnableDeckInput, EnableDeckInput, questChart.position + Vector3.up * 1.1f);
+        }
+
+        private void OpenQuestPicker()
+        {
+            journalVisible = true;
+            questPickerPanel.SetActive(true);
+            interactionText.gameObject.SetActive(false);
+            playerController.SetInputEnabled(false);
+            UnlockCursor();
+            RefreshQuestAssignment(false);
+        }
+
+        private void RefreshQuestAssignment(bool launch)
+        {
+            if (assignmentRefresh != null) StopCoroutine(assignmentRefresh);
+            assignmentRefresh = StartCoroutine(CheckQuestAssignment(launch));
+        }
+
+        private IEnumerator CheckQuestAssignment(bool launch)
+        {
+            playSelectedQuest.interactable = false;
+            questPickerDetail.text = "Checking your teacher's selected quests...";
+            var user = FirebaseAuth.DefaultInstance.CurrentUser;
+            var session = QuestSession.Instance;
+            var classId = session?.ClassId;
+            // Direct scene play is an explicitly labelled editor preview, never a signed-in bypass.
+            if (Application.isEditor && user == null && string.IsNullOrWhiteSpace(classId))
+            {
+                questPickerDetail.text = "<b>LOCAL EDITOR PREVIEW</b>\n\nSign in and enter through a class to test teacher-selected quests.";
+                playSelectedQuest.interactable = true;
+                if (launch) SceneTransition.LoadScene("CelestialClockQuest");
+                yield break;
+            }
+            if (user == null || string.IsNullOrWhiteSpace(classId))
+            {
+                questPickerDetail.text = "Return to your class and enter its arena to see selected quests.";
+                yield break;
+            }
+            var userId = user.UserId;
+            var assignmentId = string.IsNullOrWhiteSpace(session.AssignmentId) ? "pirate-voyage" : session.AssignmentId;
+            System.Threading.Tasks.Task<DocumentSnapshot> task;
+            try
+            {
+                // A fresh server read also checks deselection immediately before starting.
+                task = FirebaseFirestore.DefaultInstance.Collection("classes").Document(classId)
+                    .Collection("questAssignments").Document(assignmentId).GetSnapshotAsync(Source.Server);
+            }
+            catch (Exception)
+            {
+                questPickerDetail.text = "Quest availability could not be checked. Check your connection and press Refresh.";
+                yield break;
+            }
+            var deadline = Time.realtimeSinceStartup + 15f;
+            yield return new WaitUntil(() => task.IsCompleted || Time.realtimeSinceStartup >= deadline);
+            if (FirebaseAuth.DefaultInstance.CurrentUser?.UserId != userId || QuestSession.Instance?.ClassId != classId ||
+                !questPickerPanel.activeSelf) yield break;
+            if (!task.IsCompleted || task.IsFaulted || task.IsCanceled)
+            {
+                questPickerDetail.text = "Quest availability could not be checked. Check your connection and press Refresh.";
+                yield break;
+            }
+            var document = task.Result;
+            var selected = document.Exists && document.TryGetValue<bool>("isUnlocked", out var unlocked) && unlocked;
+            var supported = document.Exists && document.TryGetValue<string>("questId", out var questId) && questId == "celestial-clock";
+            if (!selected || !supported)
+            {
+                questPickerDetail.text = "<b>No playable quest selected</b>\n\nYour teacher can select a quest from the class page. You can still explore the ship.";
+                yield break;
+            }
+            questPickerDetail.text = "<b>Assigned quest ready</b>\n\nYour teacher has selected this quest. Start when you are ready, or return to exploring the ship.";
+            playSelectedQuest.interactable = true;
+            if (launch) SceneTransition.LoadScene("CelestialClockQuest");
         }
 
         private void BuildBriefing(Transform parent)
@@ -740,14 +1275,14 @@ namespace ImagineQuest.Gameplay
             journalPanel = CreateFullOverlay("Navigator Journal", parent, new Color(0.002f, 0.009f, 0.03f, 0.78f));
             var card = CreatePanel("Journal Card", journalPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(900f, 640f),
                 Vector2.zero, new Color(0.025f, 0.06f, 0.15f, 0.99f), 20);
-            var title = CreateText("Journal Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            journalTitleText = CreateText("Journal Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -48f), new Vector2(760f, 38f), 30f, TextAlignmentOptions.Center, new Color(1f, 0.82f, 0.34f));
-            title.fontStyle = FontStyles.Bold;
-            title.text = "NAVIGATOR'S JOURNAL";
+            journalTitleText.fontStyle = FontStyles.Bold;
+            journalTitleText.text = "NAVIGATOR'S JOURNAL";
             journalText = CreateText("Journal Copy", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 0f), new Vector2(750f, 400f), 22f, TextAlignmentOptions.TopLeft, new Color(0.94f, 0.97f, 1f));
             journalText.textWrappingMode = TextWrappingModes.Normal;
-            var close = CreateButton("Close Journal", card.transform, "CLOSE JOURNAL", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+            var close = CreateButton("Close Journal", card.transform, arenaOnly ? "RETURN TO SHIP" : "CLOSE JOURNAL", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 42f), new Vector2(320f, 52f), new Color(0.12f, 0.36f, 0.6f));
             close.onClick.AddListener(CloseJournal);
             journalPanel.SetActive(false);
@@ -764,12 +1299,13 @@ namespace ImagineQuest.Gameplay
             title.text = "PAUSED";
             var note = CreateText("Pause Note", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 10f), new Vector2(480f, 82f), 21f, TextAlignmentOptions.Center, new Color(0.9f, 0.95f, 1f));
-            note.text = "Your course is safe. This session keeps your progress; class-wide results sync after the Firebase server setup is deployed.";
+            note.text = arenaOnly ? "Take a break, or return to your class. Choose a quest at the ship's chart table."
+                : "Take a break, or return to the ship to choose another quest.";
             note.textWrappingMode = TextWrappingModes.Normal;
             var resume = CreateButton("Resume", card.transform, "RETURN TO DECK", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 98f), new Vector2(360f, 52f), new Color(0.12f, 0.43f, 0.7f));
             resume.onClick.AddListener(TogglePause);
-            var leave = CreateButton("Leave Quest", card.transform, "LEAVE QUEST", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+            var leave = CreateButton("Leave Quest", card.transform, arenaOnly ? "RETURN TO CLASS" : "RETURN TO SHIP", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 32f), new Vector2(260f, 38f), new Color(0.16f, 0.08f, 0.12f));
             leave.onClick.AddListener(ReturnToStudentHub);
             pausePanel.SetActive(false);
@@ -787,7 +1323,7 @@ namespace ImagineQuest.Gameplay
             completionSummaryText = CreateText("Completion Summary", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 16f), new Vector2(820f, 220f), 25f, TextAlignmentOptions.Center, new Color(0.94f, 0.97f, 1f));
             completionSummaryText.textWrappingMode = TextWrappingModes.Normal;
-            var hub = CreateButton("Completion Hub", card.transform, "RETURN TO STUDENT HUB", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+            var hub = CreateButton("Completion Hub", card.transform, "RETURN TO SHIP", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 82f), new Vector2(420f, 56f), new Color(0.12f, 0.46f, 0.72f));
             hub.onClick.AddListener(ReturnToStudentHub);
             var explore = CreateButton("Completion Explore", card.transform, "EXPLORE THE DECK", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
@@ -828,9 +1364,93 @@ namespace ImagineQuest.Gameplay
         private void BeginExploration()
         {
             briefingVisible = false;
-            briefingPanel.SetActive(false);
+            if (briefingPanel != null)
+                briefingPanel.SetActive(false);
             EnableDeckInput();
             UpdateHud();
+        }
+
+        public void HandleShipInteraction(QuestArenaShipAction action)
+        {
+            if (videoVisible || briefingVisible || lessonVisible || journalVisible || pauseVisible || questComplete)
+                return;
+
+            if (arenaOnly)
+            {
+                switch (action)
+                {
+                    case QuestArenaShipAction.ChartTable:
+                    case QuestArenaShipAction.Helm:
+                        OpenQuestPicker();
+                        break;
+                    case QuestArenaShipAction.Captain:
+                        OpenArenaPanel("CAPTAIN ESME", "Welcome aboard the Aurora! Explore the ship and visit the chart table to choose a quest.\n\nYour teacher's assignments will be available there.");
+                        break;
+                    case QuestArenaShipAction.TreasureChest:
+                        OpenArenaPanel("REWARD CHEST", "This is where your voyage rewards will be kept. Choose a quest at the chart table to begin.");
+                        break;
+                    case QuestArenaShipAction.Telescope:
+                        OpenArenaPanel("LOOKOUT", "The sea stretches beyond the Aurora. The chart table is where you choose your next quest.");
+                        break;
+                    case QuestArenaShipAction.ShipBell:
+                        OpenArenaPanel("SHIP'S BELL", "The bell calls the crew together. Ready for an adventure? Choose a quest at the chart table.");
+                        break;
+                    case QuestArenaShipAction.Crew:
+                        OpenArenaPanel("THE AURORA'S CREW", "Luma charts the stars, Rook keeps the deck shipshape, Pip watches the horizon, and Sage looks after supplies.\n\nLook for gold outlines to choose quests, and blue outlines to meet the crew and explore the ship.");
+                        break;
+                }
+                return;
+            }
+
+            switch (action)
+            {
+                case QuestArenaShipAction.Captain:
+                    ShowBriefing(0);
+                    break;
+                case QuestArenaShipAction.ChartTable:
+                    var session = QuestSession.Instance;
+                    var assignedTitle = session == null || string.IsNullOrWhiteSpace(session.QuestTitle)
+                        ? "The Riddle of the Celestial Clock"
+                        : session.QuestTitle;
+                    OpenArenaPanel("THE AURORA'S QUEST CHART",
+                        "<b>Assigned voyage</b>\n" + assignedTitle +
+                        "\n\n<color=#9CCFFF>Available aboard this ship:</color>\n" +
+                        "• Sailmaker's Seal — fractions\n• Compass Seal — angle turns\n" +
+                        "• Starlock Seal — equations\n• Celestial Clock — final challenge\n\n" +
+                        "Future voyages will appear on this chart when your teacher assigns them.");
+                    break;
+                case QuestArenaShipAction.TreasureChest:
+                    OpenArenaPanel("CAPTAIN'S REWARD CHEST",
+                        "Your restored seals and voyage rewards are kept here.\n\n" +
+                        "<b>Seals restored:</b> " + CompletedCount + " / " + stations.Count +
+                        "\n<b>Provisional XP:</b> " + provisionalXp +
+                        "\n\nComplete ship quests to fill the chest with new rewards.");
+                    break;
+                case QuestArenaShipAction.Helm:
+                    OpenArenaPanel("THE AURORA'S HELM",
+                        "The helm is ready, but the Celestial Clock must be restored before the Aurora can chart its next course.\n\n" +
+                        "Explore the deck and follow the glowing lesson fixtures.");
+                    break;
+                case QuestArenaShipAction.Telescope:
+                    OpenArenaPanel("CAPTAIN'S TELESCOPE",
+                        "Through the glass you can see distant lights waiting beyond the astral sea.\n\n" +
+                        "For now, your assigned voyage is here aboard the Aurora. Future quests will be revealed from this lookout.");
+                    break;
+                case QuestArenaShipAction.ShipBell:
+                    OpenArenaPanel("THE SHIP'S BELL",
+                        "The clear bell rings across the water. The Aurora's crew is ready for another learning voyage.");
+                    break;
+            }
+        }
+
+        private void OpenArenaPanel(string title, string body)
+        {
+            journalVisible = true;
+            journalTitleText.text = title;
+            journalText.text = body;
+            journalPanel.SetActive(true);
+            playerController.SetInputEnabled(false);
+            UnlockCursor();
         }
 
         public void OpenStation(CelestialClockStation station)
@@ -845,11 +1465,26 @@ namespace ImagineQuest.Gameplay
             playerController.SetInputEnabled(false);
             UnlockCursor();
             lessonPanel.SetActive(false);
-            PlayQuestVideo(teachingVideoUrl, () =>
+            PlayQuestVideo(ResolveStationVideoUrl(activeStation), () =>
             {
                 lessonPanel.SetActive(true);
                 ShowTeachingNote();
             }, CloseLesson);
+        }
+
+        private string ResolveStationVideoUrl(CelestialClockStation station)
+        {
+            if (station == null)
+                return teachingVideoUrl;
+
+            switch (station.NodeId)
+            {
+                case "sail-fraction": return sailFractionVideoUrl;
+                case "compass-angle": return compassAngleVideoUrl;
+                case "star-equation": return starEquationVideoUrl;
+                case "celestial-clock": return celestialClockVideoUrl;
+                default: return teachingVideoUrl;
+            }
         }
 
         private void ShowTeachingNote()
@@ -946,17 +1581,24 @@ namespace ImagineQuest.Gameplay
             activeStation = null;
             lessonVisible = false;
             lessonPanel.SetActive(false);
-            if (!pauseVisible && !briefingVisible && !journalVisible && !completionPanel.activeSelf)
+            if (!pauseVisible && !briefingVisible && !journalVisible && (completionPanel == null || !completionPanel.activeSelf))
                 EnableDeckInput();
         }
 
         private void OpenJournal()
         {
-            if (briefingVisible || lessonVisible || pauseVisible || completionPanel.activeSelf)
+            if (briefingVisible || lessonVisible || pauseVisible || (completionPanel != null && completionPanel.activeSelf))
                 return;
+
+            if (arenaOnly)
+            {
+                OpenArenaPanel("SHIP GUIDE", "Hold Alt to reveal gold quest items and blue ship/crew interactions. Visit the chart table to play the dummy quest or see your teacher's selected quest.\n\nWASD — walk\nShift — sprint\nSpace — jump (release early for a short hop)\nMouse — orbit\nMouse wheel — zoom\nAlt — reveal interactions\nE — interact\nEsc — menu");
+                return;
+            }
 
             journalVisible = true;
             journalPanel.SetActive(true);
+            journalTitleText.text = "NAVIGATOR'S JOURNAL";
             journalText.text = BuildJournalText();
             playerController.SetInputEnabled(false);
             UnlockCursor();
@@ -984,7 +1626,7 @@ namespace ImagineQuest.Gameplay
                 var status = station.IsComplete ? "RESTORED" : station.IsLocked ? "SLEEPING" : "WAITING";
                 text += "• " + station.ShortLabel + " — <b>" + status + "</b>\n";
             }
-            text += "\n<color=#B8D5F0>Controls: WASD to move, mouse to look, E to inspect a nearby seal, J for this journal, Esc for menu.</color>";
+            text += "\n<color=#B8D5F0>Controls: WASD move, Shift sprint, Space jump, mouse orbit, wheel zoom, E interact, J journal, Esc menu.</color>";
             return text;
         }
 
@@ -992,7 +1634,9 @@ namespace ImagineQuest.Gameplay
         {
             journalVisible = false;
             journalPanel.SetActive(false);
-            if (!pauseVisible && !lessonVisible && !briefingVisible && !completionPanel.activeSelf)
+            if (questPickerPanel != null)
+                questPickerPanel.SetActive(false);
+            if (!pauseVisible && !lessonVisible && !briefingVisible && (completionPanel == null || !completionPanel.activeSelf))
                 EnableDeckInput();
         }
 
@@ -1041,8 +1685,15 @@ namespace ImagineQuest.Gameplay
 
         private void ReturnToStudentHub()
         {
-            QuestSession.Instance?.Clear();
-            SceneTransition.LoadScene("StudentHub");
+            if (arenaOnly)
+            {
+                QuestSession.Instance?.Clear();
+                SceneTransition.LoadScene("ClassroomScene");
+            }
+            else
+            {
+                SceneTransition.LoadScene("QuestArena");
+            }
         }
 
         private void SaveRunSnapshot()
@@ -1098,16 +1749,21 @@ namespace ImagineQuest.Gameplay
 
         public void UpdateInteractionPrompt(CelestialClockStation station)
         {
+            UpdateInteractionPrompt(station == null ? null : station.InteractionPrompt);
+        }
+
+        public void UpdateInteractionPrompt(string prompt)
+        {
             if (interactionText == null || videoVisible || lessonVisible || briefingVisible || pauseVisible || journalVisible || questComplete)
                 return;
 
-            if (station == null)
+            if (string.IsNullOrWhiteSpace(prompt))
             {
                 interactionText.gameObject.SetActive(false);
                 return;
             }
 
-            interactionText.text = "PRESS  E  TO INSPECT  " + station.ShortLabel;
+            interactionText.text = "PRESS  E  •  " + prompt;
             interactionText.gameObject.SetActive(true);
         }
 
@@ -1333,7 +1989,7 @@ namespace ImagineQuest.Gameplay
     }
 
     /// <summary>Data and visual state for one teaching + practice seal on the ship deck.</summary>
-    public sealed class CelestialClockStation : MonoBehaviour
+    public sealed class CelestialClockStation : MonoBehaviour, IQuestArenaInteractable
     {
         private readonly List<Renderer> visuals = new List<Renderer>();
         private CelestialClockQuestBootstrap owner;
@@ -1353,6 +2009,9 @@ namespace ImagineQuest.Gameplay
         public int XpAward { get; private set; }
         public bool IsComplete { get; private set; }
         public bool IsLocked => locked;
+        public Transform InteractionTransform => transform;
+        public string InteractionPrompt => "BEGIN " + ShortLabel;
+        public bool CanInteract => owner != null && !IsComplete && !IsLocked && enabled && gameObject.activeInHierarchy;
 
         public void Configure(CelestialClockQuestBootstrap quest, string nodeId, string title, string teachingNote, string question,
             string[] answers, int correctIndex, int xpAward, Color accentColor, bool initiallyLocked)
@@ -1368,6 +2027,16 @@ namespace ImagineQuest.Gameplay
             XpAward = xpAward;
             accent = accentColor;
             locked = initiallyLocked;
+        }
+
+        private void OnEnable() => QuestArenaInteractionRegistry.Register(this);
+        private void OnDisable() => QuestArenaInteractionRegistry.Unregister(this);
+        private void OnDestroy() => QuestArenaInteractionRegistry.Unregister(this);
+
+        public void Interact()
+        {
+            if (CanInteract)
+                owner.OpenStation(this);
         }
 
         public void RegisterVisual(Renderer renderer)
@@ -1424,18 +2093,31 @@ namespace ImagineQuest.Gameplay
         }
     }
 
-    /// <summary>Keyboard/mouse first-person controller limited to the small ship deck.</summary>
+    /// <summary>Third-person ship controller with orbit camera and reusable interaction targeting.</summary>
     public sealed class CelestialClockPlayerController : MonoBehaviour
     {
+        private readonly HashSet<int> animatorParameters = new HashSet<int>();
         private CelestialClockQuestBootstrap quest;
         private CharacterController characterController;
         private Transform playerCamera;
+        private Transform cameraPivot;
+        private Animator animator;
         private float movementSpeed;
         private float sensitivity;
         private float verticalVelocity;
-        private float pitch;
+        private float lastGroundedTime = -100f;
+        private float lastJumpPressedTime = -100f;
+        private float pitch = 14f;
+        private float yaw;
+        private float cameraDistance = 1.25f;
+        private float targetCameraDistance = 1.25f;
+        private float cameraZoomVelocity;
+        private Vector3 horizontalVelocity;
         private bool inputEnabled;
-        private CelestialClockStation nearbyStation;
+        private Vector3? projectionAnchor;
+        private Vector3 projectionDirection;
+        private IQuestArenaInteractable nearbyInteraction;
+        private QuestArenaOutline focusedOutline;
 
         public void Configure(CelestialClockQuestBootstrap owner, float moveSpeed, float lookSensitivity)
         {
@@ -1449,42 +2131,216 @@ namespace ImagineQuest.Gameplay
             characterController = GetComponent<CharacterController>();
             var camera = GetComponentInChildren<Camera>();
             playerCamera = camera == null ? transform : camera.transform;
+            cameraPivot = camera == null ? transform : camera.transform.parent;
+            yaw = transform.eulerAngles.y;
+            animator = GetComponentInChildren<Animator>();
+            if (animator != null)
+            {
+                animator.applyRootMotion = false;
+                foreach (var parameter in animator.parameters)
+                    animatorParameters.Add(parameter.nameHash);
+                animator.Play(0, 0, 0f);
+                animator.Update(0f);
+                animator.speed = 1f;
+            }
         }
 
         public void SetInputEnabled(bool enabled)
         {
             inputEnabled = enabled;
+            if (!enabled)
+            {
+                QuestArenaOutline.SetRevealed(false);
+                horizontalVelocity = Vector3.zero;
+                if (animator != null)
+                    animator.SetFloat("Speed", 0f);
+            }
             if (!enabled && quest != null)
-                quest.UpdateInteractionPrompt(null);
+                quest.UpdateInteractionPrompt((string)null);
+        }
+
+        public void FocusProjection(Vector3? anchor)
+        {
+            projectionAnchor = anchor;
+            if (!anchor.HasValue) return;
+            projectionDirection = Vector3.ProjectOnPlane(playerCamera.position - anchor.Value, Vector3.up).normalized;
+            if (projectionDirection.sqrMagnitude < 0.01f) projectionDirection = -transform.forward;
         }
 
         private void Update()
         {
-            if (!inputEnabled || Keyboard.current == null || Mouse.current == null)
-                return;
-
             var move = Vector2.zero;
-            if (Keyboard.current.wKey.isPressed) move.y += 1f;
-            if (Keyboard.current.sKey.isPressed) move.y -= 1f;
-            if (Keyboard.current.dKey.isPressed) move.x += 1f;
-            if (Keyboard.current.aKey.isPressed) move.x -= 1f;
-            var direction = (transform.forward * move.y + transform.right * move.x).normalized;
-            if (characterController.isGrounded && verticalVelocity < 0f)
+            var canReadInput = inputEnabled && Keyboard.current != null && Mouse.current != null;
+            QuestArenaOutline.SetRevealed(canReadInput &&
+                (Keyboard.current.leftAltKey.isPressed || Keyboard.current.rightAltKey.isPressed));
+            if (canReadInput)
+            {
+                if (Keyboard.current.wKey.isPressed) move.y += 1f;
+                if (Keyboard.current.sKey.isPressed) move.y -= 1f;
+                if (Keyboard.current.dKey.isPressed) move.x += 1f;
+                if (Keyboard.current.aKey.isPressed) move.x -= 1f;
+            }
+
+            var cameraForward = Vector3.ProjectOnPlane(playerCamera.forward, Vector3.up).normalized;
+            var cameraRight = Vector3.ProjectOnPlane(playerCamera.right, Vector3.up).normalized;
+            var direction = (cameraForward * move.y + cameraRight * move.x).normalized;
+            var hasMovementInput = direction.sqrMagnitude > 0.01f;
+            var sprinting = canReadInput && hasMovementInput && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
+            var targetSpeed = movementSpeed * (sprinting ? 1.75f : 1f);
+            var desiredVelocity = direction * targetSpeed;
+            var velocityChangeRate = characterController.isGrounded ? (hasMovementInput ? 5.2f : 7.5f)
+                : (hasMovementInput ? 2.8f : 0.7f);
+            horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, desiredVelocity, velocityChangeRate * Time.deltaTime);
+
+            if (characterController.isGrounded && verticalVelocity <= 0f)
+            {
+                lastGroundedTime = Time.time;
                 verticalVelocity = -2f;
-            else
-                verticalVelocity += Physics.gravity.y * Time.deltaTime;
-            characterController.Move((direction * movementSpeed + Vector3.up * verticalVelocity) * Time.deltaTime);
+            }
+            if (canReadInput && Keyboard.current.spaceKey.wasPressedThisFrame)
+                lastJumpPressedTime = Time.time;
+            if (canReadInput && Time.time - lastJumpPressedTime <= 0.12f && Time.time - lastGroundedTime <= 0.1f)
+            {
+                verticalVelocity = Mathf.Sqrt(2f * 18f * 0.42f);
+                lastJumpPressedTime = -100f;
+                lastGroundedTime = -100f;
+            }
+            if (canReadInput && Keyboard.current.spaceKey.wasReleasedThisFrame && verticalVelocity > 0f)
+                verticalVelocity *= 0.5f;
+            verticalVelocity = Mathf.Max(-18f, verticalVelocity - (verticalVelocity > 0f ? 18f : 28f) * Time.deltaTime);
+
+            var groundedBeforeMove = characterController.isGrounded;
+            var positionBeforeMove = transform.position;
+            var collisions = characterController.Move((horizontalVelocity + Vector3.up * verticalVelocity) * Time.deltaTime);
+            if ((collisions & CollisionFlags.Above) != 0 && verticalVelocity > 0f) verticalVelocity = 0f;
+            if ((collisions & CollisionFlags.Below) != 0 && verticalVelocity < 0f) verticalVelocity = -2f;
+            if (groundedBeforeMove && verticalVelocity <= 0f)
+                FollowDescendingDeck();
+            // A second downward step adjustment changes CharacterController.velocity;
+            // measure displacement across both moves so stairs do not reset the blend.
+            var lateralSpeed = Vector3.ProjectOnPlane(transform.position - positionBeforeMove, Vector3.up).magnitude
+                / Mathf.Max(Time.deltaTime, 0.0001f);
+            if (lateralSpeed > 0.08f)
+                transform.rotation = Quaternion.Slerp(transform.rotation,
+                    Quaternion.LookRotation(horizontalVelocity.normalized), 6.5f * Time.deltaTime);
+
+            if (transform.position.y < -3f)
+            {
+                characterController.enabled = false;
+                transform.position = new Vector3(0.45f, 3f, -5.8f);
+                characterController.enabled = true;
+                horizontalVelocity = Vector3.zero;
+                verticalVelocity = 0f;
+            }
+
+            if (!canReadInput)
+            {
+                UpdateAnimation(0f, false);
+                return;
+            }
 
             var look = Cursor.lockState == CursorLockMode.Locked
                 ? Mouse.current.delta.ReadValue() * sensitivity : Vector2.zero;
-            transform.Rotate(0f, look.x, 0f);
-            pitch = Mathf.Clamp(pitch - look.y, -72f, 72f);
-            playerCamera.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+            yaw += look.x;
+            pitch = Mathf.Clamp(pitch - look.y, -35f, 68f);
+            var scroll = Mouse.current.scroll.ReadValue().y;
+            if (Mathf.Abs(scroll) > 0.01f)
+                targetCameraDistance = Mathf.Clamp(targetCameraDistance - Mathf.Sign(scroll) * 0.3f, 0.85f, 2.0f);
 
-            nearbyStation = quest.FindNearestAvailableStation(transform.position, 2.05f);
-            quest.UpdateInteractionPrompt(nearbyStation);
-            if (Keyboard.current.eKey.wasPressedThisFrame && nearbyStation != null)
-                quest.OpenStation(nearbyStation);
+            nearbyInteraction = QuestArenaInteractionRegistry.FindNearest(transform.position + Vector3.up * 0.8f, 2.45f);
+            var nextOutline = (nearbyInteraction as Component)?.GetComponent<QuestArenaOutline>();
+            if (nextOutline != focusedOutline)
+            {
+                if (focusedOutline != null) focusedOutline.SetFocused(false);
+                focusedOutline = nextOutline;
+                if (focusedOutline != null) focusedOutline.SetFocused(true);
+            }
+            quest.UpdateInteractionPrompt(nearbyInteraction == null ? null : nearbyInteraction.InteractionPrompt);
+            if (Keyboard.current.eKey.wasPressedThisFrame && nearbyInteraction != null)
+                nearbyInteraction.Interact();
+
+            UpdateAnimation(lateralSpeed, sprinting);
+        }
+
+        private void LateUpdate()
+        {
+            if (cameraPivot == null || playerCamera == null || cameraPivot == transform)
+                return;
+
+            if (projectionAnchor.HasValue)
+            {
+                playerCamera.position = projectionAnchor.Value + projectionDirection * 2.6f + Vector3.up * 0.2f;
+                playerCamera.rotation = Quaternion.LookRotation(projectionAnchor.Value - playerCamera.position, Vector3.up);
+                return;
+            }
+
+            cameraDistance = Mathf.SmoothDamp(cameraDistance, targetCameraDistance, ref cameraZoomVelocity, 0.075f);
+            cameraPivot.rotation = Quaternion.Euler(pitch, yaw, 0f);
+            var desiredDirection = -cameraPivot.forward;
+            var resolvedDistance = cameraDistance;
+            // Ignore the player's own capsule even if it is the first hit.
+            foreach (var hit in Physics.SphereCastAll(cameraPivot.position, 0.14f, desiredDirection, cameraDistance,
+                         Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.transform.IsChildOf(transform))
+                    continue;
+                resolvedDistance = Mathf.Min(resolvedDistance, Mathf.Max(0.3f, hit.distance - 0.1f));
+            }
+
+            playerCamera.position = cameraPivot.position + desiredDirection * resolvedDistance;
+            playerCamera.rotation = cameraPivot.rotation;
+        }
+
+        private void FollowDescendingDeck()
+        {
+            // Stay in contact when walking down steps; jumping and falling still use
+            // gravity. This cannot pull a player across a gap larger than a step.
+            var groundHeight = float.NegativeInfinity;
+            foreach (var hit in Physics.RaycastAll(transform.position + Vector3.up * 0.15f, Vector3.down,
+                         characterController.stepOffset + 0.2f, Physics.DefaultRaycastLayers,
+                         QueryTriggerInteraction.Ignore))
+            {
+                if (hit.transform.IsChildOf(transform) || hit.normal.y < 0.65f)
+                    continue;
+                groundHeight = Mathf.Max(groundHeight, hit.point.y);
+            }
+            var gap = transform.position.y - groundHeight;
+            if (gap > 0.005f && gap <= characterController.stepOffset)
+                characterController.Move(Vector3.down * gap);
+        }
+
+        private void UpdateAnimation(float lateralSpeed, bool sprinting)
+        {
+            if (animator == null)
+                return;
+
+            var moving = lateralSpeed > 0.06f;
+            var normalizedSpeed = movementSpeed <= 0f || !moving ? 0f : lateralSpeed / movementSpeed;
+            // Idle, Walk and Run are three different clips in the blend tree. Speed
+            // 1 selects walking and speed 2 selects running once sprint velocity builds.
+            var blend = normalizedSpeed <= 1f ? normalizedSpeed : 1f + (normalizedSpeed - 1f) / 0.75f;
+            animator.speed = 1f;
+            SetAnimatorFloat("Speed", Mathf.Clamp(blend, 0f, 2f));
+            SetAnimatorFloat("inputMagnitude", normalizedSpeed);
+            SetAnimatorBool("isGrounded", characterController.isGrounded && verticalVelocity <= 0f);
+            SetAnimatorFloat("VerticalSpeed", verticalVelocity);
+            SetAnimatorBool("isIdling", !moving);
+            SetAnimatorBool("isJumping", !characterController.isGrounded && verticalVelocity > 0f);
+            SetAnimatorBool("isFalling", !characterController.isGrounded && verticalVelocity <= 0f);
+        }
+
+        private void SetAnimatorFloat(string parameter, float value)
+        {
+            var hash = Animator.StringToHash(parameter);
+            if (animatorParameters.Contains(hash))
+                animator.SetFloat(hash, value, 0.12f, Time.deltaTime);
+        }
+
+        private void SetAnimatorBool(string parameter, bool value)
+        {
+            var hash = Animator.StringToHash(parameter);
+            if (animatorParameters.Contains(hash))
+                animator.SetBool(hash, value);
         }
     }
 
