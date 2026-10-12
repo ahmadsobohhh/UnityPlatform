@@ -11,7 +11,7 @@ namespace ImagineQuest.Gameplay
         // The existing teacher UI stores its migration-bridge document at this ID.
         // The playable quest itself has the stable content ID celestial-clock.
         [SerializeField] private string defaultAssignmentId = "pirate-voyage";
-        [SerializeField] private string questSceneName = "CelestialClockQuest";
+        [SerializeField] private string questSceneName = "QuestArena";
         [TextArea]
         [SerializeField] private string introVideoUrl;
 
@@ -43,8 +43,9 @@ namespace ImagineQuest.Gameplay
             // Existing scenes may have serialized the former proof-of-concept scene name.
             // Route those old buttons into the complete quest instead of forcing every
             // designer to manually rewire a UnityEvent before the next migration pass.
-            var sceneName = string.IsNullOrWhiteSpace(questSceneName) || questSceneName == "PirateQuest"
-                ? "CelestialClockQuest"
+            var sceneName = string.IsNullOrWhiteSpace(questSceneName) || questSceneName == "PirateQuest" ||
+                            questSceneName == "CelestialClockQuest"
+                ? "QuestArena"
                 : questSceneName;
             SceneTransition.LoadScene(sceneName);
         }
