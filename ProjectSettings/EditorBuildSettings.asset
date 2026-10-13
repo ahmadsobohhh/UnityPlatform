@@ -41,6 +41,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Gameplay/QuestArena.unity
     guid: e7a61d9902fc4ccfbcae74d4e6970bc1
+  - enabled: 1
+    path: Assets/Scenes/Gameplay/BlacksmithRoom.unity
+    guid: c37d275ab9a44b829d09f794f56df21c
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0

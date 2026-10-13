@@ -33,6 +33,8 @@ namespace ImagineQuest.Gameplay
         private string currentUrl;
         private Action exitAction;
         private Vector3 anchorPosition;
+        private Button assignedQuestButton;
+        public Action AssignedQuestAction { get; set; }
         public Vector3? WorldAnchor { get; set; }
         public bool IsPlaying => playing;
 
@@ -47,6 +49,7 @@ namespace ImagineQuest.Gameplay
                 return;
             }
             EnsureOverlay();
+            ConfigureAssignedQuestFooter();
             currentUrl = url;
             exitAction = exited;
             anchorPosition = WorldAnchor ?? (Camera.main == null ? Vector3.zero : Camera.main.transform.position + Camera.main.transform.forward * 2.5f);
@@ -230,6 +233,25 @@ namespace ImagineQuest.Gameplay
             var button = skip.gameObject.AddComponent<Button>();
             button.onClick.AddListener(Skip);
             Label("Label", skip, Vector2.zero, Vector2.one).text = "EXIT";
+            var assigned = Rect("Play Assigned Quest", root.transform, new Vector2(0.04f, 0.025f), new Vector2(0.71f, 0.1f));
+            var assignedImage = assigned.gameObject.AddComponent<Image>();
+            assignedImage.color = new Color(0.4f, 0.25f, 0.075f);
+            var assignedBorder = assigned.gameObject.AddComponent<Outline>();
+            assignedBorder.effectColor = new Color(0.89f, 0.78f, 0.42f, 0.68f);
+            assignedBorder.effectDistance = new Vector2(1.5f, -1.5f);
+            assignedQuestButton = assigned.gameObject.AddComponent<Button>();
+            assignedQuestButton.targetGraphic = assignedImage;
+            assignedQuestButton.onClick.AddListener(() =>
+            {
+                var launch = AssignedQuestAction;
+                if (!playing || launch == null) return;
+                Skip();
+                launch.Invoke();
+            });
+            var assignedLabel = Label("Label", assigned, Vector2.zero, Vector2.one);
+            assignedLabel.text = "PLAY ASSIGNED QUEST";
+            assignedLabel.fontStyle = FontStyles.Bold;
+            assignedLabel.color = new Color(1f, 0.96f, 0.84f);
             var retry = Control("Retry", root.transform, 0.52f, 0.72f, () =>
             {
                 var complete = continuation; var exit = exitAction; var url = currentUrl;
@@ -238,6 +260,34 @@ namespace ImagineQuest.Gameplay
             retry.text = "RETRY";
             timeLabel.rectTransform.anchorMin = new Vector2(0.73f, 0.19f);
             timeLabel.fontSize = 20;
+        }
+
+        private void ConfigureAssignedQuestFooter()
+        {
+            if (assignedQuestButton == null || worldCanvas == null) return;
+            bool show = AssignedQuestAction != null;
+            assignedQuestButton.gameObject.SetActive(show);
+            var parent = worldCanvas.transform;
+            float offset = show ? 0.03f : 0f;
+            SetAnchors(parent, "Video Area", new Vector2(0.04f, 0.32f + offset), new Vector2(0.96f, 0.88f));
+            SetAnchors(parent, "Seek", new Vector2(0.06f, 0.26f + offset), new Vector2(0.94f, 0.30f + offset));
+            SetAnchors(parent, "Pause", new Vector2(0.06f, 0.19f + offset), new Vector2(0.27f, 0.25f + offset));
+            SetAnchors(parent, "Mute", new Vector2(0.3f, 0.19f + offset), new Vector2(0.49f, 0.25f + offset));
+            SetAnchors(parent, "Retry", new Vector2(0.52f, 0.19f + offset), new Vector2(0.72f, 0.25f + offset));
+            SetAnchors(parent, "Time", new Vector2(0.73f, 0.19f + offset), new Vector2(0.94f, 0.25f + offset));
+            SetAnchors(parent, "Volume label", new Vector2(0.06f, 0.12f + offset), new Vector2(0.3f, 0.18f + offset));
+            SetAnchors(parent, "Volume", new Vector2(0.32f, 0.13f + offset), new Vector2(0.94f, 0.17f + offset));
+            SetAnchors(parent, "Input hint", show ? new Vector2(0.04f, 0.105f) : new Vector2(0.03f, 0.01f),
+                show ? new Vector2(0.96f, 0.14f) : new Vector2(0.72f, 0.1f));
+            if (show) parent.Find("Input hint").GetComponent<TMP_Text>().fontSize = 22;
+        }
+
+        private static void SetAnchors(Transform parent, string name, Vector2 min, Vector2 max)
+        {
+            var rect = parent.Find(name) as RectTransform;
+            if (rect == null) return;
+            rect.anchorMin = min;
+            rect.anchorMax = max;
         }
 
         private void Update()

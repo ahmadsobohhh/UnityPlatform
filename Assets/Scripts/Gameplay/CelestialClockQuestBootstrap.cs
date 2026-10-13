@@ -29,6 +29,7 @@ namespace ImagineQuest.Gameplay
         [SerializeField] private bool arenaOnly;
         [SerializeField] private string dummyQuestVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
         private Transform questChart;
+        private GameObject questChartMarker;
 
         [Header("Quest video placeholders (YouTube requires embedded browser)")]
         [SerializeField] private string openingVideoUrl = "https://www.youtube.com/watch?v=zQ8caaUxIvY";
@@ -90,10 +91,7 @@ namespace ImagineQuest.Gameplay
         private GameObject completionPanel;
         private TMP_Text completionSummaryText;
         private GameObject questPickerPanel;
-        private TMP_Text questPickerDetail;
-        private Button playSelectedQuest;
         private PirateAvatarStyler playerStyler;
-        private Coroutine assignmentRefresh;
         private bool briefingVisible;
         private bool lessonVisible;
         private bool journalVisible;
@@ -189,6 +187,7 @@ namespace ImagineQuest.Gameplay
             {
                 questVideo.WorldAnchor = null;
             }
+            questVideo.AssignedQuestAction = arenaOnly ? () => SceneTransition.LoadScene("BlacksmithRoom") : (Action)null;
             Debug.Log("[Quest Video] Opening configured URL: " + url);
             questVideo.Play(url, () =>
             {
@@ -210,6 +209,8 @@ namespace ImagineQuest.Gameplay
 
         private void Update()
         {
+            if (questChartMarker != null)
+                questChartMarker.SetActive(!videoVisible && !journalVisible && !pauseVisible && !briefingVisible);
             if (videoVisible || Keyboard.current == null)
                 return;
 
@@ -691,29 +692,64 @@ namespace ImagineQuest.Gameplay
 
         private void CreateShipHubInteractions()
         {
-            var chartCandidates = new[]
+            // Place the chart on the centreline between the masts.
+            var chartPosition = DeckPosition(0f, 1f);
+            var timber = CreateMaterial(new Color(0.66f, 0.56f, 0.43f));
+            if (shipRoot != null)
+                foreach (var renderer in shipRoot.GetComponentsInChildren<Renderer>())
+                    foreach (var source in renderer.sharedMaterials)
+                        if (source != null && source.name.Contains("Floor+Wheel"))
+                        {
+                            timber.mainTexture = source.HasProperty("_MainTex")
+                                ? source.GetTexture("_MainTex") : source.mainTexture;
+                            // Sample a wooden island, avoiding the unused white area in the ship atlas.
+                            timber.mainTextureScale = new Vector2(0.21f, 0.18f);
+                            timber.mainTextureOffset = new Vector2(0.025f, 0.025f);
+                        }
+            ClearChartApproach(chartPosition, timber);
+            var tableRoot = new GameObject("Quest Chart Furniture").transform;
+            tableRoot.position = chartPosition;
+            tableRoot.SetParent(transform, true);
+            GameObject ChartPart(string label, PrimitiveType type, Vector3 position, Vector3 size, Material material)
             {
-                new Vector2(1f, 3f), new Vector2(-1f, 3f), new Vector2(1f, -1.5f),
-                new Vector2(1f, -2f), new Vector2(0f, -4f), new Vector2(0f, 7f)
-            };
-            var chartPosition = ArenaDeckPlacement.TryClearArea(deckSurfaces, chartCandidates,
-                new Vector2(1.25f, 0.86f), out var clearDeck) ? clearDeck : DeckPosition(1f, 3f);
-            var timber = CreateMaterial(new Color(0.30f, 0.14f, 0.045f));
-            var chart = CreatePrimitive("Quest Chart Table", PrimitiveType.Cube, chartPosition + Vector3.up * 0.58f,
-                new Vector3(1.1f, 0.09f, 0.72f), timber);
+                var part = CreatePrimitive(label, type, position, size, material);
+                part.transform.SetParent(tableRoot, true);
+                return part;
+            }
+            var chart = ChartPart("Quest Chart Table", PrimitiveType.Cube,
+                chartPosition + Vector3.up * 0.72f, new Vector3(1.4f, 0.08f, 0.9f), timber);
             questChart = chart.transform;
+            // Individually laid boards leave narrow seams across the tabletop.
+            for (var board = 0; board < 6; board++)
+                ChartPart("Chart table plank", PrimitiveType.Cube,
+                    chartPosition + new Vector3(0f, 0.775f, -0.375f + board * 0.15f),
+                    new Vector3(1.44f, 0.035f, 0.146f), timber);
+            var iron = CreateMaterial(new Color(0.12f, 0.14f, 0.15f));
             for (var index = 0; index < 4; index++)
             {
-                var offset = new Vector3(index % 2 == 0 ? -0.43f : 0.43f, 0.27f, index < 2 ? -0.24f : 0.24f);
-                var leg = CreatePrimitive("Chart table leg", PrimitiveType.Cube, chartPosition + offset,
-                    new Vector3(0.07f, 0.54f, 0.07f), timber);
+                var x = index % 2 == 0 ? -0.57f : 0.57f;
+                var z = index < 2 ? -0.32f : 0.32f;
+                var leg = ChartPart("Chart table leg", PrimitiveType.Cube,
+                    chartPosition + new Vector3(x, 0.35f, z), new Vector3(0.105f, 0.7f, 0.105f), timber);
                 leg.GetComponent<Collider>().enabled = true;
+                ChartPart("Iron leg strap", PrimitiveType.Cube,
+                    chartPosition + new Vector3(x, 0.59f, z), new Vector3(0.112f, 0.055f, 0.112f), iron);
             }
-            var parchment = CreatePrimitive("Sea chart parchment", PrimitiveType.Cube,
-                chartPosition + Vector3.up * 0.634f, new Vector3(0.8f, 0.012f, 0.52f),
-                CreateMaterial(new Color(0.74f, 0.62f, 0.39f)));
+            for (var side = -1; side <= 1; side += 2)
+            {
+                ChartPart("Long table apron", PrimitiveType.Cube,
+                    chartPosition + new Vector3(0f, 0.635f, side * 0.34f), new Vector3(1.25f, 0.14f, 0.065f), timber);
+                ChartPart("End table apron", PrimitiveType.Cube,
+                    chartPosition + new Vector3(side * 0.59f, 0.635f, 0f), new Vector3(0.065f, 0.14f, 0.7f), timber);
+                ChartPart("Lower leg brace", PrimitiveType.Cube,
+                    chartPosition + new Vector3(side * 0.57f, 0.2f, 0f), new Vector3(0.07f, 0.07f, 0.68f), timber);
+            }
+            ChartPart("Table stretcher", PrimitiveType.Cube,
+                chartPosition + Vector3.up * 0.2f, new Vector3(1.2f, 0.07f, 0.07f), timber);
+            CreateTableChartDetails(chartPosition, tableRoot);
+            tableRoot.localScale = new Vector3(0.85f, 0.7f, 0.85f);
             AddShipInteraction(chart, QuestArenaShipAction.ChartTable, "OPEN THE QUEST CHART");
-
+            CreateQuestChartMarker();
             var helm = FindShipHelm();
             if (helm == null)
             {
@@ -739,6 +775,107 @@ namespace ImagineQuest.Gameplay
             var bell = CreatePrimitive("Ship Bell", PrimitiveType.Sphere, bellPosition + Vector3.up * 0.98f,
                 new Vector3(0.22f, 0.24f, 0.22f), CreateMaterial(new Color(0.9f, 0.55f, 0.12f), true));
             AddShipInteraction(bell, QuestArenaShipAction.ShipBell, "RING THE SHIP'S BELL");
+        }
+
+        private void ClearChartApproach(Vector3 chartPosition, Material wood)
+        {
+            if (!arenaOnly || shipRoot == null) return;
+            var approach = new Bounds(chartPosition + new Vector3(0f, 0.4f, -1f), new Vector3(3f, 3f, 3.4f));
+            foreach (var renderer in shipRoot.GetComponentsInChildren<Renderer>())
+            {
+                var label = renderer.name.ToLowerInvariant();
+                var hatchEnclosure = label.Contains("hatch");
+                var looseProp = label.Contains("barrel") || label.Contains("boxes") || label.Contains("bottle") || label.Contains("lanterns");
+                if ((!hatchEnclosure && !looseProp) || !approach.Intersects(renderer.bounds)) continue;
+                var bounds = renderer.bounds;
+                renderer.gameObject.SetActive(false);
+                if (hatchEnclosure)
+                {
+                    // Preserve walkable collision while leaving the original deck planks visible.
+                    var cover = CreatePrimitive("Cleared chart approach deck", PrimitiveType.Cube,
+                        new Vector3(bounds.center.x, chartPosition.y - 0.055f, bounds.center.z),
+                        new Vector3(bounds.size.x, 0.08f, bounds.size.z), wood);
+                    cover.GetComponent<Renderer>().enabled = false;
+                    cover.GetComponent<Collider>().enabled = true;
+                    deckSurfaces.Add(cover.GetComponent<Collider>());
+                }
+            }
+            Physics.SyncTransforms();
+        }
+        private void CreateTableChartDetails(Vector3 origin, Transform tableRoot)
+        {
+            GameObject ChartPart(string label, PrimitiveType type, Vector3 position, Vector3 size, Material material)
+            {
+                var part = CreatePrimitive(label, type, position, size, material);
+                part.transform.SetParent(tableRoot, true);
+                return part;
+            }
+            var paper = CreateMaterial(new Color(0.78f, 0.68f, 0.46f));
+            var ink = CreateMaterial(new Color(0.22f, 0.26f, 0.23f));
+            var brass = CreateMaterial(new Color(0.65f, 0.44f, 0.16f));
+            ChartPart("Sea chart parchment", PrimitiveType.Cube,
+                origin + new Vector3(-0.04f, 0.8f, 0f), new Vector3(1.02f, 0.008f, 0.66f), paper);
+            for (var side = -1; side <= 1; side += 2)
+            {
+                var roll = ChartPart("Rolled parchment edge", PrimitiveType.Cylinder,
+                    origin + new Vector3(-0.04f, 0.812f, side * 0.325f), new Vector3(0.025f, 0.52f, 0.025f), paper);
+                roll.transform.rotation = Quaternion.Euler(0f, 0f, 90f);
+            }
+            // Coast outlines and a dotted sailing route make the parchment readable as a sea chart.
+            for (var island = 0; island < 3; island++)
+                for (var edge = 0; edge < 7; edge++)
+                {
+                    var angle = edge * Mathf.PI * 2f / 7f;
+                    var point = origin + new Vector3(-0.35f + island * 0.25f + Mathf.Cos(angle) * 0.08f,
+                        0.807f, -0.13f + island * 0.13f + Mathf.Sin(angle) * 0.055f);
+                    var coast = ChartPart("Chart coastline", PrimitiveType.Cube, point,
+                        new Vector3(0.06f, 0.002f, 0.006f), ink);
+                    coast.transform.rotation = Quaternion.Euler(0f, -angle * Mathf.Rad2Deg + 90f, 0f);
+                }
+            for (var dot = 0; dot < 12; dot++)
+                ChartPart("Chart sailing route", PrimitiveType.Sphere,
+                    origin + new Vector3(-0.32f + dot * 0.05f, 0.809f, 0.19f - dot * 0.025f),
+                    new Vector3(0.01f, 0.002f, 0.01f), ink);
+            for (var spoke = 0; spoke < 4; spoke++)
+            {
+                var line = ChartPart("Chart compass rose", PrimitiveType.Cube,
+                    origin + new Vector3(0.32f, 0.808f, -0.18f), new Vector3(0.12f, 0.002f, 0.004f), ink);
+                line.transform.rotation = Quaternion.Euler(0f, spoke * 45f, 0f);
+            }
+            ChartPart("Brass chart weight", PrimitiveType.Cylinder,
+                origin + new Vector3(-0.45f, 0.817f, -0.24f), new Vector3(0.045f, 0.013f, 0.045f), brass);
+            var compass = ChartPart("Navigator compass", PrimitiveType.Cylinder,
+                origin + new Vector3(0.61f, 0.815f, 0.19f), new Vector3(0.12f, 0.02f, 0.12f), brass);
+            ChartPart("Compass face", PrimitiveType.Cylinder,
+                compass.transform.position + Vector3.up * 0.022f, new Vector3(0.1f, 0.003f, 0.1f), paper);
+            var needle = ChartPart("Compass needle", PrimitiveType.Cube,
+                compass.transform.position + Vector3.up * 0.027f, new Vector3(0.065f, 0.002f, 0.008f), ink);
+            needle.transform.rotation = Quaternion.Euler(0f, 28f, 0f);
+        }
+        private void CreateQuestChartMarker()
+        {
+            questChartMarker = new GameObject("Quest Chart Marker", typeof(RectTransform), typeof(Canvas));
+            questChartMarker.transform.SetParent(transform, false);
+            questChartMarker.transform.position = questChart.position + Vector3.up * 0.72f;
+            questChartMarker.transform.localScale = Vector3.one * 0.002f;
+            questChartMarker.GetComponent<RectTransform>().sizeDelta = new Vector2(620f, 190f);
+            var canvas = questChartMarker.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            questChartMarker.AddComponent<CelestialBillboard>();
+            questChartMarker.AddComponent<CelestialOceanMotion>().Configure(0.025f, 1.8f);
+
+            var plate = CreatePanel("Chart Nameplate", questChartMarker.transform, Vector2.one * 0.5f,
+                new Vector2(600f, 125f), new Vector2(0f, 25f), new Color(0.035f, 0.045f, 0.055f, 0.94f), 12f);
+            plate.GetComponent<Image>().raycastTarget = false;
+            plate.GetComponent<Outline>().effectColor = new Color(0.89f, 0.72f, 0.32f, 0.9f);
+            var label = CreateText("Quest Chart Label", plate.transform, Vector2.zero, Vector2.one,
+                Vector2.zero, Vector2.zero, 58f, TextAlignmentOptions.Center, new Color(1f, 0.85f, 0.5f));
+            label.text = "QUEST CHART";
+            label.fontStyle = FontStyles.Bold;
+            var pointer = CreateText("Chart Pointer", questChartMarker.transform, Vector2.one * 0.5f,
+                Vector2.one * 0.5f, new Vector2(0f, -65f), new Vector2(90f, 70f), 60f,
+                TextAlignmentOptions.Center, new Color(1f, 0.85f, 0.5f));
+            pointer.text = "▼";
         }
 
         private GameObject FindShipHelm()
@@ -768,11 +905,20 @@ namespace ImagineQuest.Gameplay
             if (piratePlayerPrefabs == null || piratePlayerPrefabs.Length == 0) return;
             var names = new[] { "Luma — Navigator", "Rook — Boatswain", "Pip — Lookout", "Sage — Quartermaster" };
             var styles = new[] { "mage", "bandit", "archer", "scholar" };
-            var spots = new[] { new Vector2(1f, -1.5f), new Vector2(-1f, -1.5f), new Vector2(-1f, 3.5f), new Vector2(0f, 7f) };
+            var spots = new[] { new Vector2(1f, -1.5f), new Vector2(-1f, -1.5f), new Vector2(-1.5f, 4.5f), new Vector2(0f, 7f) };
             for (var index = 0; index < names.Length; index++)
             {
                 var candidates = new[] { spots[index], spots[index] + new Vector2(0f, 1f), spots[index] + new Vector2(0f, -1f), spots[index] + new Vector2(-0.5f, 0f) };
-                if (!ArenaDeckPlacement.TryClearArea(deckSurfaces, candidates, new Vector2(0.5f, 0.5f), out var position)) continue;
+                Vector3 position;
+                if (index == 2)
+                {
+                    // Give Pip several visible deck positions rather than silently omitting him.
+                    var lookoutSpots = new[] { spots[index], new Vector2(-1.4f, 5f),
+                        new Vector2(1.5f, 4.5f), new Vector2(-1.5f, 2.8f), new Vector2(1.5f, 6f) };
+                    if (!ArenaDeckPlacement.TryClearArea(deckSurfaces, lookoutSpots, new Vector2(0.5f, 0.5f), out position))
+                        position = DeckPosition(-1.5f, 4.5f);
+                }
+                else if (!ArenaDeckPlacement.TryClearArea(deckSurfaces, candidates, new Vector2(0.5f, 0.5f), out position)) continue;
                 var crew = Instantiate(piratePlayerPrefabs[piratePlayerPrefabs.Length - 1], position,
                     Quaternion.Euler(0f, index % 2 == 0 ? -65f : 65f, 0f));
                 crew.name = names[index]; crew.transform.localScale = Vector3.one * 0.52f;
@@ -1092,7 +1238,7 @@ namespace ImagineQuest.Gameplay
         {
             questPickerPanel = CreateFullOverlay("Quest Selection", parent, new Color(0.005f, 0.012f, 0.025f, 0.72f));
             var card = CreatePanel("Quest Chart", questPickerPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(860f, 640f), Vector2.zero, new Color(0.055f, 0.04f, 0.025f, 0.98f), 12);
+                new Vector2(860f, 440f), Vector2.zero, new Color(0.055f, 0.04f, 0.025f, 0.98f), 12);
             var title = CreateText("Quest Picker Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -54f), new Vector2(730f, 48f), 32f, TextAlignmentOptions.Center,
                 new Color(1f, 0.85f, 0.50f));
@@ -1109,19 +1255,6 @@ namespace ImagineQuest.Gameplay
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -238f),
                 new Vector2(480f, 54f), new Color(0.4f, 0.25f, 0.075f));
             demoPlay.onClick.AddListener(PlayDummyQuest);
-            questPickerDetail = CreateText("Quest Picker Detail", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -70f), new Vector2(710f, 120f), 22f, TextAlignmentOptions.Center,
-                new Color(0.97f, 0.93f, 0.83f));
-            questPickerDetail.textWrappingMode = TextWrappingModes.Normal;
-            playSelectedQuest = CreateButton("Play Selected Quest", card.transform, "PLAY ASSIGNED QUEST",
-                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 132f),
-                new Vector2(530f, 58f), new Color(0.4f, 0.25f, 0.075f));
-            playSelectedQuest.interactable = false;
-            playSelectedQuest.onClick.AddListener(() => RefreshQuestAssignment(true));
-            var refresh = CreateButton("Refresh Assignments", card.transform, "REFRESH",
-                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-80f, -300f),
-                new Vector2(125f, 34f), new Color(0.14f, 0.10f, 0.06f));
-            refresh.onClick.AddListener(() => RefreshQuestAssignment(false));
             var back = CreateButton("Close Quest Selection", card.transform, "RETURN TO SHIP",
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 48f),
                 new Vector2(350f, 48f), new Color(0.14f, 0.10f, 0.06f));
@@ -1132,7 +1265,6 @@ namespace ImagineQuest.Gameplay
         private void PlayDummyQuest()
         {
             if (videoVisible || questChart == null) return;
-            if (assignmentRefresh != null) StopCoroutine(assignmentRefresh);
             CloseJournal();
             // Reuse the existing world-space projection, anchored to the actual chart.
             PlayQuestVideo(string.IsNullOrWhiteSpace(dummyQuestVideoUrl) ? openingVideoUrl : dummyQuestVideoUrl,
@@ -1146,69 +1278,6 @@ namespace ImagineQuest.Gameplay
             interactionText.gameObject.SetActive(false);
             playerController.SetInputEnabled(false);
             UnlockCursor();
-            RefreshQuestAssignment(false);
-        }
-
-        private void RefreshQuestAssignment(bool launch)
-        {
-            if (assignmentRefresh != null) StopCoroutine(assignmentRefresh);
-            assignmentRefresh = StartCoroutine(CheckQuestAssignment(launch));
-        }
-
-        private IEnumerator CheckQuestAssignment(bool launch)
-        {
-            playSelectedQuest.interactable = false;
-            questPickerDetail.text = "Checking your teacher's selected quests...";
-            var user = FirebaseAuth.DefaultInstance.CurrentUser;
-            var session = QuestSession.Instance;
-            var classId = session?.ClassId;
-            // Direct scene play is an explicitly labelled editor preview, never a signed-in bypass.
-            if (Application.isEditor && user == null && string.IsNullOrWhiteSpace(classId))
-            {
-                questPickerDetail.text = "<b>LOCAL EDITOR PREVIEW</b>\n\nSign in and enter through a class to test teacher-selected quests.";
-                playSelectedQuest.interactable = true;
-                if (launch) SceneTransition.LoadScene("CelestialClockQuest");
-                yield break;
-            }
-            if (user == null || string.IsNullOrWhiteSpace(classId))
-            {
-                questPickerDetail.text = "Return to your class and enter its arena to see selected quests.";
-                yield break;
-            }
-            var userId = user.UserId;
-            var assignmentId = string.IsNullOrWhiteSpace(session.AssignmentId) ? "pirate-voyage" : session.AssignmentId;
-            System.Threading.Tasks.Task<DocumentSnapshot> task;
-            try
-            {
-                // A fresh server read also checks deselection immediately before starting.
-                task = FirebaseFirestore.DefaultInstance.Collection("classes").Document(classId)
-                    .Collection("questAssignments").Document(assignmentId).GetSnapshotAsync(Source.Server);
-            }
-            catch (Exception)
-            {
-                questPickerDetail.text = "Quest availability could not be checked. Check your connection and press Refresh.";
-                yield break;
-            }
-            var deadline = Time.realtimeSinceStartup + 15f;
-            yield return new WaitUntil(() => task.IsCompleted || Time.realtimeSinceStartup >= deadline);
-            if (FirebaseAuth.DefaultInstance.CurrentUser?.UserId != userId || QuestSession.Instance?.ClassId != classId ||
-                !questPickerPanel.activeSelf) yield break;
-            if (!task.IsCompleted || task.IsFaulted || task.IsCanceled)
-            {
-                questPickerDetail.text = "Quest availability could not be checked. Check your connection and press Refresh.";
-                yield break;
-            }
-            var document = task.Result;
-            var selected = document.Exists && document.TryGetValue<bool>("isUnlocked", out var unlocked) && unlocked;
-            var supported = document.Exists && document.TryGetValue<string>("questId", out var questId) && questId == "celestial-clock";
-            if (!selected || !supported)
-            {
-                questPickerDetail.text = "<b>No playable quest selected</b>\n\nYour teacher can select a quest from the class page. You can still explore the ship.";
-                yield break;
-            }
-            questPickerDetail.text = "<b>Assigned quest ready</b>\n\nYour teacher has selected this quest. Start when you are ready, or return to exploring the ship.";
-            playSelectedQuest.interactable = true;
-            if (launch) SceneTransition.LoadScene("CelestialClockQuest");
         }
 
         private void BuildBriefing(Transform parent)
@@ -1811,7 +1880,7 @@ namespace ImagineQuest.Gameplay
             button.GetComponent<Image>().color = color;
         }
 
-        private static GameObject CreateFullOverlay(string name, Transform parent, Color color)
+        internal static GameObject CreateFullOverlay(string name, Transform parent, Color color)
         {
             var overlay = new GameObject(name, typeof(RectTransform), typeof(Image));
             overlay.transform.SetParent(parent, false);
@@ -1826,7 +1895,7 @@ namespace ImagineQuest.Gameplay
             return overlay;
         }
 
-        private static GameObject CreatePanel(string name, Transform parent, Vector2 anchor, Vector2 size, Vector2 position, Color color, float outlineWidth)
+        internal static GameObject CreatePanel(string name, Transform parent, Vector2 anchor, Vector2 size, Vector2 position, Color color, float outlineWidth)
         {
             var panel = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Outline));
             panel.transform.SetParent(parent, false);
@@ -1845,7 +1914,7 @@ namespace ImagineQuest.Gameplay
             return panel;
         }
 
-        private static TMP_Text CreateText(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 position,
+        internal static TMP_Text CreateText(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 position,
             Vector2 size, float fontSize, TextAlignmentOptions alignment, Color color)
         {
             var textObject = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
@@ -1868,7 +1937,7 @@ namespace ImagineQuest.Gameplay
             return text;
         }
 
-        private static Button CreateButton(string name, Transform parent, string label, Vector2 anchorMin, Vector2 anchorMax,
+        internal static Button CreateButton(string name, Transform parent, string label, Vector2 anchorMin, Vector2 anchorMax,
             Vector2 position, Vector2 size, Color color)
         {
             var buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button), typeof(Outline));
@@ -2411,7 +2480,9 @@ namespace ImagineQuest.Gameplay
             var camera = Camera.main;
             if (camera == null)
                 return;
-            transform.rotation = Quaternion.LookRotation(transform.position - camera.transform.position);
+            var direction = transform.position - camera.transform.position;
+            if (direction.sqrMagnitude > 0.0001f)
+                transform.rotation = Quaternion.LookRotation(direction);
         }
     }
 
