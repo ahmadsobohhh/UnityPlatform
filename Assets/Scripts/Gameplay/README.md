@@ -41,16 +41,16 @@ The imported pirate source art is under `Assets/Gameplay/Pirate`. Its `Pirate_Fu
 
 ## Blacksmith workshop practice reward
 
-The workshop's ANVIL, WORKBENCH, and FORGE questions unlock a session-only forge
-stone when all three are correctly answered. The stone floats in the clear center
-of the room. Close the question panel and walk within 1.15 world units to consume
-it and reveal a vine-framed, animated emerald portal near the entrance. No keypress
-is required. The portal is a visual reward; entering it does not load a destination.
-Leaving and reopening the workshop resets the practice, stone, and portal.
+The ANVIL, WORKBENCH, and FORGE lessons and correct answers unlock a Forge Stone
+in the center of the room. Touch it to reveal the client's actual animated emerald
+portal. Walk through the portal to return to QuestArena. Craft progress, activation,
+and completion are saved per student/class/assignment and restored on return.
 
 `BlacksmithRoomBootstrap` creates `WorkshopForgeReward` at runtime, so existing
 workshop scenes require no Inspector setup. The portal shader is in Resources to
-keep it available in player builds. No additional art package is required.
+keep it available in player builds. The supplied portal artwork/alpha are carried
+in a compact packed video with a transparent URP material. See
+`docs/CLIENT_PORTAL_INTEGRATION.md` for source-media preparation and checks.
 
 Validation in Unity 6000.3.6f1:
 
@@ -59,9 +59,9 @@ Validation in Unity 6000.3.6f1:
    reward should appear. Complete two distinct stations and revisit one; still no reward.
 3. Complete the remaining station. Check the 3/3 counter and forge-stone message.
 4. Close the panel and walk toward the center. The stone should bob and rotate.
-   Walking close should consume it and reveal exactly one green swirling portal
-   with wooden vines, green leaves, and ivory flowers.
+   Touching it should consume it and reveal exactly one animated client portal
+   with its wooden vines, green leaves, and ivory flowers, without a black rectangle.
 5. Confirm the portal does not activate while a question or pause menu is open,
    movement remains available afterward, and revisiting stations creates no duplicates.
-6. Return to the ship and reenter; check that the reward is reset. Repeat the flow
+6. Walk through to the ship and reenter; check that completion is restored. Repeat the flow
    in a standalone build to check shader inclusion and rendering on the target platform.

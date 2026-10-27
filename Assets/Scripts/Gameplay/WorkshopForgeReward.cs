@@ -1,66 +1,111 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Video;
 
 namespace ImagineQuest.Gameplay
 {
-    /// <summary>Session-only reward for the three workshop stations. No saved XP is awarded.</summary>
+    /// <summary>Client-art portal presentation. The workshop owns saved progress and scene travel.</summary>
     public sealed class WorkshopForgeReward : MonoBehaviour
     {
-        private const float ActivationRadius = 1.15f;
-        private static readonly Vector3 StonePosition = new Vector3(0f, 0.85f, 0.2f);
-        private static readonly Vector3 PortalPosition = new Vector3(0f, 1.75f, -2.4f);
+        public static readonly Vector3 StonePosition = new Vector3(0, .85f, .2f);
+        public static readonly Vector3 PortalPosition = new Vector3(0, 1.7f, -4.42f);
+        private const float StoneRadius = .34f;
         private readonly List<Material> materials = new List<Material>();
-        private readonly List<Mesh> meshes = new List<Mesh>();
-        private GameObject stone;
-        private GameObject portal;
-        private float openedAt;
+        private GameObject stone, portal;
+        private Material portalMaterial;
+        private RenderTexture videoTexture;
+        private VideoPlayer video;
+        private Texture poster;
+        private Func<bool> persistActivation;
+        private float openedAt, prepareStarted;
+        private bool preparing, videoFailed;
 
         public bool StoneRevealed { get; private set; }
         public bool PortalOpened { get; private set; }
+        public bool VideoFrameReceived { get; private set; }
+        public bool IsVideoPlaying => video != null && video.isPlaying;
+        public string MediaStatus { get; private set; } = "Portal dormant";
+        public Renderer PortalRenderer { get; private set; }
 
-        // The caller supplies the number of distinct, correctly answered stations.
-        public void SetCompletedStations(int completed)
+        public void Initialize(Func<bool> saveActivation) => persistActivation = saveActivation;
+
+        public void SetCompletedStations(int completed) => RestoreProgress(completed, PortalOpened);
+
+        public void RestoreProgress(int completed, bool opened)
         {
-            if (completed < 3 || StoneRevealed) return;
-            StoneRevealed = true;
+            bool eligible = completed >= 3;
+            StoneRevealed = eligible;
+            if (eligible && stone == null) BuildStone();
+            if (eligible && opened)
+            {
+                RevealPortal();
+                return;
+            }
+            PortalOpened = false;
+            if (portal != null) portal.SetActive(false);
+            if (video != null && video.isPlaying) video.Pause();
+            if (stone != null) stone.SetActive(eligible);
+        }
+
+        // The player's body must touch the stone volume. An avatar on another floor cannot activate it.
+        public bool CheckPlayerProximity(Vector3 worldFeet, float bodyRadius = .28f, float bodyHeight = 1.8f,
+            bool hasControl = true)
+        {
+            if (!hasControl || !StoneRevealed || PortalOpened) return false;
+            Vector3 feet = transform.InverseTransformPoint(worldFeet);
+            if (feet.y > StonePosition.y + StoneRadius || feet.y + bodyHeight < StonePosition.y - StoneRadius)
+                return false;
+            Vector2 delta = new Vector2(feet.x - StonePosition.x, feet.z - StonePosition.z);
+            if (delta.sqrMagnitude > Mathf.Pow(StoneRadius + bodyRadius, 2)) return false;
+            // Never consume the stone if the workshop could not save this transition.
+            if (persistActivation != null && !persistActivation()) return false;
+            RevealPortal();
+            return true;
+        }
+
+        public bool CanEnterPortal(Vector3 worldFeet, bool hasControl = true)
+        {
+            if (!hasControl || !PortalOpened || Time.unscaledTime - openedAt < .9f) return false;
+            Vector3 feet = transform.InverseTransformPoint(worldFeet);
+            return Mathf.Abs(feet.x - PortalPosition.x) < .72f &&
+                   Mathf.Abs(feet.z - PortalPosition.z) < .48f &&
+                   feet.y > -.4f && feet.y < 1.4f;
+        }
+
+        private void BuildStone()
+        {
             stone = new GameObject("Forge Stone Reward");
             stone.transform.SetParent(transform, false);
             stone.transform.localPosition = StonePosition;
-            var rock = Lit(new Color(0.13f, 0.22f, 0.16f));
-            var crystal = Lit(new Color(0.4f, 1f, 0.16f), 1.8f);
             Shape("Ancient forge stone", stone.transform, PrimitiveType.Sphere, Vector3.zero,
-                new Vector3(0.48f, 0.65f, 0.42f), rock);
+                new Vector3(.48f, .65f, .42f), Lit(new Color(.13f, .22f, .16f)));
             var gem = Shape("Glowing emerald core", stone.transform, PrimitiveType.Cube,
-                new Vector3(0f, 0.08f, -0.04f), Vector3.one * 0.32f, crystal);
-            gem.transform.localRotation = Quaternion.Euler(25f, 45f, 35f);
-            Glow(stone.transform, 1.6f, 3f);
+                new Vector3(0, .08f, -.04f), Vector3.one * .32f, Lit(new Color(.4f, 1, .16f), 1.8f));
+            gem.transform.localRotation = Quaternion.Euler(25, 45, 35);
+            Glow(stone.transform, 1.6f, 3);
         }
 
-        /// <summary>Called only while the learner has control, never from a modal or pause menu.</summary>
-        public void CheckPlayerProximity(Vector3 worldPosition)
+        private void RevealPortal()
         {
-            if (!StoneRevealed || PortalOpened) return;
-            var offset = transform.InverseTransformPoint(worldPosition) - StonePosition;
-            // Compare the player's feet with the stone's floor position, including deck height.
-            if (Mathf.Abs(offset.y + StonePosition.y) > 0.75f) return;
-            offset.y = 0f;
-            if (offset.sqrMagnitude > ActivationRadius * ActivationRadius) return;
+            if (PortalOpened) return;
             PortalOpened = true;
-            stone.SetActive(false);
-            BuildPortal();
-            openedAt = Time.time;
-        }
-
-        private void Update()
-        {
-            if (stone != null && !PortalOpened)
+            if (stone != null) stone.SetActive(false);
+            if (portal == null) BuildPortal();
+            portal.SetActive(true);
+            portal.transform.localScale = Vector3.one * .01f;
+            openedAt = Time.unscaledTime;
+            if (video != null && !videoFailed)
             {
-                stone.transform.localPosition = StonePosition + Vector3.up * (Mathf.Sin(Time.time * 2f) * 0.09f);
-                stone.transform.Rotate(0f, 35f * Time.deltaTime, 0f, Space.Self);
+                if (video.isPrepared) video.Play();
+                else
+                {
+                    preparing = true;
+                    prepareStarted = Time.realtimeSinceStartup;
+                    MediaStatus = "Loading client portal animation";
+                    video.Prepare();
+                }
             }
-            if (portal != null)
-                portal.transform.localScale = Vector3.one * Mathf.SmoothStep(0f, 1f,
-                    Mathf.Clamp01((Time.time - openedAt) / 0.9f));
         }
 
         private void BuildPortal()
@@ -68,97 +113,87 @@ namespace ImagineQuest.Gameplay
             portal = new GameObject("Living Emerald Portal");
             portal.transform.SetParent(transform, false);
             portal.transform.localPosition = PortalPosition;
-            portal.transform.localScale = Vector3.zero;
-            var bark = Lit(new Color(0.24f, 0.11f, 0.035f));
-            var vine = Lit(new Color(0.38f, 0.23f, 0.07f));
-            var leaf = Lit(new Color(0.24f, 0.52f, 0.035f));
-            var petals = Lit(new Color(1f, 0.94f, 0.72f));
-            var pollen = Lit(new Color(1f, 0.65f, 0.08f), 0.4f);
-            // Three intertwined woody vines frame a tall oval, like the reference image.
-            for (var strand = 0; strand < 3; strand++)
-                BuildVine(strand, strand == 0 ? bark : vine);
-            for (var i = 0; i < 32; i++)
-            {
-                var angle = i * Mathf.PI * 2f / 32f;
-                var radial = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f);
-                var position = new Vector3(radial.x * 1.13f, radial.y * 1.55f, Mathf.Sin(i * 2f) * 0.14f);
-                var foliage = Shape("Emerald leaf", portal.transform, PrimitiveType.Sphere,
-                    position + radial * 0.12f, new Vector3(0.16f, 0.36f, 0.065f), leaf);
-                foliage.transform.localRotation = Quaternion.Euler(0f, 0f, angle * Mathf.Rad2Deg - 60f);
-                if (i % 4 != 0) continue;
-                // Flowers are visible from either side of the portal.
-                for (var side = -1; side <= 1; side += 2)
-                {
-                    var center = position + Vector3.forward * (side * 0.19f);
-                    Shape("Golden flower heart", portal.transform, PrimitiveType.Sphere,
-                        center, Vector3.one * 0.12f, pollen);
-                    for (var p = 0; p < 5; p++)
-                    {
-                        var a = p * Mathf.PI * 2f / 5f;
-                        var petal = Shape("Ivory petal", portal.transform, PrimitiveType.Sphere,
-                            center + new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * 0.115f,
-                            new Vector3(0.13f, 0.22f, 0.055f), petals);
-                        petal.transform.localRotation = Quaternion.Euler(0f, 0f, a * Mathf.Rad2Deg - 90f);
-                    }
-                }
-            }
             var shader = Resources.Load<Shader>("Workshop/EmeraldPortal");
-            if (shader != null)
-            {
-                var surface = new Material(shader);
-                materials.Add(surface);
-                Shape("Swirling emerald gateway", portal.transform, PrimitiveType.Quad,
-                    Vector3.zero, new Vector3(2.12f, 3.02f, 1f), surface);
-            }
-            else
-            {
-                Debug.LogWarning("[Workshop] EmeraldPortal shader is missing; showing a glowing gateway.");
-                Shape("Emerald gateway", portal.transform, PrimitiveType.Sphere, Vector3.zero,
-                    new Vector3(2.12f, 3.02f, 0.06f), Lit(new Color(0.12f, 0.95f, 0.25f), 1.5f));
-            }
-            Glow(portal.transform, 2.2f, 4f);
+            if (shader == null) throw new InvalidOperationException("The client portal shader is missing.");
+            portalMaterial = new Material(shader);
+            materials.Add(portalMaterial);
+            poster = Resources.Load<Texture2D>("Workshop/ClientPortalPoster");
+            if (poster == null) throw new InvalidOperationException("The client portal poster is missing.");
+            portalMaterial.mainTexture = poster;
+            var surface = Shape("Client vine and flower portal", portal.transform, PrimitiveType.Quad,
+                Vector3.zero, new Vector3(2.02f, 3.3f, 1), portalMaterial);
+            PortalRenderer = surface.GetComponent<Renderer>();
+            PortalRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            PortalRenderer.receiveShadows = false;
+            Glow(portal.transform, 2, 4);
+
+            var clip = Resources.Load<VideoClip>("Workshop/ClientPortal");
+            if (clip == null) { UsePoster("Portal animation is missing; showing the client artwork."); return; }
+            videoTexture = new RenderTexture((int)clip.width, (int)clip.height, 0, RenderTextureFormat.ARGB32);
+            videoTexture.name = "Client portal color and alpha";
+            videoTexture.Create();
+            video = gameObject.AddComponent<VideoPlayer>();
+            video.playOnAwake = false;
+            video.source = VideoSource.VideoClip;
+            video.clip = clip;
+            video.audioOutputMode = VideoAudioOutputMode.None;
+            video.renderMode = VideoRenderMode.RenderTexture;
+            video.targetTexture = videoTexture;
+            video.isLooping = true;
+            video.waitForFirstFrame = true;
+            video.skipOnDrop = true;
+            video.sendFrameReadyEvents = true;
+            video.prepareCompleted += Prepared;
+            video.frameReady += FrameReady;
+            video.errorReceived += VideoError;
         }
 
-        private void BuildVine(int strand, Material material)
+        private void Prepared(VideoPlayer source)
         {
-            const int segments = 96;
-            const int sides = 8;
-            var vertices = new Vector3[(segments + 1) * sides];
-            var triangles = new int[segments * sides * 6];
-            for (var i = 0; i <= segments; i++)
-            {
-                var a = i * Mathf.PI * 2f / segments;
-                var twist = a * 7f + strand * Mathf.PI * 2f / 3f;
-                var radial = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f);
-                var center = new Vector3(Mathf.Cos(a) * 1.08f, Mathf.Sin(a) * 1.48f, 0f)
-                    + radial * (Mathf.Cos(twist) * 0.065f) + Vector3.forward * (Mathf.Sin(twist) * 0.09f);
-                for (var s = 0; s < sides; s++)
-                {
-                    var b = s * Mathf.PI * 2f / sides;
-                    vertices[i * sides + s] = center + (radial * Mathf.Cos(b) + Vector3.forward * Mathf.Sin(b)) * 0.085f;
-                    if (i == segments) continue;
-                    var index = (i * sides + s) * 6;
-                    var here = i * sides + s;
-                    var next = i * sides + (s + 1) % sides;
-                    triangles[index] = here; triangles[index + 1] = here + sides; triangles[index + 2] = next;
-                    triangles[index + 3] = next; triangles[index + 4] = here + sides; triangles[index + 5] = next + sides;
-                }
-            }
-            var mesh = new Mesh { name = "Twisting portal vine", vertices = vertices, triangles = triangles };
-            mesh.RecalculateNormals();
-            mesh.RecalculateBounds();
-            meshes.Add(mesh);
-            var actor = new GameObject("Twisting wooden vine", typeof(MeshFilter), typeof(MeshRenderer));
-            actor.transform.SetParent(portal.transform, false);
-            actor.GetComponent<MeshFilter>().sharedMesh = mesh;
-            actor.GetComponent<MeshRenderer>().sharedMaterial = material;
+            preparing = false;
+            if (PortalOpened && isActiveAndEnabled) source.Play();
         }
 
-        private Material Lit(Color color, float emission = 0f)
+        private void FrameReady(VideoPlayer source, long frame)
+        {
+            if (videoFailed || !PortalOpened) return;
+            VideoFrameReceived = true;
+            portalMaterial.mainTexture = videoTexture;
+            MediaStatus = "Client portal animation playing";
+        }
+
+        private void VideoError(VideoPlayer source, string error) =>
+            UsePoster("Portal animation unavailable; client artwork remains visible. " + error);
+
+        private void UsePoster(string message)
+        {
+            videoFailed = true;
+            preparing = false;
+            if (video != null) video.Stop();
+            if (portalMaterial != null) portalMaterial.mainTexture = poster;
+            MediaStatus = message;
+            Debug.LogWarning("[Workshop portal] " + message);
+        }
+
+        private void Update()
+        {
+            if (stone != null && !PortalOpened)
+            {
+                stone.transform.localPosition = StonePosition + Vector3.up * Mathf.Sin(Time.time * 2) * .045f;
+                stone.transform.Rotate(0, 35 * Time.deltaTime, 0, Space.Self);
+            }
+            if (PortalOpened && portal != null)
+                portal.transform.localScale = Vector3.one * Mathf.SmoothStep(.01f, 1,
+                    Mathf.Clamp01((Time.unscaledTime - openedAt) / .9f));
+            if (preparing && Time.realtimeSinceStartup - prepareStarted > 12)
+                UsePoster("Portal animation timed out; client artwork remains visible.");
+        }
+
+        private Material Lit(Color color, float emission = 0)
         {
             var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             var material = new Material(shader) { color = color };
-            if (emission > 0f)
+            if (emission > 0)
             {
                 material.EnableKeyword("_EMISSION");
                 material.SetColor("_EmissionColor", color * emission);
@@ -184,19 +219,38 @@ namespace ImagineQuest.Gameplay
 
         private static void Glow(Transform parent, float intensity, float range)
         {
-            var glow = new GameObject("Emerald glow", typeof(Light));
-            glow.transform.SetParent(parent, false);
-            var light = glow.GetComponent<Light>();
-            light.color = new Color(0.45f, 1f, 0.16f);
+            var actor = new GameObject("Emerald glow", typeof(Light));
+            actor.transform.SetParent(parent, false);
+            var light = actor.GetComponent<Light>();
+            light.type = LightType.Point;
+            light.color = new Color(.45f, 1, .16f);
             light.intensity = intensity;
             light.range = range;
-            light.type = LightType.Point;
+            light.shadows = LightShadows.None;
+        }
+
+        private void OnDisable()
+        {
+            if (video != null) video.Pause();
+        }
+
+        private void OnEnable()
+        {
+            if (PortalOpened && video != null && video.isPrepared && !videoFailed) video.Play();
         }
 
         private void OnDestroy()
         {
+            if (video != null)
+            {
+                video.prepareCompleted -= Prepared;
+                video.frameReady -= FrameReady;
+                video.errorReceived -= VideoError;
+                video.Stop();
+                video.targetTexture = null;
+            }
+            if (videoTexture != null) { videoTexture.Release(); Destroy(videoTexture); }
             foreach (var material in materials) Destroy(material);
-            foreach (var mesh in meshes) Destroy(mesh);
         }
     }
 }

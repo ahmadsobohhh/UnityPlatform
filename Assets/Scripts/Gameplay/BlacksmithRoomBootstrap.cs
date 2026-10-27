@@ -9,8 +9,8 @@ using TMPro;
 
 namespace ImagineQuest.Gameplay
 {
-    /// <summary>A standalone workshop environment; no quest progress is awarded here.</summary>
-    public sealed class BlacksmithRoomBootstrap : MonoBehaviour
+    /// <summary>Builds the Aurora workshop environment and its repair quest experience.</summary>
+    public sealed partial class BlacksmithRoomBootstrap : MonoBehaviour
     {
         [SerializeField] private Material arenaWood;
         [SerializeField] private Texture2D weatheredStone;
@@ -18,32 +18,7 @@ namespace ImagineQuest.Gameplay
         private RenderPipelineAsset previousPipeline;
         [SerializeField] private GameObject arenaBarrel;
         [SerializeField] private GameObject arenaChest;
-        private GameObject practicePanel;
-        private TMP_Text practiceQuestion;
-        private TMP_Text practiceFeedback;
-        private readonly List<TMP_Text> practiceAnswers = new List<TMP_Text>();
         private static readonly Vector3 AnvilPosition = new Vector3(0f, 0f, 4.2f);
-        private int practiceIndex;
-        private TMP_Text stationPrompt;
-        private TMP_Text stationProgress;
-        private readonly bool[] stationAnswered = new bool[3];
-        private WorkshopForgeReward forgeReward;
-        private readonly List<TMP_Text> stationLabels = new List<TMP_Text>();
-        private readonly string[] stationNames = { "ANVIL", "WORKBENCH", "FORGE" };
-        private readonly Vector3[] stationPositions = {
-            AnvilPosition + Vector3.up * 1.35f, new Vector3(3.0f, 1.4f, 2.4f), new Vector3(-2.7f, 1.4f, 2.7f)
-        };
-        private readonly string[] questions = {
-            "Which tool gives a blacksmith a solid surface for shaping metal?",
-            "A smith makes 3 batches of 4 nails. How many nails is that?",
-            "What does the forge do before metal is shaped?"
-        };
-        private readonly string[][] answers = {
-            new[] { "An anvil", "A barrel", "A compass" },
-            new[] { "7 nails", "12 nails", "16 nails" },
-            new[] { "Cools the metal", "Paints the metal", "Heats the metal" }
-        };
-        private GameObject pausePanel;
         private Material timber;
         private Material planks;
         private Light forgeLight;
@@ -61,7 +36,7 @@ namespace ImagineQuest.Gameplay
             previousPipeline = QualitySettings.renderPipeline;
             if (workshopPipeline != null) QualitySettings.renderPipeline = workshopPipeline;
             RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.34f, 0.35f, 0.39f);
+            RenderSettings.ambientLight = new Color(0.36f, 0.37f, 0.42f);
             RenderSettings.skybox = null;
             var stone = Surface(new Color(0.27f, 0.25f, 0.23f));
             var wood = Surface(new Color(0.6f, 0.48f, 0.34f));
@@ -114,9 +89,9 @@ namespace ImagineQuest.Gameplay
             }
             Block("Workshop door", new Vector3(0, 1.25f, -4.75f), new Vector3(1.6f, 2.5f, 0.15f), wood);
             Block("Door handle", new Vector3(0.55f, 1.15f, -4.6f), new Vector3(0.12f, 0.12f, 0.12f), iron);
-            Lamp("Warm ceiling light", new Vector3(0, 3.5f, 0), new Color(1, 0.78f, 0.5f), 4f, 12);
+            Lamp("Warm ceiling light", new Vector3(0, 3.5f, 0), new Color(1, 0.78f, 0.5f), 4.8f, 12);
 
-            var fill = Lamp("Soft workshop fill", new Vector3(0, 2.8f, -2), new Color(1f, 0.84f, 0.65f), 3.5f, 10);
+            var fill = Lamp("Soft workshop fill", new Vector3(0, 2.8f, -2), new Color(0.40f, 0.65f, 1f), 2.8f, 10);
             fill.shadows = LightShadows.None;
             DressWorkshop(wood, iron, stone, ember);
 
@@ -136,15 +111,10 @@ namespace ImagineQuest.Gameplay
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.08f, 0.06f, 0.04f);
             cameraObject.AddComponent<AudioListener>();
-            var rewardRoot = new GameObject("Workshop Completion Reward");
-            rewardRoot.transform.SetParent(transform, false);
-            // The workshop geometry is positioned in world space.
-            rewardRoot.transform.position = Vector3.zero;
-            rewardRoot.transform.rotation = Quaternion.identity;
-            forgeReward = rewardRoot.AddComponent<WorkshopForgeReward>();
+            camera.fieldOfView = 68;
+            BuildAtmosphere(wood, iron, stone);
             BuildInterface();
-            SetPaused(false);
-            BuildQuestionStations();
+            InitializeQuest();
         }
 
         private void BuildFloor(Material wood)
@@ -431,245 +401,5 @@ namespace ImagineQuest.Gameplay
             return light;
         }
 
-        private void Update()
-        {
-            if (forgeLight != null) forgeLight.intensity = 2.1f + Mathf.PerlinNoise(Time.time * 3f, 0.5f) * 0.35f;
-            var keyboard = Keyboard.current;
-            if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
-            {
-                if (practicePanel != null && practicePanel.activeSelf) SetPractice(false);
-                else SetPaused(!paused);
-            }
-
-            if (practicePanel != null && practicePanel.activeSelf) return;
-            if (paused || Cursor.lockState != CursorLockMode.Locked) return;
-            var station = NearbyQuestionStation();
-            stationPrompt.text = forgeReward.PortalOpened ? "PORTAL OPEN • The forge stone awakened the gateway!"
-                : forgeReward.StoneRevealed ? "Walk to the glowing forge stone in the center of the workshop"
-                : station < 0 ? "Explore the anvil, workbench and forge" : "PRESS E • " + stationNames[station] + " QUESTION";
-            if (station >= 0 && keyboard != null && keyboard.eKey.wasPressedThisFrame)
-            {
-                practiceIndex = station;
-                ShowPracticeQuestion();
-                SetPractice(true);
-                return;
-            }
-            var mouse = Mouse.current;
-            if (mouse != null)
-            {
-                var look = mouse.delta.ReadValue() * 0.1f;
-                player.transform.Rotate(0, look.x, 0);
-                pitch = Mathf.Clamp(pitch - look.y, -80, 80);
-                view.localRotation = Quaternion.Euler(pitch, 0, 0);
-            }
-            var move = Vector2.zero;
-            if (keyboard != null)
-            {
-                if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) move.y++;
-                if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) move.y--;
-                if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) move.x++;
-                if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) move.x--;
-            }
-            move = Vector2.ClampMagnitude(move, 1);
-            fallSpeed = player.isGrounded ? -2f : fallSpeed + Physics.gravity.y * Time.deltaTime;
-            var velocity = (player.transform.forward * move.y + player.transform.right * move.x) * 2.8f;
-            velocity.y = fallSpeed;
-            player.Move(velocity * Time.deltaTime);
-            forgeReward.CheckPlayerProximity(player.transform.position);
-        }
-
-        private void SetPaused(bool value)
-        {
-            paused = value;
-            if (pausePanel != null) pausePanel.SetActive(value);
-            Cursor.lockState = value ? CursorLockMode.None : CursorLockMode.Locked;
-            Cursor.visible = value;
-        }
-
-        private void BuildInterface()
-        {
-            if (EventSystem.current == null)
-                new GameObject("Workshop Event System", typeof(EventSystem), typeof(InputSystemUIInputModule));
-            var canvas = new GameObject("Workshop UI", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            canvas.transform.SetParent(transform, false);
-            canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-            var scaler = canvas.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = 0.5f;
-            var gold = new Color(1f, 0.85f, 0.5f);
-            var cream = new Color(0.97f, 0.93f, 0.83f);
-            var title = CelestialClockQuestBootstrap.CreateText("Workshop Title", canvas.transform, Vector2.up, Vector2.up,
-                new Vector2(32, -28), new Vector2(650, 40), 24, TextAlignmentOptions.Left, gold);
-            title.text = "THE AURORA  \u2022  BLACKSMITH WORKSHOP";
-            title.fontStyle = FontStyles.Bold;
-            var hint = CelestialClockQuestBootstrap.CreateText("Controls", canvas.transform, Vector2.zero, Vector2.zero,
-                new Vector2(32, 28), new Vector2(1050, 35), 20, TextAlignmentOptions.Left, cream);
-            hint.text = "WASD  MOVE     /     MOUSE  LOOK     /     E  INTERACT     /     ESC  MENU";
-            var crosshair = CelestialClockQuestBootstrap.CreateText("Reticle", canvas.transform, Vector2.one * 0.5f,
-                Vector2.one * 0.5f, Vector2.zero, new Vector2(24, 24), 20, TextAlignmentOptions.Center, gold);
-            crosshair.text = "\u00b7";
-            var menu = CelestialClockQuestBootstrap.CreateButton("Menu", canvas.transform, "MENU", Vector2.one, Vector2.one,
-                new Vector2(-32, -28), new Vector2(160, 44), new Color(0.14f, 0.10f, 0.06f));
-            menu.onClick.AddListener(() => SetPaused(true));
-            BuildPractice(canvas.transform);
-            pausePanel = CelestialClockQuestBootstrap.CreateFullOverlay("Workshop Menu", canvas.transform,
-                new Color(0.005f, 0.012f, 0.025f, 0.72f));
-            var card = CelestialClockQuestBootstrap.CreatePanel("Workshop Menu Card", pausePanel.transform,
-                Vector2.one * 0.5f, new Vector2(650, 420), Vector2.zero, new Color(0.055f, 0.04f, 0.025f, 0.98f), 12);
-            var heading = CelestialClockQuestBootstrap.CreateText("Menu Title", card.transform, new Vector2(0.5f, 1),
-                new Vector2(0.5f, 1), new Vector2(0, -50), new Vector2(560, 50), 32, TextAlignmentOptions.Center, gold);
-            heading.text = "BLACKSMITH WORKSHOP";
-            heading.fontStyle = FontStyles.Bold;
-            var note = CelestialClockQuestBootstrap.CreateText("Menu Copy", card.transform, Vector2.one * 0.5f,
-                Vector2.one * 0.5f, new Vector2(0, 30), new Vector2(520, 70), 22, TextAlignmentOptions.Center, cream);
-            note.text = "A warm hearth aboard the Aurora.\nTake a look around, or return to the ship.";
-            var resume = CelestialClockQuestBootstrap.CreateButton("Resume", card.transform, "RETURN TO WORKSHOP",
-                new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 130), new Vector2(420, 55), new Color(0.4f, 0.25f, 0.075f));
-            resume.onClick.AddListener(() => SetPaused(false));
-            var back = CelestialClockQuestBootstrap.CreateButton("Return to Ship", card.transform, "RETURN TO SHIP",
-                new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 55), new Vector2(420, 50), new Color(0.14f, 0.10f, 0.06f));
-            back.onClick.AddListener(() => SceneTransition.LoadScene("QuestArena"));
-        }
-
-        private void BuildQuestionStations()
-        {
-            var canvas = practicePanel.transform.parent;
-            var gold = new Color(1f, 0.85f, 0.5f);
-            stationPrompt = CelestialClockQuestBootstrap.CreateText("Station Interaction", canvas,
-                new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 85), new Vector2(900, 45),
-                24, TextAlignmentOptions.Center, gold);
-            stationProgress = CelestialClockQuestBootstrap.CreateText("Workshop Progress", canvas, Vector2.one,
-                Vector2.one, new Vector2(-32, -85), new Vector2(400, 40), 22, TextAlignmentOptions.Right, gold);
-            for (var i = 0; i < stationPositions.Length; i++)
-            {
-                var marker = new GameObject(stationNames[i] + " Question Marker", typeof(RectTransform), typeof(Canvas));
-                marker.transform.SetParent(transform, false);
-                marker.transform.position = stationPositions[i] + Vector3.up * 0.65f;
-                marker.transform.localScale = Vector3.one * 0.002f;
-                marker.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 100);
-                marker.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
-                marker.AddComponent<CelestialBillboard>();
-                var plate = CelestialClockQuestBootstrap.CreatePanel("Station Nameplate", marker.transform,
-                    Vector2.one * 0.5f, new Vector2(580, 90), Vector2.zero, new Color(0.055f, 0.04f, 0.025f, 0.94f), 8);
-                plate.GetComponent<Image>().raycastTarget = false;
-                var label = CelestialClockQuestBootstrap.CreateText("Station Label", plate.transform, Vector2.zero,
-                    Vector2.one, Vector2.zero, Vector2.zero, 30, TextAlignmentOptions.Center, gold);
-                label.raycastTarget = false;
-                label.text = stationNames[i] + " • QUESTION";
-                stationLabels.Add(label);
-            }
-            UpdateStationProgress();
-        }
-
-        private int NearbyQuestionStation()
-        {
-            var closest = -1;
-            var distance = 1.8f;
-            for (var i = 0; i < stationPositions.Length; i++)
-            {
-                var offset = stationPositions[i] - player.transform.position;
-                offset.y = 0;
-                var look = stationPositions[i] - view.position;
-                if (offset.magnitude < distance && Vector3.Dot(view.forward, look.normalized) > 0.55f)
-                {
-                    distance = offset.magnitude;
-                    closest = i;
-                }
-            }
-            return closest;
-        }
-
-        private void AnswerStation(int choice)
-        {
-            if (stationAnswered[practiceIndex]) return;
-            if (choice != practiceIndex)
-            {
-                practiceFeedback.text = "Try again — choose another answer.";
-                return;
-            }
-            stationAnswered[practiceIndex] = true;
-            practiceFeedback.text = "Correct! Return to the room and find another station.";
-            UpdateStationProgress();
-            if (forgeReward.StoneRevealed)
-                practiceFeedback.text = "All 3 complete! Walk to the glowing forge stone.";
-        }
-
-        private void UpdateStationProgress()
-        {
-            var completed = 0;
-            for (var i = 0; i < stationAnswered.Length; i++)
-            {
-                if (stationAnswered[i]) completed++;
-                if (i < stationLabels.Count)
-                    stationLabels[i].text = stationNames[i] + (stationAnswered[i] ? " • COMPLETE" : " • QUESTION");
-            }
-            stationProgress.text = "WORKSHOP QUESTIONS  " + completed + " / 3";
-            forgeReward.SetCompletedStations(completed);
-        }
-        private void BuildPractice(Transform parent)
-        {
-            practicePanel = CelestialClockQuestBootstrap.CreateFullOverlay("Workshop Questions", parent,
-                new Color(0.005f, 0.012f, 0.025f, 0.65f));
-            var card = CelestialClockQuestBootstrap.CreatePanel("Practice Card", practicePanel.transform,
-                Vector2.one * 0.5f, new Vector2(740, 590), Vector2.zero, new Color(0.055f, 0.04f, 0.025f, 0.98f), 12);
-            var gold = new Color(1f, 0.85f, 0.5f);
-            var cream = new Color(0.97f, 0.93f, 0.83f);
-            var title = CelestialClockQuestBootstrap.CreateText("Practice Title", card.transform,
-                Vector2.up + Vector2.right * 0.5f, Vector2.up + Vector2.right * 0.5f,
-                new Vector2(0, -42), new Vector2(660, 45), 28, TextAlignmentOptions.Center, gold);
-            title.text = "BLACKSMITH PRACTICE";
-            practiceQuestion = CelestialClockQuestBootstrap.CreateText("Sample Question", card.transform,
-                new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -120), new Vector2(640, 95),
-                24, TextAlignmentOptions.Center, cream);
-            for (var i = 0; i < 3; i++)
-            {
-                var choice = i;
-                var answer = CelestialClockQuestBootstrap.CreateButton("Answer " + (i + 1), card.transform,
-                    "", new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -218 - i * 64),
-                    new Vector2(580, 50), new Color(0.4f, 0.25f, 0.075f));
-                practiceAnswers.Add(answer.GetComponentInChildren<TMP_Text>());
-                answer.onClick.AddListener(() => AnswerStation(choice));
-            }
-            practiceFeedback = CelestialClockQuestBootstrap.CreateText("Answer Feedback", card.transform,
-                new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 140), new Vector2(640, 45),
-                21, TextAlignmentOptions.Center, gold);
-            var close = CelestialClockQuestBootstrap.CreateButton("Close Practice", card.transform, "BACK TO WORKSHOP",
-                new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 85), new Vector2(400, 48), new Color(0.14f, 0.1f, 0.06f));
-            close.onClick.AddListener(() => SetPractice(false));
-            var note = CelestialClockQuestBootstrap.CreateText("Practice Note", card.transform,
-                new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 36), new Vector2(650, 30),
-                18, TextAlignmentOptions.Center, cream);
-            note.text = "Sample questions • No scores or saved progress";
-            ShowPracticeQuestion();
-            practicePanel.SetActive(false);
-        }
-
-        private void ShowPracticeQuestion()
-        {
-            practiceQuestion.text = stationNames[practiceIndex] + "\n" + questions[practiceIndex];
-            for (var i = 0; i < practiceAnswers.Count; i++) practiceAnswers[i].text = answers[practiceIndex][i];
-            practiceFeedback.text = forgeReward != null && forgeReward.PortalOpened ? "All 3 complete! The emerald portal is open."
-                : forgeReward != null && forgeReward.StoneRevealed ? "All 3 complete! Walk to the glowing forge stone."
-                : stationAnswered[practiceIndex] ? "Completed! Explore another station." : "Choose an answer.";
-        }
-
-        private void SetPractice(bool open)
-        {
-            if (open && paused) SetPaused(false);
-            practicePanel.SetActive(open);
-            if (stationPrompt != null) stationPrompt.gameObject.SetActive(!open);
-            Cursor.lockState = open ? CursorLockMode.None : CursorLockMode.Locked;
-            Cursor.visible = open;
-        }
-        private void OnDestroy()
-        {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-            foreach (var material in materials) Destroy(material);
-            foreach (var mesh in meshes) Destroy(mesh);
-            if (workshopPipeline != null && QualitySettings.renderPipeline == workshopPipeline)
-                QualitySettings.renderPipeline = previousPipeline;
-        }
     }
 }
