@@ -25,7 +25,8 @@ namespace ImagineQuest.Gameplay
         private readonly Vector3[] stationPositions = {
             new Vector3(0, 1.5f, 4.05f), new Vector3(3, 1.5f, 2.4f), new Vector3(-2.7f, 1.5f, 2.6f)
         };
-        private static readonly Vector3 PortalPosition = new Vector3(0, 1.5f, -4.48f);
+        private static readonly Vector3 PortalPosition = WorkshopForgeReward.PortalPosition;
+        private WorkshopForgeReward forgeReward;
         private BlacksmithQuestService quest;
         private Transform hud;
         private GameObject modal, pausePanel, lessonPanel, briefingPanel, completionPanel;
@@ -37,9 +38,7 @@ namespace ImagineQuest.Gameplay
         private readonly List<Image> segments = new List<Image>();
         private readonly List<Renderer> stationRunes = new List<Renderer>();
         private readonly List<GameObject> repairParts = new List<GameObject>();
-        private Material portalMaterial, runeIdle, runeComplete;
-        private Transform portalRing;
-        private Light portalLight;
+        private Material runeIdle, runeComplete;
         private int activeStation;
         private float idleSeconds;
         private bool showingHint;
@@ -87,12 +86,15 @@ namespace ImagineQuest.Gameplay
             }
             int station = NearbyStation();
             bool portal = NearPortal();
-            prompt.text = portal ? (quest.Ready && quest.State.HasKey ? "[ E ]  OPEN THE RETURN PORTAL" : "RETURN PORTAL LOCKED  /  Complete all three crafts")
+            prompt.text = portal ? (quest.Ready && quest.State.portalOpened ? "WALK INTO THE PORTAL TO RETURN  /  [ E ] Review repair kit" : "PORTAL DORMANT  /  Touch the Forge Stone after completing all three crafts")
                 : station >= 0 ? "[ E ]  " + StationNames[station] + "  /  " + CraftNames[station]
-                : "Find a glowing station to begin your repair";
+                : quest.Ready && quest.State.HasKey && !quest.State.portalOpened
+                    ? "Touch the glowing Forge Stone in the center of the workshop"
+                    : quest.Ready && quest.State.portalOpened ? "Walk into the emerald portal to return to the Aurora"
+                    : "Find a glowing station to begin your repair";
             if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
             {
-                if (portal && quest.Ready && quest.State.HasKey) ShowCompletion();
+                if (portal && quest.Ready && quest.State.portalOpened) ShowCompletion();
                 else if (station >= 0) OpenStation(station);
                 return;
             }
@@ -115,8 +117,30 @@ namespace ImagineQuest.Gameplay
             var velocity = (player.transform.forward * move.y + player.transform.right * move.x) * speed;
             velocity.y = fallSpeed;
             player.Move(velocity * Time.deltaTime);
+            CheckPortalContact();
             idleSeconds = move.sqrMagnitude > 0 || look.sqrMagnitude > 1 ? 0 : idleSeconds + Time.deltaTime;
-            if (idleSeconds > 35) prompt.text = "Need a direction? Follow the station labels.  [ J ] opens your journal.";
+            if (idleSeconds > 35 && (!quest.Ready || !quest.State.HasKey))
+                prompt.text = "Need a direction? Follow the station labels.  [ J ] opens your journal.";
+        }
+
+        private void CheckPortalContact()
+        {
+            if (modal != null || returning || !quest.Ready) return;
+            if (forgeReward.CheckPlayerProximity(player.transform.position, player.radius, player.height))
+            {
+                effectsAudio.PlayOneShot(keySound, .4f);
+                RefreshProgress();
+            }
+            if (forgeReward.CanEnterPortal(player.transform.position)) ReturnToShip(true);
+        }
+
+        private bool TryActivateForgeStone()
+        {
+            if (!quest.Ready || !quest.State.TryOpenPortal()) return false;
+            if (quest.Save()) return true;
+            quest.State.portalOpened = false;
+            RefreshProgress();
+            return false;
         }
 
         private int NearbyStation()
@@ -188,7 +212,7 @@ namespace ImagineQuest.Gameplay
             {
                 feedback.color = Teal;
                 feedback.text = quest.State.HasKey
-                    ? "REPAIR KIT READY! Your return key is forged. Find the blue portal behind you."
+                    ? "REPAIR KIT READY! Touch the glowing Forge Stone in the center to awaken the emerald portal."
                     : "CRAFT COMPLETE! Your repair kit gained a part. Explore the next station.";
                 answerButtons[choice].GetComponent<Image>().color = new Color(.10f, .43f, .35f);
                 foreach (var button in answerButtons) button.interactable = false;
@@ -220,8 +244,8 @@ namespace ImagineQuest.Gameplay
             if (!quest.Ready) { objective.text = "Progress unavailable - open the journal"; return; }
             var state = quest.State;
             progressText.text = state.CompletedCount + " / 3  CRAFTS MASTERED";
-            objective.text = state.HasKey ? "Return to the Aurora" : "Build the Aurora's repair kit";
-            keyText.text = state.HasKey ? "RETURN KEY  /  READY" : "RETURN KEY  /  LOCKED";
+            objective.text = state.portalOpened ? "Walk through the emerald portal" : state.HasKey ? "Touch the Forge Stone" : "Build the Aurora's repair kit";
+            keyText.text = state.portalOpened ? "PORTAL  /  OPEN" : state.HasKey ? "FORGE STONE  /  READY" : "FORGE STONE  /  LOCKED";
             keyText.color = state.HasKey ? Teal : Gold;
             for (int i = 0; i < 3; i++)
             {
@@ -236,17 +260,16 @@ namespace ImagineQuest.Gameplay
                     renderer.sharedMaterial = done ? runeComplete : runeIdle;
                 repairParts[i].SetActive(done);
             }
-            portalMaterial.SetColor("_EmissionColor", state.HasKey ? new Color(.1f, 2.2f, 2.5f) : new Color(.1f, .26f, .34f));
-            portalLight.intensity = state.HasKey ? 3 : .6f;
-            portalLabel.text = state.HasKey ? "THE AURORA\nRETURN PORTAL OPEN" : "THE AURORA\nFORGE THE RETURN KEY";
+            forgeReward.RestoreProgress(state.CompletedCount, state.portalOpened);
+            portalLabel.text = state.portalOpened ? "THE AURORA\nWALK THROUGH TO RETURN" : "THE AURORA\nAWAKEN THE FORGE STONE";
             journalCopy.text = "THE AURORA'S REPAIR\n\nA storm has damaged the ship. Master each craft to assemble a repair kit and forge your key home.\n\n" +
-                state.CompletedCount + " of 3 crafts complete. " + (state.HasKey ? "The return portal is ready." : "Explore the anvil, workbench and forge in any order.") +
+                state.CompletedCount + " of 3 crafts complete. " + (state.portalOpened ? "The emerald portal is open. Walk through to return." : state.HasKey ? "Touch the glowing Forge Stone to awaken the portal." : "Explore the anvil, workbench and forge in any order.") +
                 "\n\n" + (quest.IsPractice ? "Practice progress is saved on this PC. No wallet rewards are awarded." : "Class progress is saved on this PC and submitted for cloud verification.");
         }
 
         private void ShowCompletion()
         {
-            completionCopy.text = "The hull brace is shaped, twelve fasteners are counted, and the metal is ready.\n\nYour repair kit can get the Aurora sailing again.\n\n" +
+            completionCopy.text = "The hull brace is shaped, twelve fasteners are counted, and the metal is ready.\n\nThe Forge Stone has awakened the emerald portal. Walk through it to bring your repair kit to the Aurora.\n\n" +
                 (quest.IsPractice ? "All three crafts complete. Practice progress saved on this PC." : "All three crafts complete. Rewards require server verification.");
             ShowModal(completionPanel);
         }
@@ -254,6 +277,11 @@ namespace ImagineQuest.Gameplay
         private void ReturnToShip(bool complete)
         {
             if (returning) return;
+            if (!Application.CanStreamedLevelBeLoaded("QuestArena"))
+            {
+                saveText.text = "The ship scene is unavailable. Your progress is preserved; stay in the workshop.";
+                return;
+            }
             if (complete && (!quest.Ready || !quest.State.TurnIn())) return;
             if (quest.Ready && !quest.Save()) { RefreshProgress(); ShowModal(pausePanel); return; }
             if (complete) quest.RetrySync();
@@ -286,7 +314,7 @@ namespace ImagineQuest.Gameplay
             }
             var key = Panel("Key HUD", hud, Vector2.one, new Vector2(-26, -26), new Vector2(290, 78), Ink);
             keyText = Label(key, "RETURN KEY  /  LOCKED", 18, 14, 258, 27, 18, Gold);
-            Label(key, "Three crafts. One way home.", 18, 44, 258, 23, 15, Cream);
+            Label(key, "Three crafts. Touch the stone.", 18, 44, 258, 23, 15, Cream);
             var footer = Panel("Controls backing", hud, Vector2.zero, new Vector2(0, 0), new Vector2(1600, 52), Ink);
             Label(footer, "WASD  Move    SHIFT  Walk faster    MOUSE  Look    E  Interact    J  Journal    ESC  Menu", 26, 15, 1200, 28, 16, Cream);
             saveText = Text(hud, "Save status", new Vector2(1, 0), new Vector2(-26, 65), new Vector2(780, 30), 15, Teal, TextAlignmentOptions.Right);
@@ -298,7 +326,7 @@ namespace ImagineQuest.Gameplay
             var heading = Label(brief, "The Aurora's repair", 48, 90, 724, 72, 44, Cream);
             heading.fontStyle = FontStyles.Bold;
             Label(brief, "A storm has torn through the Aurora. Before the next voyage, the captain needs a repair kit from this workshop.", 48, 182, 724, 90, 24, Cream);
-            Label(brief, "01   Explore the three glowing craft stations.\n02   Read each craft note and answer its question.\n03   Forge your return key and bring the kit to the ship.", 48, 300, 724, 125, 22, Cream);
+            Label(brief, "01   Learn at the anvil, workbench and forge.\n02   Complete all three crafts, then touch the Forge Stone.\n03   Walk through the emerald portal to return to the ship.", 48, 300, 724, 125, 22, Cream);
             Button(brief, "ENTER THE WORKSHOP", 48, 478, 450, 58, () => {
                 if (quest.Ready) { quest.State.introSeen = true; quest.Save(); }
                 ShowModal(null);

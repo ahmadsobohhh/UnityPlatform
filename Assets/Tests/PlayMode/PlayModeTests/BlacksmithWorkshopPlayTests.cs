@@ -77,6 +77,8 @@ public class BlacksmithWorkshopPlayTests
         Assert.That(service.State.verifiedXp, Is.Zero);
         service.Initialize(null, assignment);
         Assert.That(service.State.CompletedCount, Is.EqualTo(3), "Completion must survive loading its checkpoint.");
+        Assert.That(service.State.TryOpenPortal(), Is.True);
+        service.Save();
         Call("ShowCompletion");
         Assert.That(((GameObject)Field("completionPanel")).activeSelf, Is.True);
         yield return new WaitForEndOfFrame();

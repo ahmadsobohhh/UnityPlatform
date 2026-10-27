@@ -30,6 +30,8 @@ public class BlacksmithWorkshopTests
         }
         Assert.That(state.HasKey, Is.True);
         Assert.That(state.CompletedCount, Is.EqualTo(3));
+        Assert.That(state.TurnIn(), Is.False, "Completing crafts alone must not skip the Forge Stone.");
+        Assert.That(state.TryOpenPortal(), Is.True);
         Assert.That(state.TurnIn(), Is.True);
         int events = state.pending.Count;
         Assert.That(state.TurnIn(), Is.True);
@@ -57,6 +59,27 @@ public class BlacksmithWorkshopTests
             Assert.That(store.Load("student-a", "class", "assignment-b").CompletedCount, Is.Zero);
             restored.ReadLesson(2); store.Save(restored);
             Assert.That(store.Load("student-a", "class", "assignment-a").HasLesson(2), Is.True);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Test]
+    public void PortalActivationIsSavedWithoutCreatingRewardEvents()
+    {
+        var state = new BlacksmithQuestState { userId = "portal-student", classId = "portal-class" };
+        Assert.That(state.TryOpenPortal(), Is.False);
+        for (int i = 0; i < 3; i++) { state.ReadLesson(i); state.Answer(i, i); }
+        int events = state.pending.Count;
+        Assert.That(state.TryOpenPortal(), Is.True);
+        Assert.That(state.TryOpenPortal(), Is.True);
+        Assert.That(state.pending.Count, Is.EqualTo(events));
+        string directory = Path.Combine(Path.GetTempPath(), "PortalTests-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new BlacksmithQuestStore(directory);
+            store.Save(state);
+            Assert.That(store.Load("portal-student", "portal-class", BlacksmithQuestContent.Id).portalOpened, Is.True);
+            Assert.That(state.verifiedXp, Is.Zero);
         }
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
     }

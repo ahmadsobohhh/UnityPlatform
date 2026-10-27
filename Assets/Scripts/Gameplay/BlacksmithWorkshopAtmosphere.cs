@@ -9,7 +9,6 @@ namespace ImagineQuest.Gameplay
     {
         private readonly List<Transform> motes = new List<Transform>();
         private readonly List<Vector3> moteOrigins = new List<Vector3>();
-        private readonly List<Transform> portalShards = new List<Transform>();
         private readonly List<Transform> flames = new List<Transform>();
         private readonly List<Transform> stationHalos = new List<Transform>();
         private float celebrationUntil;
@@ -81,7 +80,6 @@ namespace ImagineQuest.Gameplay
             var moon = Glow(new Color(.14f, .40f, .65f), .7f);
             runeIdle = Glow(new Color(.72f, .37f, .08f), .8f);
             runeComplete = Glow(new Color(.1f, .72f, .62f), 1.4f);
-            portalMaterial = Glow(new Color(.12f, .55f, .65f), .5f);
 
             // Brick courses and inset trim give the forge a more architectural silhouette.
             for (int row = 0; row < 4; row++)
@@ -134,21 +132,14 @@ namespace ImagineQuest.Gameplay
                 stationLabels.Add(WorldLabel("Station " + i + " label", "", stationPositions[i] + Vector3.up * .57f, new Vector2(560, 64), 24, Gold, true));
             }
 
-            // Large visual destination, physically separated from the work areas.
-            portalRing = Ring("Return portal brass frame", PortalPosition, 1.35f, .13f, brass);
-            Ring("Return portal energy", PortalPosition + Vector3.forward * .08f, 1.22f, .045f, portalMaterial);
-            Ring("Return portal inner energy", PortalPosition + Vector3.forward * .10f, 1.08f, .018f, portalMaterial);
-            for (int i = 0; i < 12; i++)
-            {
-                float a = i * Mathf.PI * 2 / 12;
-                var shard = Decor("Portal rune", PrimitiveType.Cube, PortalPosition + new Vector3(Mathf.Cos(a) * 1.43f, Mathf.Sin(a) * 1.43f, .1f),
-                    new Vector3(.08f, .14f, .045f), portalMaterial);
-                shard.rotation = Quaternion.Euler(0, 0, a * Mathf.Rad2Deg + 45);
-                portalShards.Add(shard);
-            }
-            portalLight = Lamp("Portal cyan spill", new Vector3(0, 1.8f, -3.8f), new Color(.15f, .7f, 1), .6f, 6);
-            portalLight.shadows = LightShadows.None;
-            portalLabel = WorldLabel("Portal destination", "THE AURORA\nFORGE THE RETURN KEY", new Vector3(0, 3.25f, -4.28f), new Vector2(720, 125), 30, Teal, false, 180);
+            var rewardRoot = new GameObject("Workshop Completion Reward");
+            rewardRoot.transform.SetParent(transform, false);
+            rewardRoot.transform.position = Vector3.zero;
+            rewardRoot.transform.rotation = Quaternion.identity;
+            forgeReward = rewardRoot.AddComponent<WorkshopForgeReward>();
+            forgeReward.Initialize(TryActivateForgeStone);
+            portalLabel = WorldLabel("Portal destination", "THE AURORA\nAWAKEN THE FORGE STONE",
+                new Vector3(0, 3.6f, -4.28f), new Vector2(720, 95), 25, Teal, false, 180);
 
             // Portholes and hanging navy standards introduce cool color and a ship identity.
             for (int side = -1; side <= 1; side += 2)
@@ -184,8 +175,6 @@ namespace ImagineQuest.Gameplay
             }
             for (int i = 0; i < flames.Count; i++)
                 flames[i].localScale = new Vector3(.09f, .16f + Mathf.PerlinNoise(time * 4, i * .7f) * .34f, .09f);
-            for (int i = 0; i < portalShards.Count; i++)
-                portalShards[i].localScale = new Vector3(.08f, .14f, .045f) * (1 + Mathf.Sin(time * 1.6f + i * .5f) * .12f);
             for (int i = 0; i < stationRunes.Count; i++)
             {
                 stationRunes[i].transform.rotation = Quaternion.Euler(0, time * 32, 45);

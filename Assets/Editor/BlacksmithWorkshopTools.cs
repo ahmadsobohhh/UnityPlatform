@@ -3,6 +3,8 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEditor.TestTools.TestRunner.Api;
 using System.IO;
+using System;
+using UnityEditor.Build.Reporting;
 
 [InitializeOnLoad]
 public static class BlacksmithWorkshopTools
@@ -24,7 +26,8 @@ public static class BlacksmithWorkshopTools
     public static void RunPlayChecks()
     {
         if (EditorApplication.isPlaying) return;
-        Api.Execute(new ExecutionSettings(new Filter { testMode = TestMode.PlayMode, groupNames = new[] { "^BlacksmithWorkshopPlayTests" } }));
+        Api.Execute(new ExecutionSettings(new Filter { testMode = TestMode.PlayMode,
+            groupNames = new[] { "^BlacksmithWorkshopPlayTests", "^WorkshopForgeRewardTests", "^WorkshopPortalFlowTests" } }));
     }
 
     private class Results : ICallbacks
@@ -54,5 +57,22 @@ public static class BlacksmithWorkshopTools
         OpenWorkshop();
         if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "BlacksmithRoom")
             EditorApplication.isPlaying = true;
+    }
+
+    // Command-line preview build; the normal application build settings remain unchanged.
+    public static void BuildPortalPreview()
+    {
+        string output = Environment.GetEnvironmentVariable("IMAGINEQUEST_BUILD_OUTPUT");
+        if (string.IsNullOrWhiteSpace(output)) throw new InvalidOperationException("Set IMAGINEQUEST_BUILD_OUTPUT to an output .exe path.");
+        Directory.CreateDirectory(Path.GetDirectoryName(output));
+        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions {
+            scenes = new[] { "Assets/Scenes/Gameplay/BlacksmithRoom.unity", "Assets/Scenes/Gameplay/QuestArena.unity" },
+            target = BuildTarget.StandaloneWindows64,
+            locationPathName = output,
+            options = BuildOptions.Development
+        });
+        if (report.summary.result != BuildResult.Succeeded)
+            throw new InvalidOperationException("Portal preview build failed: " + report.summary.result);
+        Debug.Log("PORTAL PREVIEW BUILD SUCCEEDED: " + output);
     }
 }

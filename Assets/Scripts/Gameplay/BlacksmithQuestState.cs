@@ -55,6 +55,7 @@ namespace ImagineQuest.Gameplay
         public int completedMask;
         public int[] attempts = new int[3];
         public bool turnedIn;
+        public bool portalOpened;
         public int verifiedXp;
         public List<BlacksmithQuestEvent> pending = new List<BlacksmithQuestEvent>();
         public int CompletedCount => CountBits(completedMask & 7);
@@ -80,9 +81,16 @@ namespace ImagineQuest.Gameplay
             return true;
         }
 
-        public bool TurnIn()
+        public bool TryOpenPortal()
         {
             if (!HasKey) return false;
+            portalOpened = true;
+            return true;
+        }
+
+        public bool TurnIn()
+        {
+            if (!HasKey || !portalOpened) return false;
             if (!turnedIn)
             {
                 turnedIn = true;
@@ -96,6 +104,7 @@ namespace ImagineQuest.Gameplay
             lessonMask |= lessons & 7;
             completedMask |= completed & 7;
             turnedIn |= finished && HasKey;
+            if (turnedIn) portalOpened = true;
             verifiedXp = Math.Max(0, xp);
         }
 
@@ -128,6 +137,8 @@ namespace ImagineQuest.Gameplay
                     state.assignmentId != assignment || state.contentVersion != BlacksmithQuestContent.Version ||
                     state.attempts == null || state.attempts.Length != 3 || state.pending == null)
                     throw new InvalidDataException("The workshop checkpoint cannot be read. It has been preserved.");
+                // Older completed checkpoints predate the Forge Stone interaction.
+                if (state.turnedIn && state.HasKey) state.portalOpened = true;
                 return state;
             }
             return new BlacksmithQuestState { userId = user, classId = classId, assignmentId = assignment };
