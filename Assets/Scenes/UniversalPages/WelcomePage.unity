@@ -2837,15 +2837,15 @@ MonoBehaviour:
       m_Calls: []
   m_text: Create Account
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: b12bb4b197a7383459bd463768c1a11f, type: 2}
-  m_sharedMaterial: {fileID: -1954173889146647396, guid: b12bb4b197a7383459bd463768c1a11f, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 24e36e277b1e448afade27a5d4e66684, type: 2}
+  m_sharedMaterial: {fileID: 6917533373912557418, guid: 24e36e277b1e448afade27a5d4e66684, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4290761177
-  m_fontColor: {r: 0.85, g: 0.82, b: 0.75, a: 1}
+    rgba: 4287213763
+  m_fontColor: {r: 0.7647059, g: 0.6901961, b: 0.5372549, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -2862,8 +2862,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 50
-  m_fontSizeBase: 50
+  m_fontSize: 40
+  m_fontSizeBase: 40
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -12670,15 +12670,15 @@ MonoBehaviour:
       m_Calls: []
   m_text: Sign In
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: b643a157f9b9f4b158b3b4091191fb1a, type: 2}
-  m_sharedMaterial: {fileID: 956376584620409348, guid: b643a157f9b9f4b158b3b4091191fb1a, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 24e36e277b1e448afade27a5d4e66684, type: 2}
+  m_sharedMaterial: {fileID: 6917533373912557418, guid: 24e36e277b1e448afade27a5d4e66684, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4290761177
-  m_fontColor: {r: 0.85, g: 0.82, b: 0.75, a: 1}
+    rgba: 4287213507
+  m_fontColor: {r: 0.764151, g: 0.6874738, b: 0.53706837, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
