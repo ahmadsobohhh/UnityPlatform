@@ -27,6 +27,7 @@ namespace ImagineQuest.Gameplay
         private TMP_Text stationPrompt;
         private TMP_Text stationProgress;
         private readonly bool[] stationAnswered = new bool[3];
+        private WorkshopForgeReward forgeReward;
         private readonly List<TMP_Text> stationLabels = new List<TMP_Text>();
         private readonly string[] stationNames = { "ANVIL", "WORKBENCH", "FORGE" };
         private readonly Vector3[] stationPositions = {
@@ -135,6 +136,12 @@ namespace ImagineQuest.Gameplay
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.08f, 0.06f, 0.04f);
             cameraObject.AddComponent<AudioListener>();
+            var rewardRoot = new GameObject("Workshop Completion Reward");
+            rewardRoot.transform.SetParent(transform, false);
+            // The workshop geometry is positioned in world space.
+            rewardRoot.transform.position = Vector3.zero;
+            rewardRoot.transform.rotation = Quaternion.identity;
+            forgeReward = rewardRoot.AddComponent<WorkshopForgeReward>();
             BuildInterface();
             SetPaused(false);
             BuildQuestionStations();
@@ -437,7 +444,9 @@ namespace ImagineQuest.Gameplay
             if (practicePanel != null && practicePanel.activeSelf) return;
             if (paused || Cursor.lockState != CursorLockMode.Locked) return;
             var station = NearbyQuestionStation();
-            stationPrompt.text = station < 0 ? "Explore the anvil, workbench and forge" : "PRESS E • " + stationNames[station] + " QUESTION";
+            stationPrompt.text = forgeReward.PortalOpened ? "PORTAL OPEN • The forge stone awakened the gateway!"
+                : forgeReward.StoneRevealed ? "Walk to the glowing forge stone in the center of the workshop"
+                : station < 0 ? "Explore the anvil, workbench and forge" : "PRESS E • " + stationNames[station] + " QUESTION";
             if (station >= 0 && keyboard != null && keyboard.eKey.wasPressedThisFrame)
             {
                 practiceIndex = station;
@@ -466,6 +475,7 @@ namespace ImagineQuest.Gameplay
             var velocity = (player.transform.forward * move.y + player.transform.right * move.x) * 2.8f;
             velocity.y = fallSpeed;
             player.Move(velocity * Time.deltaTime);
+            forgeReward.CheckPlayerProximity(player.transform.position);
         }
 
         private void SetPaused(bool value)
@@ -572,6 +582,7 @@ namespace ImagineQuest.Gameplay
 
         private void AnswerStation(int choice)
         {
+            if (stationAnswered[practiceIndex]) return;
             if (choice != practiceIndex)
             {
                 practiceFeedback.text = "Try again — choose another answer.";
@@ -580,6 +591,8 @@ namespace ImagineQuest.Gameplay
             stationAnswered[practiceIndex] = true;
             practiceFeedback.text = "Correct! Return to the room and find another station.";
             UpdateStationProgress();
+            if (forgeReward.StoneRevealed)
+                practiceFeedback.text = "All 3 complete! Walk to the glowing forge stone.";
         }
 
         private void UpdateStationProgress()
@@ -592,6 +605,7 @@ namespace ImagineQuest.Gameplay
                     stationLabels[i].text = stationNames[i] + (stationAnswered[i] ? " • COMPLETE" : " • QUESTION");
             }
             stationProgress.text = "WORKSHOP QUESTIONS  " + completed + " / 3";
+            forgeReward.SetCompletedStations(completed);
         }
         private void BuildPractice(Transform parent)
         {
@@ -635,7 +649,9 @@ namespace ImagineQuest.Gameplay
         {
             practiceQuestion.text = stationNames[practiceIndex] + "\n" + questions[practiceIndex];
             for (var i = 0; i < practiceAnswers.Count; i++) practiceAnswers[i].text = answers[practiceIndex][i];
-            practiceFeedback.text = stationAnswered[practiceIndex] ? "Completed! Explore another station." : "Choose an answer.";
+            practiceFeedback.text = forgeReward != null && forgeReward.PortalOpened ? "All 3 complete! The emerald portal is open."
+                : forgeReward != null && forgeReward.StoneRevealed ? "All 3 complete! Walk to the glowing forge stone."
+                : stationAnswered[practiceIndex] ? "Completed! Explore another station." : "Choose an answer.";
         }
 
         private void SetPractice(bool open)

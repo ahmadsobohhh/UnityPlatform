@@ -38,3 +38,30 @@ The record contains quest and class IDs, completed-challenge count, earned XP, c
 To play an opening cinematic, set the `introVideoUrl` field on `QuestLauncher` to a directly streamable HTTPS media URL. `UrlVideoSequencePlayer` skips an empty or unavailable URL and allows the quest to continue.
 
 The imported pirate source art is under `Assets/Gameplay/Pirate`. Its `Pirate_Full` prefab is assigned as the captain when the setup tool can find it. Re-run **Tools > Imagine Quest > Setup Pirate Quest Integration** after moving or replacing that prefab.
+
+## Blacksmith workshop practice reward
+
+The workshop's ANVIL, WORKBENCH, and FORGE questions unlock a session-only forge
+stone when all three are correctly answered. The stone floats in the clear center
+of the room. Close the question panel and walk within 1.15 world units to consume
+it and reveal a vine-framed, animated emerald portal near the entrance. No keypress
+is required. The portal is a visual reward; entering it does not load a destination.
+Leaving and reopening the workshop resets the practice, stone, and portal.
+
+`BlacksmithRoomBootstrap` creates `WorkshopForgeReward` at runtime, so existing
+workshop scenes require no Inspector setup. The portal shader is in Resources to
+keep it available in player builds. No additional art package is required.
+
+Validation in Unity 6000.3.6f1:
+
+1. Run `WorkshopForgeRewardTests` in Test Runner's PlayMode tab.
+2. Enter the blacksmith workshop from QuestArena. Answer incorrectly once; no
+   reward should appear. Complete two distinct stations and revisit one; still no reward.
+3. Complete the remaining station. Check the 3/3 counter and forge-stone message.
+4. Close the panel and walk toward the center. The stone should bob and rotate.
+   Walking close should consume it and reveal exactly one green swirling portal
+   with wooden vines, green leaves, and ivory flowers.
+5. Confirm the portal does not activate while a question or pause menu is open,
+   movement remains available afterward, and revisiting stations creates no duplicates.
+6. Return to the ship and reenter; check that the reward is reset. Repeat the flow
+   in a standalone build to check shader inclusion and rendering on the target platform.
