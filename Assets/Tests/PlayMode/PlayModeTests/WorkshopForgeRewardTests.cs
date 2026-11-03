@@ -41,10 +41,6 @@ public sealed class WorkshopForgeRewardTests
         reward.SetCompletedStations(state.CompletedCount);
         Assert.IsTrue(reward.StoneRevealed);
         Assert.IsFalse(reward.PortalOpened);
-        var chest = root.transform.Find("Treasure Chest Reward");
-        Assert.IsNotNull(chest);
-        Assert.That(chest.GetComponentInChildren<Renderer>().sharedMaterial.mainTexture.name,
-            Is.EqualTo("TreasureChest"), "The unlocked reward must use the supplied chest artwork.");
     }
 
     [Test]
@@ -57,9 +53,8 @@ public sealed class WorkshopForgeRewardTests
         Assert.IsFalse(reward.CheckPlayerProximity(new Vector3(0, .05f, .2f), hasControl: false));
         Assert.IsTrue(reward.CheckPlayerProximity(new Vector3(0, .05f, .2f)));
         Assert.IsFalse(reward.CheckPlayerProximity(new Vector3(0, .05f, .2f)));
-        Assert.IsTrue(root.transform.Find("Treasure Chest Reward").gameObject.activeSelf,
-            "The open chest must remain visible after portal activation.");
-        Assert.IsTrue(root.transform.Find("Living Fire Portal").gameObject.activeSelf);
+        Assert.IsFalse(root.transform.Find("Forge Stone Reward").gameObject.activeSelf);
+        Assert.IsTrue(root.transform.Find("Living Emerald Portal").gameObject.activeSelf);
         Assert.AreEqual(2, root.transform.childCount, "A repeated touch must not duplicate the portal.");
     }
 
@@ -70,16 +65,13 @@ public sealed class WorkshopForgeRewardTests
         reward.SetCompletedStations(3);
         Assert.IsFalse(reward.CheckPlayerProximity(new Vector3(0, .05f, .2f)));
         Assert.IsFalse(reward.PortalOpened);
-        Assert.IsTrue(root.transform.Find("Treasure Chest Reward").gameObject.activeSelf);
+        Assert.IsTrue(root.transform.Find("Forge Stone Reward").gameObject.activeSelf);
     }
 
     [UnityTest]
     public IEnumerator RestoredPortalUsesClientAnimationAndTransparentOutline()
     {
         reward.RestoreProgress(3, true);
-        var chest = root.transform.Find("Treasure Chest Reward");
-        Assert.IsTrue(chest.gameObject.activeSelf, "Saved portal progress must restore the open chest.");
-        Assert.That(chest.localPosition, Is.EqualTo(WorkshopForgeReward.StonePosition));
         float deadline = Time.realtimeSinceStartup + 20;
         while (!reward.VideoFrameReceived && Time.realtimeSinceStartup < deadline) yield return null;
         Assert.IsTrue(reward.VideoFrameReceived, reward.MediaStatus);
@@ -117,19 +109,18 @@ public sealed class WorkshopForgeRewardTests
         pixels.ReadPixels(new Rect(0, 0, 256, 384), 0, 0);
         pixels.Apply();
         RenderTexture.active = previous;
-        Color outside = pixels.GetPixel(36, 370);
+        Color outside = pixels.GetPixel(36, 26);
         Color center = pixels.GetPixel(128, 192);
         Assert.That(outside.r, Is.GreaterThan(.8f));
         Assert.That(outside.b, Is.GreaterThan(.8f));
         Assert.That(outside.g, Is.LessThan(.2f), "The outline must reveal the scene behind it.");
-        Assert.That(center.r, Is.GreaterThan(center.b), "The supplied fire portal must be visible.");
+        Assert.That(center.g, Is.GreaterThan(center.b), "The actual green client portal must be visible.");
         PortalTestEvidence.Write("ClientPortal-Transparency.png", pixels.EncodeToPNG());
         UnityEngine.Object.Destroy(pixels);
         camera.targetTexture = null;
         target.Release();
         UnityEngine.Object.Destroy(target);
         reward.RestoreProgress(3, true);
-        Assert.IsTrue(chest.gameObject.activeSelf, "Repeated restoration must keep the chest visible.");
         Assert.AreEqual(3, root.transform.childCount, "Restoring twice must reuse the portal.");
     }
 }
@@ -240,4 +231,3 @@ internal static class PortalTestEvidence
         File.WriteAllBytes(Path.Combine(output, name), bytes);
     }
 }
-

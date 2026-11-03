@@ -86,11 +86,11 @@ namespace ImagineQuest.Gameplay
             }
             int station = NearbyStation();
             bool portal = NearPortal();
-            prompt.text = portal ? (quest.Ready && quest.State.portalOpened ? "WALK INTO THE PORTAL TO RETURN  /  [ E ] Review repair kit" : "PORTAL DORMANT  /  Touch the treasure chest after completing all three crafts")
+            prompt.text = portal ? (quest.Ready && quest.State.portalOpened ? "WALK INTO THE PORTAL TO RETURN  /  [ E ] Review repair kit" : "PORTAL DORMANT  /  Touch the Forge Stone after completing all three crafts")
                 : station >= 0 ? "[ E ]  " + StationNames[station] + "  /  " + CraftNames[station]
                 : quest.Ready && quest.State.HasKey && !quest.State.portalOpened
-                    ? "Touch the treasure chest in the center of the workshop"
-                    : quest.Ready && quest.State.portalOpened ? "Walk into the fire portal to return to the Aurora"
+                    ? "Touch the glowing Forge Stone in the center of the workshop"
+                    : quest.Ready && quest.State.portalOpened ? "Walk into the emerald portal to return to the Aurora"
                     : "Find a glowing station to begin your repair";
             if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
             {
@@ -212,7 +212,7 @@ namespace ImagineQuest.Gameplay
             {
                 feedback.color = Teal;
                 feedback.text = quest.State.HasKey
-                    ? "REPAIR KIT READY! Touch the treasure chest in the center to awaken the fire portal."
+                    ? "REPAIR KIT READY! Touch the glowing Forge Stone in the center to awaken the emerald portal."
                     : "CRAFT COMPLETE! Your repair kit gained a part. Explore the next station.";
                 answerButtons[choice].GetComponent<Image>().color = new Color(.10f, .43f, .35f);
                 foreach (var button in answerButtons) button.interactable = false;
@@ -244,8 +244,8 @@ namespace ImagineQuest.Gameplay
             if (!quest.Ready) { objective.text = "Progress unavailable - open the journal"; return; }
             var state = quest.State;
             progressText.text = state.CompletedCount + " / 3  CRAFTS MASTERED";
-            objective.text = state.portalOpened ? "Walk through the fire portal" : state.HasKey ? "Touch the treasure chest" : "Build the Aurora's repair kit";
-            keyText.text = state.portalOpened ? "PORTAL  /  OPEN" : state.HasKey ? "TREASURE CHEST  /  READY" : "TREASURE CHEST  /  LOCKED";
+            objective.text = state.portalOpened ? "Walk through the emerald portal" : state.HasKey ? "Touch the Forge Stone" : "Build the Aurora's repair kit";
+            keyText.text = state.portalOpened ? "PORTAL  /  OPEN" : state.HasKey ? "FORGE STONE  /  READY" : "FORGE STONE  /  LOCKED";
             keyText.color = state.HasKey ? Teal : Gold;
             for (int i = 0; i < 3; i++)
             {
@@ -261,15 +261,15 @@ namespace ImagineQuest.Gameplay
                 repairParts[i].SetActive(done);
             }
             forgeReward.RestoreProgress(state.CompletedCount, state.portalOpened);
-            portalLabel.text = state.portalOpened ? "THE AURORA\nWALK THROUGH TO RETURN" : "THE AURORA\nAWAKEN THE TREASURE CHEST";
+            portalLabel.text = state.portalOpened ? "THE AURORA\nWALK THROUGH TO RETURN" : "THE AURORA\nAWAKEN THE FORGE STONE";
             journalCopy.text = "THE AURORA'S REPAIR\n\nA storm has damaged the ship. Master each craft to assemble a repair kit and forge your key home.\n\n" +
-                state.CompletedCount + " of 3 crafts complete. " + (state.portalOpened ? "The fire portal is open. Walk through to return." : state.HasKey ? "Touch the treasure chest to awaken the portal." : "Explore the anvil, workbench and forge in any order.") +
+                state.CompletedCount + " of 3 crafts complete. " + (state.portalOpened ? "The emerald portal is open. Walk through to return." : state.HasKey ? "Touch the glowing Forge Stone to awaken the portal." : "Explore the anvil, workbench and forge in any order.") +
                 "\n\n" + (quest.IsPractice ? "Practice progress is saved on this PC. No wallet rewards are awarded." : "Class progress is saved on this PC and submitted for cloud verification.");
         }
 
         private void ShowCompletion()
         {
-            completionCopy.text = "The hull brace is shaped, twelve fasteners are counted, and the metal is ready.\n\nThe treasure chest has awakened the fire portal. Walk through it to bring your repair kit to the Aurora.\n\n" +
+            completionCopy.text = "The hull brace is shaped, twelve fasteners are counted, and the metal is ready.\n\nThe Forge Stone has awakened the emerald portal. Walk through it to bring your repair kit to the Aurora.\n\n" +
                 (quest.IsPractice ? "All three crafts complete. Practice progress saved on this PC." : "All three crafts complete. Rewards require server verification.");
             ShowModal(completionPanel);
         }
@@ -314,7 +314,7 @@ namespace ImagineQuest.Gameplay
             }
             var key = Panel("Key HUD", hud, Vector2.one, new Vector2(-26, -26), new Vector2(290, 78), Ink);
             keyText = Label(key, "RETURN KEY  /  LOCKED", 18, 14, 258, 27, 18, Gold);
-            Label(key, "Three crafts. Touch the chest.", 18, 44, 258, 23, 15, Cream);
+            Label(key, "Three crafts. Touch the stone.", 18, 44, 258, 23, 15, Cream);
             var footer = Panel("Controls backing", hud, Vector2.zero, new Vector2(0, 0), new Vector2(1600, 52), Ink);
             Label(footer, "WASD  Move    SHIFT  Walk faster    MOUSE  Look    E  Interact    J  Journal    ESC  Menu", 26, 15, 1200, 28, 16, Cream);
             saveText = Text(hud, "Save status", new Vector2(1, 0), new Vector2(-26, 65), new Vector2(780, 30), 15, Teal, TextAlignmentOptions.Right);
@@ -326,7 +326,7 @@ namespace ImagineQuest.Gameplay
             var heading = Label(brief, "The Aurora's repair", 48, 90, 724, 72, 44, Cream);
             heading.fontStyle = FontStyles.Bold;
             Label(brief, "A storm has torn through the Aurora. Before the next voyage, the captain needs a repair kit from this workshop.", 48, 182, 724, 90, 24, Cream);
-            Label(brief, "01   Learn at the anvil, workbench and forge.\n02   Complete all three crafts, then touch the treasure chest.\n03   Walk through the fire portal to return to the ship.", 48, 300, 724, 125, 22, Cream);
+            Label(brief, "01   Learn at the anvil, workbench and forge.\n02   Complete all three crafts, then touch the Forge Stone.\n03   Walk through the emerald portal to return to the ship.", 48, 300, 724, 125, 22, Cream);
             Button(brief, "ENTER THE WORKSHOP", 48, 478, 450, 58, () => {
                 if (quest.Ready) { quest.State.introSeen = true; quest.Save(); }
                 ShowModal(null);
@@ -425,4 +425,3 @@ namespace ImagineQuest.Gameplay
         }
     }
 }
-
