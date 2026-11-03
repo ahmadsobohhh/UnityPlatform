@@ -37,6 +37,7 @@ namespace ImagineQuest.Gameplay
             bool eligible = completed >= 3;
             StoneRevealed = eligible;
             if (eligible && stone == null) BuildStone();
+            if (stone != null) stone.SetActive(eligible);
             if (eligible && opened)
             {
                 RevealPortal();
@@ -58,7 +59,7 @@ namespace ImagineQuest.Gameplay
                 return false;
             Vector2 delta = new Vector2(feet.x - StonePosition.x, feet.z - StonePosition.z);
             if (delta.sqrMagnitude > Mathf.Pow(StoneRadius + bodyRadius, 2)) return false;
-            // Never consume the chest if the workshop could not save this transition.
+            // Never activate the portal if the workshop could not save this transition.
             if (persistActivation != null && !persistActivation()) return false;
             RevealPortal();
             return true;
@@ -96,7 +97,8 @@ namespace ImagineQuest.Gameplay
         {
             if (PortalOpened) return;
             PortalOpened = true;
-            if (stone != null) stone.SetActive(false);
+            // The supplied artwork is an open chest; keep it beside the active portal.
+            if (stone != null) stone.SetActive(true);
             if (portal == null) BuildPortal();
             portal.SetActive(true);
             portal.transform.localScale = Vector3.one * .01f;
@@ -183,7 +185,7 @@ namespace ImagineQuest.Gameplay
 
         private void Update()
         {
-            if (stone != null && !PortalOpened)
+            if (stone != null && stone.activeSelf)
             {
                 stone.transform.localPosition = StonePosition + Vector3.up * Mathf.Sin(Time.time * 2) * .045f;
                 // Keep the supplied 2D chest readable as the player walks around it.
