@@ -48,7 +48,7 @@ namespace ImagineQuest.Gameplay
             if (stone != null) stone.SetActive(eligible);
         }
 
-        // The player's body must touch the stone volume. An avatar on another floor cannot activate it.
+        // The player's body must touch the reward volume. An avatar on another floor cannot activate it.
         public bool CheckPlayerProximity(Vector3 worldFeet, float bodyRadius = .28f, float bodyHeight = 1.8f,
             bool hasControl = true)
         {
@@ -58,7 +58,7 @@ namespace ImagineQuest.Gameplay
                 return false;
             Vector2 delta = new Vector2(feet.x - StonePosition.x, feet.z - StonePosition.z);
             if (delta.sqrMagnitude > Mathf.Pow(StoneRadius + bodyRadius, 2)) return false;
-            // Never consume the stone if the workshop could not save this transition.
+            // Never consume the chest if the workshop could not save this transition.
             if (persistActivation != null && !persistActivation()) return false;
             RevealPortal();
             return true;
@@ -75,15 +75,21 @@ namespace ImagineQuest.Gameplay
 
         private void BuildStone()
         {
-            stone = new GameObject("Forge Stone Reward");
+            stone = new GameObject("Treasure Chest Reward");
             stone.transform.SetParent(transform, false);
             stone.transform.localPosition = StonePosition;
-            Shape("Ancient forge stone", stone.transform, PrimitiveType.Sphere, Vector3.zero,
-                new Vector3(.48f, .65f, .42f), Lit(new Color(.13f, .22f, .16f)));
-            var gem = Shape("Glowing emerald core", stone.transform, PrimitiveType.Cube,
-                new Vector3(0, .08f, -.04f), Vector3.one * .32f, Lit(new Color(.4f, 1, .16f), 1.8f));
-            gem.transform.localRotation = Quaternion.Euler(25, 45, 35);
-            Glow(stone.transform, 1.6f, 3);
+            var shader = Resources.Load<Shader>("Workshop/EmeraldPortal");
+            var artwork = Resources.Load<Texture2D>("Workshop/TreasureChest");
+            if (shader == null || artwork == null)
+                throw new InvalidOperationException("The treasure chest artwork or shader is missing.");
+            var material = new Material(shader) { mainTexture = artwork };
+            materials.Add(material);
+            var surface = Shape("Treasure chest artwork", stone.transform, PrimitiveType.Quad,
+                Vector3.zero, new Vector3(1.5f, 1.5f, 1), material);
+            var renderer = surface.GetComponent<Renderer>();
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            Glow(stone.transform, 1.2f, 3);
         }
 
         private void RevealPortal()
@@ -110,7 +116,7 @@ namespace ImagineQuest.Gameplay
 
         private void BuildPortal()
         {
-            portal = new GameObject("Living Emerald Portal");
+            portal = new GameObject("Living Fire Portal");
             portal.transform.SetParent(transform, false);
             portal.transform.localPosition = PortalPosition;
             var shader = Resources.Load<Shader>("Workshop/EmeraldPortal");
@@ -120,8 +126,8 @@ namespace ImagineQuest.Gameplay
             poster = Resources.Load<Texture2D>("Workshop/ClientPortalPoster");
             if (poster == null) throw new InvalidOperationException("The client portal poster is missing.");
             portalMaterial.mainTexture = poster;
-            var surface = Shape("Client vine and flower portal", portal.transform, PrimitiveType.Quad,
-                Vector3.zero, new Vector3(2.02f, 3.3f, 1), portalMaterial);
+            var surface = Shape("Client fire portal", portal.transform, PrimitiveType.Quad,
+                Vector3.zero, new Vector3(3.3f * 648f / 960f, 3.3f, 1), portalMaterial);
             PortalRenderer = surface.GetComponent<Renderer>();
             PortalRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             PortalRenderer.receiveShadows = false;
@@ -180,26 +186,21 @@ namespace ImagineQuest.Gameplay
             if (stone != null && !PortalOpened)
             {
                 stone.transform.localPosition = StonePosition + Vector3.up * Mathf.Sin(Time.time * 2) * .045f;
-                stone.transform.Rotate(0, 35 * Time.deltaTime, 0, Space.Self);
+                // Keep the supplied 2D chest readable as the player walks around it.
+                var camera = Camera.main;
+                if (camera != null)
+                {
+                    Vector3 away = stone.transform.position - camera.transform.position;
+                    away.y = 0;
+                    if (away.sqrMagnitude > .001f)
+                        stone.transform.rotation = Quaternion.LookRotation(away);
+                }
             }
             if (PortalOpened && portal != null)
                 portal.transform.localScale = Vector3.one * Mathf.SmoothStep(.01f, 1,
                     Mathf.Clamp01((Time.unscaledTime - openedAt) / .9f));
             if (preparing && Time.realtimeSinceStartup - prepareStarted > 12)
                 UsePoster("Portal animation timed out; client artwork remains visible.");
-        }
-
-        private Material Lit(Color color, float emission = 0)
-        {
-            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            var material = new Material(shader) { color = color };
-            if (emission > 0)
-            {
-                material.EnableKeyword("_EMISSION");
-                material.SetColor("_EmissionColor", color * emission);
-            }
-            materials.Add(material);
-            return material;
         }
 
         private static GameObject Shape(string label, Transform parent, PrimitiveType primitive,
@@ -219,11 +220,11 @@ namespace ImagineQuest.Gameplay
 
         private static void Glow(Transform parent, float intensity, float range)
         {
-            var actor = new GameObject("Emerald glow", typeof(Light));
+            var actor = new GameObject("Warm reward glow", typeof(Light));
             actor.transform.SetParent(parent, false);
             var light = actor.GetComponent<Light>();
             light.type = LightType.Point;
-            light.color = new Color(.45f, 1, .16f);
+            light.color = new Color(1, .42f, .08f);
             light.intensity = intensity;
             light.range = range;
             light.shadows = LightShadows.None;
@@ -254,3 +255,4 @@ namespace ImagineQuest.Gameplay
         }
     }
 }
+
