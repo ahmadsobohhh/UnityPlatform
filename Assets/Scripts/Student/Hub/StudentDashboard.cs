@@ -28,13 +28,20 @@ namespace ImagineQuest.Student
         private Button refreshButton;
         private int requestVersion;
         private bool loading;
+        private StudentStatusService liveStatus;
+        private bool profileLoaded;
 
         private void Awake()
         {
             BuildUi();
         }
 
-        private void OnEnable() { Refresh(); }
+        private void OnEnable()
+        {
+            liveStatus = StudentStatusService.GetOrCreate();
+            liveStatus.Changed += RenderLiveStatus;
+            Refresh();
+        }
 
         private void OnDisable()
         {
@@ -42,6 +49,7 @@ namespace ImagineQuest.Student
             loading = false;
             if (powersOverlay != null) powersOverlay.gameObject.SetActive(false);
             if (auth != null) auth.StateChanged -= OnAuthChanged;
+            if (liveStatus != null) liveStatus.Changed -= RenderLiveStatus;
         }
 
         private void OnDestroy()
@@ -84,6 +92,13 @@ namespace ImagineQuest.Student
                 }
 
                 string uid = user.UserId;
+                if (!StudentCloudConfig.Enabled)
+                {
+                    var profile = await FirebaseFirestore.DefaultInstance.Collection("users").Document(uid).GetSnapshotAsync(Source.Server);
+                    if (!IsCurrent(version) || auth.CurrentUser?.UserId != uid) return;
+                    Render(StudentDashboardSnapshot.FromDocuments(profile.Exists ? profile.ToDictionary() : null, null, null));
+                    return;
+                }
                 var snapshot = await repository.LoadAsync(uid);
                 if (!IsCurrent(version) || auth.CurrentUser?.UserId != uid) return;
                 Render(snapshot);
@@ -111,6 +126,7 @@ namespace ImagineQuest.Student
 
         private void ShowUnavailable(string message)
         {
+            profileLoaded = false;
             nameText.text = "Student dashboard";
             levelText.text = crystalsText.text = goldText.text = heartsText.text = "—";
             avatarImage.sprite = null;
@@ -122,6 +138,7 @@ namespace ImagineQuest.Student
 
         private void Render(StudentDashboardSnapshot snapshot)
         {
+            profileLoaded = true;
             nameText.text = snapshot.DisplayName;
             levelText.text = "Level " + Format(snapshot.Economy.Level) + "  ·  " + Format(snapshot.Economy.Xp) + " XP";
             crystalsText.text = Format(snapshot.Economy.Crystals);
@@ -139,6 +156,31 @@ namespace ImagineQuest.Student
                 ? tint : Color.white;
             avatarFallback.gameObject.SetActive(sprite == null);
             avatarFallback.text = StringInfo.GetNextTextElement(snapshot.DisplayName).ToUpperInvariant();
+            RenderLiveStatus();
+        }
+
+        private void RenderLiveStatus()
+        {
+            if (!profileLoaded || liveStatus == null) return;
+            if (!StudentCloudConfig.Enabled)
+            {
+                levelText.text = heartsText.text = crystalsText.text = goldText.text = "—";
+                statusText.text = "Cloud progress is not enabled yet.";
+                return;
+            }
+            if (auth?.CurrentUser?.UserId != liveStatus.UserId) return;
+            if (!liveStatus.Ready)
+            {
+                levelText.text = heartsText.text = "—";
+                statusText.text = liveStatus.Connection;
+                return;
+            }
+            var saved = liveStatus.Snapshot;
+            levelText.text = "Level " + Format(saved.Level) + "  ·  " + Format(saved.Xp) + " XP";
+            heartsText.text = Format(saved.Hearts);
+            crystalsText.text = Format(saved.Crystals);
+            goldText.text = Format(saved.Gold);
+            statusText.text = liveStatus.Connection;
         }
 
         private static string Format(long value) { return value.ToString("N0", CultureInfo.CurrentCulture); }
@@ -182,6 +224,11 @@ namespace ImagineQuest.Student
             refreshLabel.text = "Refresh";
             refreshLabel.alignment = TextAlignmentOptions.Center;
             BuildPowersPreview();
+            var recap = StudentStatusView.Attach(transform, false);
+            nameText.rectTransform.anchorMax = new Vector2(.56f, nameText.rectTransform.anchorMax.y);
+            StatusUi.Button("Personal recap button", panel, "Recap", .56f, .62f, .685f, .90f, recap.OpenRecap);
+            var powersRect = powersButton.GetComponent<RectTransform>();
+            powersRect.anchorMin = new Vector2(.70f, .62f); powersRect.anchorMax = new Vector2(.825f, .90f);
 
             // Keep the existing class list and its generated heading below the status area.
             var content = transform.Find("ContentPanel") as RectTransform;

@@ -199,6 +199,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /studentActivity/{uid}/entries/{entryId} {
+      allow read: if isSelf(uid);
+      allow write: if false;
+    }
+
+    match /heartAdjustments/{entryId} {
+      allow read, write: if false;
+    }
+
     match /walletLedger/{ledgerId} {
       allow read: if signedIn() && resource.data.uid == request.auth.uid;
       allow write: if false;

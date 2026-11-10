@@ -46,6 +46,8 @@ namespace ImagineQuest.Gameplay
 
             if (scene.name == "TeacherClass")
             {
+                if (canvas.GetComponent<TeacherStandingPanel>() == null)
+                    canvas.gameObject.AddComponent<TeacherStandingPanel>();
                 if (canvas.GetComponent<TeacherQuestLobby>() == null)
                     canvas.gameObject.AddComponent<TeacherQuestLobby>();
                 return;

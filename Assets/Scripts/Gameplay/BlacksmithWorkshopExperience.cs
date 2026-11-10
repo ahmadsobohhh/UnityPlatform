@@ -46,6 +46,7 @@ namespace ImagineQuest.Gameplay
         private AudioSource effectsAudio;
         private readonly List<AudioClip> generatedAudio = new List<AudioClip>();
         private AudioClip correctSound, errorSound, keySound;
+        private ImagineQuest.Student.StudentStatusView personalStatus;
 
         private void InitializeQuest()
         {
@@ -65,6 +66,11 @@ namespace ImagineQuest.Gameplay
             if (forgeLight != null) forgeLight.intensity = 2.25f + Mathf.PerlinNoise(t * 3, .5f) * .6f;
             AnimateAtmosphere(t);
             var keyboard = Keyboard.current;
+            if (personalStatus != null && personalStatus.IsOpen)
+            {
+                if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame) personalStatus.CloseRecap();
+                return;
+            }
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
             {
                 ShowModal(modal != null ? null : pausePanel);
@@ -264,7 +270,7 @@ namespace ImagineQuest.Gameplay
             portalLabel.text = state.portalOpened ? "THE AURORA\nWALK THROUGH TO RETURN" : "THE AURORA\nAWAKEN THE FORGE STONE";
             journalCopy.text = "THE AURORA'S REPAIR\n\nA storm has damaged the ship. Master each craft to assemble a repair kit and forge your key home.\n\n" +
                 state.CompletedCount + " of 3 crafts complete. " + (state.portalOpened ? "The emerald portal is open. Walk through to return." : state.HasKey ? "Touch the glowing Forge Stone to awaken the portal." : "Explore the anvil, workbench and forge in any order.") +
-                "\n\n" + (quest.IsPractice ? "Practice progress is saved on this PC. No wallet rewards are awarded." : "Class progress is saved on this PC and submitted for cloud verification.");
+                (quest.IsPractice ? string.Empty : "\n\nClass progress is saved on this PC and submitted for cloud verification.");
         }
 
         private void ShowCompletion()
@@ -284,9 +290,20 @@ namespace ImagineQuest.Gameplay
             }
             if (complete && (!quest.Ready || !quest.State.TurnIn())) return;
             if (quest.Ready && !quest.Save()) { RefreshProgress(); ShowModal(pausePanel); return; }
-            if (complete) quest.RetrySync();
             returning = true;
-            // Pending events are checkpointed and replayed on the next workshop visit.
+            StartCoroutine(ReturnAfterSync(complete));
+        }
+
+        private IEnumerator ReturnAfterSync(bool complete)
+        {
+            if (complete && !quest.IsPractice)
+            {
+                quest.RetrySync();
+                saveText.text = "Saving your voyage...";
+                float deadline = Time.realtimeSinceStartup + 35;
+                while (quest.Busy && Time.realtimeSinceStartup < deadline) yield return null;
+            }
+            // Pending events remain checkpointed if the network could not confirm them.
             SceneTransition.LoadScene("QuestArena");
         }
 
@@ -351,6 +368,7 @@ namespace ImagineQuest.Gameplay
 
             pausePanel = Overlay("Workshop journal", out Transform journal, new Vector2(820, 650));
             Label(journal, "YOUR WORKSHOP JOURNAL", 44, 36, 732, 40, 28, Gold);
+            Button(journal, "PERSONAL RECAP", 500, 36, 276, 40, () => personalStatus.OpenRecap());
             journalCopy = Label(journal, "", 44, 105, 732, 320, 23, Cream);
             Button(journal, "CONTINUE EXPLORING", 44, 452, 732, 54, () => ShowModal(null));
             Button(journal, "RETRY SAVE / CLOUD SYNC", 44, 523, 352, 48, () => quest.RetrySync());
@@ -364,6 +382,7 @@ namespace ImagineQuest.Gameplay
             completionCopy = Label(complete, "", 44, 220, 732, 208, 23, Cream);
             Button(complete, "DELIVER THE KIT & RETURN", 44, 466, 500, 58, () => ReturnToShip(true));
             Button(complete, "STAY", 570, 466, 206, 58, () => ShowModal(null));
+            personalStatus = ImagineQuest.Student.StudentStatusView.Attach(hud, true);
         }
 
         private static Transform Panel(string name, Transform parent, Vector2 anchor, Vector2 offset, Vector2 size, Color color)

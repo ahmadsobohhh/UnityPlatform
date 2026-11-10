@@ -1,8 +1,10 @@
 # Imagine Quest Firebase foundation
 
-This directory is a **deployment scaffold only**. Nothing in it has been deployed,
-no Firebase project has been selected, and the Unity client has not been switched to
-call these endpoints yet.
+This directory contains the assignment/reward foundation and the tested Hearts/XP
+extension. The new backend has not been deployed. The authorized target is
+`capstone-d51c2`; production activation remains deferred because the owner requested
+no billing changes. See `../docs/HEARTS_XP_STATUS.md` for the client release gate,
+local tests, teacher controls, before-change rules backup and rollback procedure.
 
 It establishes the backend boundary needed for real classes and teacher-assigned
 quests: the client can request an enrollment or submit an answer, while the server
@@ -18,7 +20,7 @@ reward receipts.
 | `firestore.indexes.json` | Teacher-dashboard/event query indexes for the new assignment model. |
 | `functions/src/index.ts` | Callable functions for enrollment, assignments, and verified quest events. |
 
-The functions use Node 20 and second-generation Firebase callable functions in
+The functions use Node 22 and second-generation Firebase callable functions in
 `northamerica-northeast1`. Keep the Unity Functions client configured to that same
 region when it is added.
 
@@ -198,6 +200,6 @@ Recommended sequence:
 6. Configure Firebase App Check for Unity, then set callable `enforceAppCheck` to
    `true` for the release build.
 
-The scaffold intentionally does not model Hearts, real-world prizes, payments, or
-other high-risk rewards. Keep those out of the client and add policy, age/privacy,
-and abuse-review work before introducing them.
+The Hearts/XP extension adds teacher-controlled standing, verified workshop rewards
+and read-only student activity. Real-world prize logistics and payments remain
+outside this implementation. Powers activation is still a separate future feature.

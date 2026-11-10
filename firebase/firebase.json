@@ -1,9 +1,11 @@
 {
   "functions": {
     "source": "functions",
-    "runtime": "nodejs20",
+    "runtime": "nodejs22",
     "ignore": [
       "node_modules",
+      "test",
+      "scripts",
       ".git",
       "firebase-debug.log",
       "firebase-debug.*.log",

@@ -40,10 +40,16 @@ Deploy the updated `firebase/firestore.rules` with the project's normal Firebase
 deployment workflow before using the new standing path. Without its read rule,
 the dashboard reports a load error. No Firebase deployment is performed by this commit.
 
-Status refreshes on scene enable, authentication changes, return to application focus,
-and the Refresh button. Leaving the scene or switching users invalidates pending
-responses. Values are snapshots, not a live subscription; use Refresh for teacher
-changes made while the dashboard remains in focus.
+Identity refreshes on scene enable, authentication changes, return to application
+focus and the Refresh button. When enabled, the Hearts/XP extension owns live
+wallet/standing listeners across the hub and gameplay, plus a personal recap with
+recent activity. Account changes invalidate old responses and listeners.
+
+The release gate currently remains OFF, as requested by the project owner while
+deployment/billing are pending. Identity still loads; balances display unavailable
+instead of invented or pretend live values. See `HEARTS_XP_STATUS.md` for the full
+implementation, deployment state and rollback procedure. The Powers cards remain
+previews; this update does not implement Power activation.
 
 ## Verification
 

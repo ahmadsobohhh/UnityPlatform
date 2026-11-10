@@ -88,6 +88,7 @@ namespace ImagineQuest.Gameplay
         private Button lessonSecondaryButton;
         private GameObject journalPanel;
         private GameObject pausePanel;
+        private ImagineQuest.Student.StudentStatusView personalStatus;
         private GameObject completionPanel;
         private TMP_Text completionSummaryText;
         private GameObject questPickerPanel;
@@ -187,7 +188,7 @@ namespace ImagineQuest.Gameplay
             {
                 questVideo.WorldAnchor = null;
             }
-            questVideo.AssignedQuestAction = arenaOnly ? () => SceneTransition.LoadScene("BlacksmithRoom") : (Action)null;
+            questVideo.AssignedQuestAction = arenaOnly ? () => WorkshopAssignmentLauncher.Launch(message => OpenArenaPanel("WORKSHOP", message)) : (Action)null;
             Debug.Log("[Quest Video] Opening configured URL: " + url);
             questVideo.Play(url, () =>
             {
@@ -209,6 +210,11 @@ namespace ImagineQuest.Gameplay
 
         private void Update()
         {
+            if (personalStatus != null && personalStatus.IsOpen)
+            {
+                if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) personalStatus.CloseRecap();
+                return;
+            }
             if (questChartMarker != null)
                 questChartMarker.SetActive(!videoVisible && !journalVisible && !pauseVisible && !briefingVisible);
             if (videoVisible || Keyboard.current == null)
@@ -1162,6 +1168,7 @@ namespace ImagineQuest.Gameplay
                 BuildLessonPanel(canvasObject.transform);
                 BuildCompletionPanel(canvasObject.transform);
             }
+            personalStatus = ImagineQuest.Student.StudentStatusView.Attach(canvasObject.transform, arenaOnly);
         }
 
         /// <summary>
@@ -1255,6 +1262,12 @@ namespace ImagineQuest.Gameplay
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -238f),
                 new Vector2(480f, 54f), new Color(0.4f, 0.25f, 0.075f));
             demoPlay.onClick.AddListener(PlayDummyQuest);
+            var workshop = CreateButton("Play assigned workshop", card.transform, "THE AURORA'S REPAIR  /  ASSIGNED WORKSHOP",
+                new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -310), new Vector2(650, 48), new Color(.10f, .27f, .25f));
+            workshop.onClick.AddListener(() => {
+                CloseJournal();
+                WorkshopAssignmentLauncher.Launch(message => OpenArenaPanel("WORKSHOP", message));
+            });
             var back = CreateButton("Close Quest Selection", card.transform, "RETURN TO SHIP",
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 48f),
                 new Vector2(350f, 48f), new Color(0.14f, 0.10f, 0.06f));
@@ -1354,6 +1367,10 @@ namespace ImagineQuest.Gameplay
             var close = CreateButton("Close Journal", card.transform, arenaOnly ? "RETURN TO SHIP" : "CLOSE JOURNAL", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 42f), new Vector2(320f, 52f), new Color(0.12f, 0.36f, 0.6f));
             close.onClick.AddListener(CloseJournal);
+            close.GetComponent<RectTransform>().anchoredPosition = new Vector2(-180, 42);
+            var recap = CreateButton("Open personal recap", card.transform, "PERSONAL RECAP", new Vector2(.5f, 0), new Vector2(.5f, 0),
+                new Vector2(180, 42), new Vector2(320, 52), new Color(.12f, .27f, .29f));
+            recap.onClick.AddListener(() => personalStatus.OpenRecap());
             journalPanel.SetActive(false);
         }
 
