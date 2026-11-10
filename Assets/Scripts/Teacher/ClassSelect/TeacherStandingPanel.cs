@@ -108,6 +108,12 @@ namespace ImagineQuest.Gameplay
                     students.Add((member.Id, name));
                 }
                 students.Sort((a, b) => string.Compare(a.name, b.name, StringComparison.CurrentCultureIgnoreCase)); RenderRoster();
+                if (!StudentCloudConfig.Enabled)
+                {
+                    RenderAssignment();
+                    status.text = students.Count == 0 ? "No students have joined this class yet." : "Select a student to review this device's local standing.";
+                    return;
+                }
                 var assignment = await room.Reference.Collection("assignments").Document("blacksmith-workshop").GetSnapshotAsync(Source.Server);
                 if (!Current(expected)) return;
                 workshopOpen = assignment.Exists && assignment.GetValue<string>("state") == "open"; RenderAssignment();
@@ -133,6 +139,14 @@ namespace ImagineQuest.Gameplay
             int expected = ++version;
             try
             {
+                if (!StudentCloudConfig.Enabled)
+                {
+                    var local = new LocalStudentStatusStore(StudentStatusService.DefaultLocalDirectory).Load(selected);
+                    hearts = local.hearts; totals.text = hearts + " / 50 Hearts    ·    " + local.xp.ToString("N0") + " local XP";
+                    loaded = true; RenderChange();
+                    status.text = "Local progress on this device. Cloud changes are not enabled.";
+                    return;
+                }
                 var result = await GameCloudClient.CallAsync<Target, Balance>("getClassStudentStatus", new Target { classId = classId, studentId = selected });
                 if (!Current(expected)) return;
                 hearts = result.hearts; totals.text = hearts + " / 50 Hearts    ·    " + result.xp.ToString("N0") + " XP"; loaded = true; RenderChange();
@@ -159,10 +173,22 @@ namespace ImagineQuest.Gameplay
             bool saved = false;
             try
             {
-                var result = await GameCloudClient.CallAsync<Change, Saved>("adjustStudentHearts", change);
-                if (!Current(expected)) return;
-                hearts = result.hearts; totals.text = hearts + " / 50 Hearts"; requestId = null; confirmReset = false;
-                status.text = "Saved. " + selectedName + " sees the update automatically.";
+                if (!StudentCloudConfig.Enabled)
+                {
+                    var local = new LocalStudentStatusStore(StudentStatusService.DefaultLocalDirectory)
+                        .AdjustHearts(selected, requestId, delta, change.reason, out _);
+                    hearts = local.hearts;
+                    totals.text = hearts + " / 50 Hearts    ·    " + local.xp.ToString("N0") + " local XP";
+                    status.text = "Saved on this device. The student's local recap updates automatically.";
+                }
+                else
+                {
+                    var result = await GameCloudClient.CallAsync<Change, Saved>("adjustStudentHearts", change);
+                    if (!Current(expected)) return;
+                    hearts = result.hearts; totals.text = hearts + " / 50 Hearts";
+                    status.text = "Saved. " + selectedName + " sees the update automatically.";
+                }
+                requestId = null; confirmReset = false;
                 saved = true;
             }
             catch (Exception ex) { if (Current(expected)) status.text = ex.Message + " Retry uses the same request safely."; }
@@ -180,12 +206,20 @@ namespace ImagineQuest.Gameplay
         private static string HeartCount(int value) => value + (value == 1 ? " Heart" : " Hearts");
         private void RenderAssignment()
         {
+            if (!StudentCloudConfig.Enabled)
+            {
+                assignmentStatus.text = "Local workshop practice is available. Cloud assignments are not enabled.";
+                assignmentButton.GetComponentInChildren<TMP_Text>().text = "LOCAL PRACTICE";
+                assignmentButton.interactable = false;
+                return;
+            }
             assignmentStatus.text = workshopOpen ? "The Aurora's Repair is assigned • 25 XP per craft + 100 XP for delivery" : "Assign the workshop so enrolled students can earn verified XP.";
             assignmentButton.GetComponentInChildren<TMP_Text>().text = workshopOpen ? "CLOSE WORKSHOP" : "ASSIGN WORKSHOP";
             assignmentButton.interactable = true;
         }
         private async void ToggleAssignment()
         {
+            if (!StudentCloudConfig.Enabled) { RenderAssignment(); return; }
             assignmentButton.interactable = false; int expected = version;
             try
             {

@@ -1264,6 +1264,8 @@ namespace ImagineQuest.Gameplay
             demoPlay.onClick.AddListener(PlayDummyQuest);
             var workshop = CreateButton("Play assigned workshop", card.transform, "THE AURORA'S REPAIR  /  ASSIGNED WORKSHOP",
                 new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -310), new Vector2(650, 48), new Color(.10f, .27f, .25f));
+            if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
+                workshop.GetComponentInChildren<TMP_Text>().text = "THE AURORA'S REPAIR  /  LOCAL PRACTICE";
             workshop.onClick.AddListener(() => {
                 CloseJournal();
                 WorkshopAssignmentLauncher.Launch(message => OpenArenaPanel("WORKSHOP", message));
@@ -1625,6 +1627,10 @@ namespace ImagineQuest.Gameplay
             if (!completedNodeIds.Contains(completed.NodeId))
                 completedNodeIds.Add(completed.NodeId);
             provisionalXp += completed.XpAward;
+            if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
+                ImagineQuest.Student.StudentStatusService.GetOrCreate().RecordLocalReward(
+                    "celestial-clock/" + (QuestSession.Instance?.AssignmentId ?? "practice") + "/" + completed.NodeId,
+                    "Seal restored", completed.Title, completed.XpAward);
             SaveRunSnapshot();
 
             var justUnlockedFinale = CompletedCount == RequiredSealsBeforeFinale;
@@ -1761,6 +1767,10 @@ namespace ImagineQuest.Gameplay
                 return;
 
             provisionalXp += questDefinition.RewardPolicy.CompletionExperience;
+            if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
+                ImagineQuest.Student.StudentStatusService.GetOrCreate().RecordLocalReward(
+                    "celestial-clock/" + (QuestSession.Instance?.AssignmentId ?? "practice") + "/completion",
+                    "Celestial Clock restored", "All four seals complete", questDefinition.RewardPolicy.CompletionExperience);
         }
 
         private void CloseCompletionPanel()

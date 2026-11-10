@@ -15,7 +15,11 @@ namespace ImagineQuest.Gameplay
             try
             {
                 if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
-                    throw new InvalidOperationException("This class workshop isn't available yet. Your teacher can open it when cloud progress is ready.");
+                {
+                    QuestSession.Begin(BlacksmithQuestContent.Id, "local-practice", null, BlacksmithQuestContent.Id, BlacksmithQuestContent.Title);
+                    SceneTransition.LoadScene("BlacksmithRoom");
+                    return;
+                }
                 var user = FirebaseAuth.DefaultInstance.CurrentUser;
                 if (user == null) throw new InvalidOperationException("Sign in as a student and open your class to play an assigned workshop.");
                 string owner = user.UserId;

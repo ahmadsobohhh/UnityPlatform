@@ -212,12 +212,13 @@ namespace ImagineQuest.Gameplay
         {
             if (!quest.Ready || modal != lessonPanel || !answerButtons[choice].interactable) return;
             bool hadKey = quest.State.HasKey;
+            bool wasComplete = quest.State.HasAnswer(activeStation);
             bool correct = quest.State.Answer(activeStation, choice);
             quest.Save();
             if (correct)
             {
                 feedback.color = Teal;
-                feedback.text = quest.State.HasKey
+                feedback.text = wasComplete ? "Already mastered. Practise freely; XP is awarded once per craft." : quest.State.HasKey
                     ? "REPAIR KIT READY! Touch the glowing Forge Stone in the center to awaken the emerald portal."
                     : "CRAFT COMPLETE! Your repair kit gained a part. Explore the next station.";
                 answerButtons[choice].GetComponent<Image>().color = new Color(.10f, .43f, .35f);

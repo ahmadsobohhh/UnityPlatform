@@ -61,6 +61,7 @@ namespace ImagineQuest.Student
         private long previousSession;
         private float toastUntil;
         private Button closeButton;
+        private Button reloadButton;
         private GameObject previousSelection;
         public bool IsOpen => recap != null && recap.gameObject.activeSelf;
 
@@ -98,15 +99,17 @@ namespace ImagineQuest.Student
         {
             bool ready = snapshot != null;
             bool isLive = ready && !snapshot.IsCached && state.StartsWith("Live", StringComparison.Ordinal);
+            bool isLocal = ready && state.StartsWith("Local", StringComparison.Ordinal);
             string hearts = ready ? snapshot.Hearts.ToString("N0", CultureInfo.CurrentCulture) : "—";
             string xp = ready ? snapshot.Xp.ToString("N0", CultureInfo.CurrentCulture) : "—";
             if (hudHearts != null) { hudHearts.text = hearts; hudXp.text = xp; }
-            if (hudXpCaption != null) hudXpCaption.text = !ready ? "TOTAL XP" : isLive ? "TOTAL XP" : "XP · OFFLINE";
+            if (hudXpCaption != null) hudXpCaption.text = isLocal ? "LOCAL XP" : !ready || isLive ? "TOTAL XP" : "XP · OFFLINE";
             heartTotal.text = hearts + (ready ? " / 50" : ""); xpTotal.text = xp;
             heartFill.fillAmount = ready ? snapshot.Hearts / 50f : 0;
             heartFill.color = ready && snapshot.Hearts <= 10 ? StatusUi.Rose : StatusUi.Teal;
             sessionXp.text = ready ? "+" + earned.ToString("N0") + " XP earned this visit" : "Your saved progress will appear here";
-            connection.text = state; connection.color = isLive ? StatusUi.Teal : StatusUi.Muted;
+            connection.text = state; connection.color = isLive || isLocal ? StatusUi.Teal : StatusUi.Muted;
+            reloadButton.GetComponentInChildren<TMP_Text>().text = isLocal ? "RELOAD SAVE" : "RECONNECT";
             historyStatus.text = history;
             for (int i = 0; i < activityTitle.Count; i++)
             {
@@ -175,7 +178,7 @@ namespace ImagineQuest.Student
                 var delta = StatusUi.Label("Activity change", row, "", .80f, .15f, 1, .95f, 18, StatusUi.Teal);
                 delta.alignment = TextAlignmentOptions.MidlineRight; activityDelta.Add(delta); row.gameObject.SetActive(false);
             }
-            StatusUi.Button("Retry connection", card, "RECONNECT", .04f, .035f, .25f, .105f, () => live?.Reconnect());
+            reloadButton = StatusUi.Button("Retry connection", card, "RECONNECT", .04f, .035f, .25f, .105f, () => live?.Reconnect());
             connection = StatusUi.Label("Cloud connection", card, "Connecting your progress...", .29f, .035f, .96f, .105f, 15, StatusUi.Muted);
             recap.gameObject.SetActive(false);
         }

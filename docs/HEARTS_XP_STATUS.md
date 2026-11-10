@@ -11,9 +11,18 @@ not been changed. Backend test accounts and writes exist only in the Emulator Su
 `Assets/Resources/StudentCloud.json` deliberately has `enabled: false`.
 The new callable client rejects requests before obtaining credentials or making a
 network request when this gate is off. The workshop outbox also remains paused.
-The hub still loads the student's identity; unavailable balances display an em dash,
-never an invented award or a pretend live balance. Existing authentication and class
-features are unchanged. Editor workshop practice remains available.
+While the gate is off, a separate device-only profile provides 50 starting Hearts,
+0 starting XP, persistent awards and the personal recap. The HUD labels this **LOCAL
+XP** and the recap shows **Local progress • saved**. Existing authentication and class
+features still use their existing Firebase paths; this feature adds no cloud writes.
+
+Local profiles are stored beneath `Application.persistentDataPath/LocalStudentStatus`,
+separately for each signed-in UID (or `local-guest` when opening a scene directly).
+Atomic saves retain the previous version as `.bak`; malformed saves are preserved,
+not replaced with fresh balances. Local values are never uploaded as a Firebase
+wallet. Enabling the cloud gate later switches to the independently verified wallet.
+Cloud-off workshop checkpoints use `local-practice`, so their pending events cannot
+silently become a future assigned-workshop reward outbox.
 
 Do not turn on this gate or deploy the backend until the project owner explicitly
 authorizes the required Firebase billing setup. Signing into the CLI alone does
@@ -27,8 +36,12 @@ not enable billing. The code is ready to test locally without a paid Firebase pl
 - Hearts are classroom standing, not combat health. Quiz mistakes do not deduct them.
 - The recap pauses workshop interaction and closes back to the existing journal.
   Escape closes the recap before the journal. No new settings page is required.
-- Confirmed XP gains produce a short saved-XP notification. Provisional/local answers
-  are never added to the authoritative total.
+- Saved XP gains produce a short notification. In local mode each correct workshop
+  craft awards 25 XP once, and delivery awards 100 XP once (175 total per assignment).
+  Existing completed local crafts are credited once when their checkpoint opens.
+  Ship seal answers and quest completion also record deduplicated local rewards.
+  Wrong answers award no XP and never deduct Hearts. Replays/reloads cannot farm XP.
+  These device-only awards never alter the authoritative Firebase total.
 - A disconnected subscription shows its last saved totals with an offline label;
   a missing/invalid snapshot shows unavailable values. Reconnect restarts subscriptions.
 - Listeners follow the authenticated UID and clear on account changes. Totals and
@@ -36,7 +49,7 @@ not enable billing. The code is ready to test locally without a paid Firebase pl
 - The recap has been checked in a Windows test player at 1600x900, 1280x720 and
   1024x768. Test screenshots use clearly isolated fixture data, not production accounts.
 
-## Teacher experience once cloud deployment is enabled
+## Teacher experience
 
 Open a class, then **Hearts & Progress**.
 
@@ -47,6 +60,13 @@ Open a class, then **Hearts & Progress**.
    **Confirm Fresh Start** action. Heart restoration does not automatically refund XP.
 5. **Assign Workshop** opens The Aurora's Repair for enrolled students; **Close
    Workshop** prevents new submissions while preserving progress and retry receipts.
+
+With the cloud gate off, the existing class-owner and roster reads still establish
+the teacher's class context. Heart adjustments update only that student's profile
+on this PC, with reasons, deduplicated retries and the same reset confirmation.
+The UI explicitly labels local XP; it cannot change standing on another device.
+Assignment controls remain disabled and the ship/video shortcut opens local practice.
+The assignment workflow described above becomes available after authorized deployment.
 
 Students use the ship chart's assigned-workshop entry. It verifies the assignment
 and establishes the correct quest/class/assignment context before loading the room.
@@ -110,9 +130,14 @@ private balance rules, and preview/apply/stale-data protection for rollback.
 
 Unity checks:
 
-- EditMode: `StudentLiveStatusTests`, `StudentDashboardTests`, `BlacksmithWorkshopTests`.
-- PlayMode: `StudentStatusViewTests` plus the existing workshop/portal fixtures.
+- EditMode: `LocalStudentStatusStoreTests`, `StudentLiveStatusTests`, `StudentDashboardTests`, `BlacksmithWorkshopTests`.
+- PlayMode: `StudentLocalProgressTests`, `StudentStatusViewTests` plus the existing workshop/portal fixtures.
 - Windows player: `StudentStatusViewTests`, including all three display sizes.
+
+The local-mode follow-up passed 35 EditMode checks and 10 PlayMode checks on
+November 10, 2026. The workshop fixture exercises the real answer controls, HUD,
+recap, standing changes, duplicate prevention, account isolation and service restart.
+Its save files and screenshots use isolated test profiles, not the student's progress.
 
 Set `IMAGINEQUEST_OFFLINE_TESTS=1` in the test process so no persisted sign-in can
 contact the live economy. Set `IMAGINEQUEST_TEST_OUTPUT` to retain UI screenshots.

@@ -162,12 +162,6 @@ namespace ImagineQuest.Student
         private void RenderLiveStatus()
         {
             if (!profileLoaded || liveStatus == null) return;
-            if (!StudentCloudConfig.Enabled)
-            {
-                levelText.text = heartsText.text = crystalsText.text = goldText.text = "—";
-                statusText.text = "Cloud progress is not enabled yet.";
-                return;
-            }
             if (auth?.CurrentUser?.UserId != liveStatus.UserId) return;
             if (!liveStatus.Ready)
             {

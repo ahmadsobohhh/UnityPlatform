@@ -54,7 +54,7 @@ namespace ImagineQuest.Gameplay
                 if (app != null) owner = FirebaseAuth.GetAuth(app).CurrentUser?.UserId ?? owner;
             }
             catch (Exception) { }
-            if (owner == "local-guest") classId = "local-practice";
+            if (owner == "local-guest" || !ImagineQuest.Student.StudentCloudConfig.Enabled) classId = "local-practice";
             store = new BlacksmithQuestStore(Path.Combine(Application.persistentDataPath, "BlacksmithQuest"));
             try
             {
@@ -78,6 +78,8 @@ namespace ImagineQuest.Gameplay
             {
                 store.Save(State);
                 LocalSaved = true;
+                if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
+                    ImagineQuest.Student.StudentStatusService.GetOrCreate().RecordLocalWorkshop(State);
                 Status = IsPractice || !ImagineQuest.Student.StudentCloudConfig.Enabled ? string.Empty
                     : "Saved on this PC • Awaiting cloud verification";
             }
