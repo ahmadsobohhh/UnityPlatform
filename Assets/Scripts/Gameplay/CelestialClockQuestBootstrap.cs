@@ -1246,15 +1246,19 @@ namespace ImagineQuest.Gameplay
             var demoTitle = CreateText("Dummy Quest Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -122f), new Vector2(710f, 40f), 27f, TextAlignmentOptions.Center,
                 new Color(1f, 0.85f, 0.5f));
-            demoTitle.text = "FIRST VOYAGE  •  DUMMY QUEST";
+            demoTitle.text = "CINDER QUAY";
             var demoCopy = CreateText("Dummy Quest Description", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -172f), new Vector2(710f, 60f), 20f, TextAlignmentOptions.Center,
                 new Color(0.97f, 0.93f, 0.83f));
-            demoCopy.text = "Try the captain's video projection above this table.\nVideo-only demo — no scores, rewards, or saved progress.";
-            var demoPlay = CreateButton("Play Dummy Quest", card.transform, "PLAY DUMMY QUEST",
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -238f),
-                new Vector2(480f, 54f), new Color(0.4f, 0.25f, 0.075f));
-            demoPlay.onClick.AddListener(PlayDummyQuest);
+            demoCopy.text = "Forge a cutlass. Hold the quay.";
+            var demoPlay = CreateButton("Play Cinder Quay", card.transform, "ENTER THE FORGE",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-128f, -238f),
+                new Vector2(244f, 54f), new Color(0.4f, 0.25f, 0.075f));
+            demoPlay.onClick.AddListener(BlacksmithRoomBootstrap.LaunchRaidPractice);
+            var preview = CreateButton("Watch chart preview", card.transform, "WATCH PREVIEW",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(128f, -238f),
+                new Vector2(224f, 54f), new Color(0.14f, 0.10f, 0.06f));
+            preview.onClick.AddListener(PlayDummyQuest);
             var back = CreateButton("Close Quest Selection", card.transform, "RETURN TO SHIP",
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 48f),
                 new Vector2(350f, 48f), new Color(0.14f, 0.10f, 0.06f));

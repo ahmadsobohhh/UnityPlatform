@@ -88,7 +88,7 @@ namespace ImagineQuest.Gameplay
                         new Vector3(-3.78f + col * .36f, .16f + row * .20f, 2.57f),
                         new Vector3(.34f, .18f, .10f), (row + col) % 3 == 0 ? paleStone : stone);
             Block("Forge lintel", new Vector3(-2.7f, 2.5f, 3.22f), new Vector3(2.52f, .25f, .26f), iron);
-            WorldLabel("Forge inscription", "IGNIS  /  THE HEART OF THE WORKSHOP", new Vector3(-2.7f, 2.9f, 3.15f), new Vector2(670, 65), 22, Gold);
+            if (!raidPractice) WorldLabel("Forge inscription", "IGNIS  /  THE HEART OF THE WORKSHOP", new Vector3(-2.7f, 2.9f, 3.15f), new Vector2(670, 65), 22, Gold);
             for (int i = 0; i < 10; i++)
             {
                 var flame = Decor("Living flame", PrimitiveType.Sphere, new Vector3(-3.3f + i * .135f, 1.18f, 3.4f + (i % 2) * .3f),
@@ -115,7 +115,7 @@ namespace ImagineQuest.Gameplay
                     Decor("Repair nail head", PrimitiveType.Cube, new Vector3(x, 1.20f, z + .11f), new Vector3(.07f, .04f, .035f), brass);
                 }
             }
-            WorldLabel("Workbench calculation", "3 TRAYS  x  4 NAILS", new Vector3(3.45f, 1.40f, .82f), new Vector2(420, 65), 25, Cream, true);
+            if (!raidPractice) WorldLabel("Workbench calculation", "3 TRAYS  x  4 NAILS", new Vector3(3.45f, 1.40f, .82f), new Vector2(420, 65), 25, Cream, true);
             Decor("Hot repair brace", PrimitiveType.Cube, new Vector3(-.1f, 1.28f, 4.17f), new Vector3(.64f, .045f, .14f), hot);
 
             // Navigation and completed states are represented in the world, as well as the HUD.
@@ -132,14 +132,17 @@ namespace ImagineQuest.Gameplay
                 stationLabels.Add(WorldLabel("Station " + i + " label", "", stationPositions[i] + Vector3.up * .57f, new Vector2(560, 64), 24, Gold, true));
             }
 
-            var rewardRoot = new GameObject("Workshop Completion Reward");
-            rewardRoot.transform.SetParent(transform, false);
-            rewardRoot.transform.position = Vector3.zero;
-            rewardRoot.transform.rotation = Quaternion.identity;
-            forgeReward = rewardRoot.AddComponent<WorkshopForgeReward>();
-            forgeReward.Initialize(TryActivateForgeStone);
-            portalLabel = WorldLabel("Portal destination", "THE AURORA\nAWAKEN THE FORGE STONE",
-                new Vector3(0, 3.6f, -4.28f), new Vector2(720, 95), 25, Teal, false, 180);
+            if (!raidPractice)
+            {
+                var rewardRoot = new GameObject("Workshop Completion Reward");
+                rewardRoot.transform.SetParent(transform, false);
+                rewardRoot.transform.position = Vector3.zero;
+                rewardRoot.transform.rotation = Quaternion.identity;
+                forgeReward = rewardRoot.AddComponent<WorkshopForgeReward>();
+                forgeReward.Initialize(TryActivateForgeStone);
+                portalLabel = WorldLabel("Portal destination", "THE AURORA\nAWAKEN THE FORGE STONE",
+                    new Vector3(0, 3.6f, -4.28f), new Vector2(720, 95), 25, Teal, false, 180);
+            }
 
             // Portholes and hanging navy standards introduce cool color and a ship identity.
             for (int side = -1; side <= 1; side += 2)
@@ -153,8 +156,9 @@ namespace ImagineQuest.Gameplay
                 Decor("Standard gold bar", PrimitiveType.Cube, new Vector3(side * 1.25f, 3.64f, 4.64f), new Vector3(.82f, .07f, .09f), brass);
                 Decor("Standard crest", PrimitiveType.Cube, new Vector3(side * 1.25f, 2.99f, 4.65f), new Vector3(.26f, .26f, .045f), brass).rotation = Quaternion.Euler(0, 0, 45);
             }
-            WorldLabel("Workshop guild plaque", "A U R O R A\nTHE WAYFARER'S FORGE", new Vector3(0, 3.12f, 4.6f), new Vector2(650, 120), 29, Gold);
+            WorldLabel("Workshop guild plaque", raidPractice ? "CINDER QUAY" : "A U R O R A\nTHE WAYFARER'S FORGE", new Vector3(0, 3.12f, 4.6f), new Vector2(650, 120), 29, Gold);
 
+            if (raidPractice) { BuildWorkshopAudio(); return; }
             // The repair kit visibly fills as each craft is mastered.
             Block("Repair kit display", new Vector3(-3.7f, .65f, -1), new Vector3(1.4f, .16f, 1), wood);
             Block("Display pedestal", new Vector3(-3.7f, .3f, -1), new Vector3(.85f, .6f, .65f), stone);

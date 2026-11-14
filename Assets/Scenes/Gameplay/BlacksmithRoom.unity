@@ -149,6 +149,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GameRuntime::ImagineQuest.Gameplay.BlacksmithRoomBootstrap
   weatheredStone: {fileID: 2800000, guid: 594d451d9f994dfba34e4d4156b64d01, type: 3}
+  raidHeadingFont: {fileID: 11400000, guid: b643a157f9b9f4b158b3b4091191fb1a, type: 2}
+  raidSky: {fileID: 2100000, guid: 50817f43cdb44a1589e07847d4854ded, type: 2}
+  raidWater: {fileID: 2100000, guid: 3440f18d4a204a5daec9c0c6dc409337, type: 2}
   workshopPipeline: {fileID: 11400000, guid: d30bc7fd41f946d89e6dd5ef2217dd4b, type: 2}
   arenaWood: {fileID: 2100000, guid: c7bc5e5842555b24cbb1f4399cce304d, type: 2}
   arenaBarrel: {fileID: 1791234208769792, guid: 9ca5b8fd2fa2eb347a3f7730cb9669ec, type: 3}

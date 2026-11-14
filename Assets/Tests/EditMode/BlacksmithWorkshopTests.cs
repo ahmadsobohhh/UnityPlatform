@@ -5,6 +5,30 @@ using NUnit.Framework;
 
 public class BlacksmithWorkshopTests
 {
+    [TestCase(0, 16)]
+    [TestCase(1, 24)]
+    [TestCase(2, 32)]
+    [TestCase(3, 40)]
+    public void BladeDamageUsesFirstAttemptScore(int score, int expectedDamage)
+    {
+        var trial = new WorkshopBladeTrial();
+        var correctChoices = new[] { 1, 2, 0 };
+        Assert.That(trial.TryAnswer(-1, 0, out _), Is.False);
+        for (int i = 0; i < 3; i++)
+        {
+            int answer = i < score ? correctChoices[i] : (correctChoices[i] + 1) % 3;
+            Assert.That(trial.TryAnswer(i, answer, out bool correct), Is.True);
+            Assert.That(correct, Is.EqualTo(i < score));
+            Assert.That(trial.TryAnswer(i, correctChoices[i], out _), Is.False);
+        }
+        Assert.That(trial.Complete, Is.True);
+        Assert.That(trial.Correct, Is.EqualTo(score));
+        Assert.That(trial.Damage, Is.EqualTo(expectedDamage));
+        trial.Reset();
+        Assert.That(trial.Total, Is.Zero);
+        Assert.That(trial.Correct, Is.Zero);
+    }
+
     [Test]
     public void AnswerRequiresLessonAndCorrectChoice()
     {
