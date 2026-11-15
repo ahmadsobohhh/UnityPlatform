@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f45e29e10ccba134ab002fe8177cf9ad, type: 3}
+  m_Name: Catalog
+  m_EditorClassIdentifier: GameRuntime::ImagineQuest.Characters.StudentCharacterCatalog
+  Bodies:
+  - {fileID: 8484650957565574937, guid: abd64b9a7ce2fcb4ca8d857f05a2ed18, type: 3}
+  - {fileID: 8891423314625813855, guid: 61f976a0380e57b40b30f0c641bf1653, type: 3}
+  Locomotion: {fileID: 9100000, guid: 72b7ac5570f50d748af3ec53019e94a8, type: 2}

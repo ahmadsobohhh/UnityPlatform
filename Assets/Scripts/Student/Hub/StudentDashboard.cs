@@ -25,6 +25,7 @@ namespace ImagineQuest.Student
         private Button powersButton;
         private TMP_Text nameText, avatarFallback, levelText, crystalsText, goldText, heartsText, statusText;
         private Image avatarImage;
+        private ImagineQuest.Characters.CharacterPreviewViewport avatarPortrait;
         private Button refreshButton;
         private int requestVersion;
         private bool loading;
@@ -131,6 +132,7 @@ namespace ImagineQuest.Student
             levelText.text = crystalsText.text = goldText.text = heartsText.text = "—";
             avatarImage.sprite = null;
             avatarImage.enabled = false;
+            if(avatarPortrait!=null) avatarPortrait.gameObject.SetActive(false);
             avatarFallback.text = "?";
             avatarFallback.gameObject.SetActive(true);
             statusText.text = message;
@@ -146,15 +148,8 @@ namespace ImagineQuest.Student
             heartsText.text = Format(snapshot.Standing.Hearts);
             statusText.text = "Your progress, rewards and classroom standing";
 
-            Sprite sprite = null;
-            if (avatarIds != null && avatarSprites != null)
-                for (int i = 0; i < Math.Min(avatarIds.Length, avatarSprites.Length); i++)
-                    if (avatarIds[i] == snapshot.AvatarId) { sprite = avatarSprites[i]; break; }
-            avatarImage.sprite = sprite;
-            avatarImage.enabled = sprite != null;
-            avatarImage.color = ColorUtility.TryParseHtmlString("#" + snapshot.CharacterColor.TrimStart('#'), out Color tint)
-                ? tint : Color.white;
-            avatarFallback.gameObject.SetActive(sprite == null);
+            avatarPortrait=ImagineQuest.Characters.CharacterPreviewViewport.Portrait(avatarImage,snapshot.AvatarId);
+            avatarFallback.gameObject.SetActive(false);
             avatarFallback.text = StringInfo.GetNextTextElement(snapshot.DisplayName).ToUpperInvariant();
             RenderLiveStatus();
         }

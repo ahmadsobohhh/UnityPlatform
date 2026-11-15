@@ -34,6 +34,10 @@ public class StudentProfilePage : MonoBehaviour
 
     private void Start()
     {
+        var editorCanvas=GetComponentInParent<Canvas>();
+        if(editorCanvas!=null)
+            ImagineQuest.Student.StatusUi.Button("Edit 3D appearance",editorCanvas.transform,"EDIT APPEARANCE",.36f,.025f,.64f,.085f,
+                ()=>ImagineQuest.Characters.AppearanceEditorRoute.Open("StudentProfile"));
         if (AudioManager.Instance != null)
             AudioManager.Instance.EnsureMusicPlaying();
 
@@ -209,23 +213,7 @@ public class StudentProfilePage : MonoBehaviour
     private void SetAvatar(string avatarId, string hexColor)
     {
         if (avatarImage == null) return;
-
-        if (avatarIds != null && avatarSprites != null)
-        {
-            for (int i = 0; i < avatarIds.Length && i < avatarSprites.Length; i++)
-            {
-                if (avatarIds[i] == avatarId)
-                {
-                    avatarImage.sprite = avatarSprites[i];
-                    break;
-                }
-            }
-        }
-
-        if (ColorUtility.TryParseHtmlString("#" + hexColor, out Color tint))
-            avatarImage.color = tint;
-
-        avatarImage.preserveAspect = true;
+        ImagineQuest.Characters.CharacterPreviewViewport.Portrait(avatarImage,avatarId);
     }
 
     private void SignOut()

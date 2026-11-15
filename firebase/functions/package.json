@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "test:integration": "node --test test/studentStatus.integration.cjs",
+    "test:appearance": "node --test test/appearance.integration.cjs",
     "clean": "rimraf lib",
     "serve": "npm run build && firebase emulators:start --only auth,firestore,functions",
     "shell": "npm run build && firebase functions:shell",

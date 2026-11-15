@@ -93,6 +93,7 @@ namespace ImagineQuest.Gameplay
         private TMP_Text completionSummaryText;
         private GameObject questPickerPanel;
         private PirateAvatarStyler playerStyler;
+        private ImagineQuest.Characters.StudentCharacterAvatar playerAvatar;
         private bool briefingVisible;
         private bool lessonVisible;
         private bool journalVisible;
@@ -140,6 +141,9 @@ namespace ImagineQuest.Gameplay
             }
         }
 
+        private void OnEnable() => StudentAvatarIdentity.Changed+=ApplyStudentAppearance;
+        private void OnDisable() => StudentAvatarIdentity.Changed-=ApplyStudentAppearance;
+
         private bool arrivingOnShip;
 
         private IEnumerator ArriveOnShip()
@@ -170,7 +174,7 @@ namespace ImagineQuest.Gameplay
                 StudentAvatarIdentity.Cache(user.UserId,
                     profile.ContainsField("avatarId") ? profile.GetValue<string>("avatarId") : "navigator",
                     profile.ContainsField("characterColor") ? profile.GetValue<string>("characterColor") : "FFFFFF");
-                if (playerStyler != null) playerStyler.Apply(StudentAvatarIdentity.AvatarId, StudentAvatarIdentity.ColorHex);
+                ApplyStudentAppearance();
             }
             catch (Exception)
             {
@@ -544,6 +548,15 @@ namespace ImagineQuest.Gameplay
 
         private void CreateSelectedPlayerVisual(Transform playerRoot)
         {
+            if(ImagineQuest.Characters.StudentCharacterCatalog.Load()!=null)
+            {
+                playerAvatar=ImagineQuest.Characters.StudentCharacterAvatar.Create(playerRoot,
+                    ImagineQuest.Characters.StudentAppearance.FromAvatarId(StudentAvatarIdentity.AvatarId),.58f);
+                playerAvatar.name="Selected Pirate Avatar";
+                AlignVisualFeetToPlayerRoot(playerAvatar.gameObject,playerRoot);
+                playerAvatar.gameObject.AddComponent<PirateVisualGrounding>().Configure(playerRoot,playerRoot.GetComponent<CharacterController>());
+                return;
+            }
             GameObject prefab = null;
             if (piratePlayerPrefabs != null && piratePlayerPrefabs.Length > 0)
                 prefab = piratePlayerPrefabs[piratePlayerPrefabs.Length - 1];
@@ -573,6 +586,16 @@ namespace ImagineQuest.Gameplay
             playerStyler.Apply(StudentAvatarIdentity.AvatarId, StudentAvatarIdentity.ColorHex);
             AlignVisualFeetToPlayerRoot(visual, playerRoot);
             visual.AddComponent<PirateVisualGrounding>().Configure(playerRoot, playerRoot.GetComponent<CharacterController>());
+        }
+
+        private void ApplyStudentAppearance()
+        {
+            if(playerAvatar==null) {if(playerStyler!=null) playerStyler.Apply(StudentAvatarIdentity.AvatarId,StudentAvatarIdentity.ColorHex);return;}
+            var next=ImagineQuest.Characters.StudentAppearance.FromAvatarId(StudentAvatarIdentity.AvatarId);
+            if(playerAvatar.Body==next.Body) {playerAvatar.Apply(next);return;}
+            var root=playerAvatar.transform.parent;
+            playerAvatar.gameObject.SetActive(false);Destroy(playerAvatar.gameObject);
+            CreateSelectedPlayerVisual(root);playerController.RefreshCharacterAnimator();
         }
 
         internal static void AlignVisualFeetToPlayerRoot(GameObject visual, Transform playerRoot)
@@ -2264,6 +2287,12 @@ namespace ImagineQuest.Gameplay
             playerCamera = camera == null ? transform : camera.transform;
             cameraPivot = camera == null ? transform : camera.transform.parent;
             yaw = transform.eulerAngles.y;
+            RefreshCharacterAnimator();
+        }
+
+        public void RefreshCharacterAnimator()
+        {
+            animatorParameters.Clear();
             animator = GetComponentInChildren<Animator>();
             if (animator != null)
             {
