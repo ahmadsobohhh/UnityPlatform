@@ -9,7 +9,7 @@ namespace ImagineQuest.Gameplay
     internal sealed class WorkshopRaidCombat
     {
         public const int MaxHealth = 100;
-        private const float SwingDuration = .55f, Windup = .66f;
+        private const float SwingDuration = .55f, StrikeReach = 2.05f, RecoveryTime = .52f;
         public int Health { get; private set; } = MaxHealth;
         public int Wave { get; private set; }
         public int Remaining => enemies.Count;
@@ -18,11 +18,14 @@ namespace ImagineQuest.Gameplay
         private readonly WorkshopRaidEffects effects;
         private readonly GameObject authoredSword;
         private readonly Func<int, bool> waveReady;
-        private readonly Material glove, gloveSeam;
+        private readonly Material glove, runnerCloth, runnerEyes;
         private readonly Material bone, dark, leather, steel, brass, cloth, eyes, flare;
         private readonly Material[] blades;
         private readonly Mesh bladeMesh;
+        private readonly Mesh gauntletMesh;
         private readonly List<Raider> enemies = new List<Raider>();
+        private readonly Dictionary<Collider, Raider> targets = new Dictionary<Collider, Raider>();
+        private readonly RaycastHit[] strikeHits = new RaycastHit[32];
         private readonly List<GameObject> debris = new List<GameObject>();
         private Transform sword;
         private TrailRenderer trail;
@@ -30,13 +33,24 @@ namespace ImagineQuest.Gameplay
         private float swing, nextWave, age, guardBlend, hitPause, recoil, strideTime;
         private Vector3 previousPosition;
         private bool strikePending, ended, reverseSwing;
+        private Raider aimedRaider;
+        private Vector3 aimedContact;
+        private readonly List<Mesh> ownedMeshes;
+
+        private enum RaiderKind { Swordsman, Skirmisher, Warder }
 
         private sealed class Raider
         {
             public Transform Root, LeftLeg, RightLeg, LeftShin, RightShin, SwordArm, FreeArm, Head, Flash, Body;
             public int Health;
+            public RaiderKind Kind;
+            public Vector3 AttackHeading;
+            public Collider TorsoTarget, SkullTarget;
             public float Timer, Phase, Stagger, Recovery, Rise, Gait;
             public bool WindingUp, AttackPending;
+            public float Windup => Kind == RaiderKind.Warder ? .95f : Kind == RaiderKind.Skirmisher ? .43f : .66f;
+            public float Engage => Kind == RaiderKind.Skirmisher ? 2.65f : Kind == RaiderKind.Warder ? 1.75f : 1.60f;
+            public bool ShieldRaised => Kind == RaiderKind.Warder && !WindingUp && Recovery <= 0 && Stagger <= 0;
         }
 
         public WorkshopRaidCombat(Transform player, Transform camera, Func<Color, float, Material> surface,
@@ -48,30 +62,34 @@ namespace ImagineQuest.Gameplay
             this.effects = effects;
             this.authoredSword = authoredSword;
             this.waveReady = waveReady;
+            this.ownedMeshes = ownedMeshes;
             bone = surface(new Color(.72f, .64f, .49f), 0);
             dark = surface(new Color(.045f, .035f, .026f), 0);
             leather = surface(new Color(.17f, .086f, .045f), 0);
             steel = surface(new Color(.41f, .47f, .49f), .32f);
             brass = surface(new Color(.62f, .39f, .15f), .26f);
             cloth = surface(new Color(.25f, .055f, .045f), 0);
-            glove = surface(new Color(.285f, .145f, .074f), 0);
-            gloveSeam = surface(new Color(.53f, .35f, .20f), 0);
+            glove = surface(new Color(.126f, .094f, .073f), .06f);
+            runnerCloth = surface(new Color(.083f, .22f, .22f), 0);
+            runnerEyes = glow(new Color(.42f, .87f, 1f), 1.2f);
             eyes = glow(new Color(.19f, .9f, .71f), 1.1f);
             flare = glow(new Color(1f, .31f, .06f), 1.6f);
             blades = new[] { surface(new Color(.34f, .26f, .20f), .22f), steel,
                 surface(new Color(.62f, .72f, .76f), .28f), glow(new Color(.56f, .80f, .81f), .28f) };
             bladeMesh = BuildBlade();
             ownedMeshes.Add(bladeMesh);
+            gauntletMesh = BuildGauntlet();
+            ownedMeshes.Add(gauntletMesh);
         }
 
         public void Equip(int swordDamage)
         {
             if (sword != null) UnityEngine.Object.Destroy(sword.gameObject);
             damage = swordDamage;
-            sword = authoredSword == null ? Cutlass(camera, blades[Mathf.Clamp((damage - 16) / 8, 0, 3)], brass, leather, .8f)
+            sword = authoredSword == null ? Cutlass(camera, blades[Mathf.Clamp((damage - 16) / 8, 0, 3)], brass, leather, 1f)
                 : BuildForgedSword();
             BuildWeaponHand(sword);
-            var tip = Joint(sword, "Sword swing trail", new Vector3(.025f, .99f, 0));
+            var tip = Joint(sword, "Sword swing trail", new Vector3(.025f, 1.10f, 0));
             trail = tip.gameObject.AddComponent<TrailRenderer>();
             trail.sharedMaterial = effects.ParticleMaterial;
             trail.time = .14f;
@@ -98,6 +116,7 @@ namespace ImagineQuest.Gameplay
             previousPosition = player.position;
             trail.Clear();
             ended = strikePending = false;
+            aimedRaider = null;
             nextWave = .9f;
         }
 
@@ -124,13 +143,14 @@ namespace ImagineQuest.Gameplay
             {
                 swing = SwingDuration;
                 strikePending = true;
+                CaptureStrike();
                 reverseSwing = !reverseSwing;
                 effects.Play(RaidCue.Swing);
             }
             if (strikePending && swing < .31f)
             {
                 strikePending = false;
-                Strike();
+                ResolveStrike();
             }
             PoseSword(swing, guard, dt);
 
@@ -163,28 +183,71 @@ namespace ImagineQuest.Gameplay
             return false;
         }
 
-        private void Strike()
+        private Raider TargetAlong(Vector3 direction, out Vector3 point)
         {
-            var origin = camera.position - Vector3.up * .47f;
-            for (int i = enemies.Count - 1; i >= 0; i--)
+            var origin = camera.position;
+            float nearest = StrikeReach;
+            Raider selected = null;
+            point = default;
+            int count = Physics.RaycastNonAlloc(origin, direction, strikeHits, StrikeReach,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide);
+            if (count == strikeHits.Length) return null;
+            for (int i = 0; i < count; i++)
             {
-                var foe = enemies[i];
-                Vector3 delta = foe.Root.position + Vector3.up * 1.12f - origin;
-                if (delta.magnitude > 2.75f || Vector3.Dot(camera.forward, delta.normalized) < .46f ||
-                    Physics.Linecast(origin + camera.forward * .33f, foe.Root.position + Vector3.up * 1.12f,
-                        Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) continue;
-                effects.Burst(RaidCue.Bone, foe.Root.position + Vector3.up * 1.12f, camera.right);
-                hitPause = .045f;
-                recoil = .85f;
-                foe.Health -= damage;
-                foe.WindingUp = false;
-                foe.AttackPending = false;
-                foe.Timer = .5f;
-                foe.Stagger = .3f;
-                if (foe.Health > 0) continue;
-                Collapse(foe, camera.forward);
-                enemies.RemoveAt(i);
+                var hit = strikeHits[i];
+                if (hit.distance >= nearest || hit.transform.IsChildOf(player)) continue;
+                bool enemyHit = targets.TryGetValue(hit.collider, out var foe);
+                if (hit.collider.isTrigger && !enemyHit) continue;
+                nearest = hit.distance;
+                selected = foe;
+                point = hit.point;
             }
+            return selected;
+        }
+
+        private void CaptureStrike()
+        {
+            Physics.SyncTransforms();
+            aimedRaider = TargetAlong(camera.forward, out var point);
+            if (aimedRaider != null)
+                aimedContact = aimedRaider.Body.InverseTransformPoint(point);
+        }
+
+        private void ResolveStrike()
+        {
+            var foe = aimedRaider;
+            aimedRaider = null;
+            if (foe == null || foe.Health <= 0 || foe.Rise > 0) return;
+            Physics.SyncTransforms();
+            Vector3 aim = foe.Body.TransformPoint(aimedContact) - camera.position;
+            if (aim.sqrMagnitude < .001f || Vector3.Dot(camera.forward, aim.normalized) < .82f ||
+                TargetAlong(aim.normalized, out var contact) != foe) return;
+            Strike(foe, contact);
+        }
+
+        private void Strike(Raider foe, Vector3 contact)
+        {
+            Vector3 from = Vector3.ProjectOnPlane(player.position - foe.Root.position, Vector3.up).normalized;
+            if (foe.ShieldRaised && Vector3.Dot(foe.Root.forward, from) > .53f)
+            {
+                effects.Burst(RaidCue.Guard, contact, -camera.forward);
+                hitPause = .055f;
+                recoil = 1;
+                return;
+            }
+            effects.Burst(RaidCue.Bone, contact, camera.right);
+            hitPause = .045f;
+            recoil = .85f;
+            foe.Health -= damage;
+            foe.WindingUp = false;
+            foe.AttackPending = false;
+            foe.Recovery = 0;
+            foe.Timer = .5f;
+            foe.Stagger = .3f;
+            if (foe.Health > 0) return;
+            RemoveTargets(foe);
+            Collapse(foe, camera.forward);
+            enemies.Remove(foe);
         }
 
         private void Advance(Raider foe, float dt, bool guard)
@@ -193,7 +256,8 @@ namespace ImagineQuest.Gameplay
             delta.y = 0;
             float distance = delta.magnitude;
             Vector3 direction = distance > .01f ? delta / distance : Vector3.forward;
-            foe.Root.rotation = Quaternion.RotateTowards(foe.Root.rotation, Quaternion.LookRotation(direction), dt * 490);
+            var heading = foe.WindingUp || foe.Recovery > 0 ? foe.AttackHeading : direction;
+            foe.Root.rotation = Quaternion.RotateTowards(foe.Root.rotation, Quaternion.LookRotation(heading), dt * 490);
             foe.Timer -= dt;
             foe.Stagger -= dt;
             if (foe.Rise > 0)
@@ -214,16 +278,22 @@ namespace ImagineQuest.Gameplay
             if (foe.Recovery > 0)
             {
                 foe.Recovery = Mathf.Max(0, foe.Recovery - dt);
-                float release = 1 - foe.Recovery / .45f;
+                float release = 1 - foe.Recovery / RecoveryTime;
+                if (foe.Kind == RaiderKind.Skirmisher && release < .38f && distance > .83f)
+                    TryStep(foe, foe.AttackHeading, Mathf.Min(dt * 6.9f, distance - .76f));
                 foe.SwordArm.localRotation = Quaternion.Euler(Mathf.Lerp(-115, 68, Mathf.SmoothStep(0, 1, Mathf.Min(1, release * 5))), 0, -20);
                 foe.Body.localRotation = Quaternion.Euler(Mathf.Sin(release * Mathf.PI) * 14, -release * 21, 0);
-                if (foe.AttackPending && release >= .17f)
+                if (foe.AttackPending && release >= (foe.Kind == RaiderKind.Skirmisher ? .38f : .17f))
                 {
                     foe.AttackPending = false;
-                    if (distance <= 1.92f && player.position.z < -6.5f)
+                    Vector3 contact = Vector3.ProjectOnPlane(player.position - foe.Root.position, Vector3.up);
+                    float range = foe.Kind == RaiderKind.Warder ? 2.06f : 1.84f;
+                    if (contact.sqrMagnitude <= range * range && Vector3.Dot(foe.AttackHeading, contact.normalized) > .49f &&
+                        player.position.z < -6.5f && ClearPathToPlayer(foe))
                     {
-                        bool blocked = guard && Vector3.Dot(player.forward, -direction) > .2f;
-                        Health = Mathf.Max(0, Health - (blocked ? 3 : 18));
+                        bool blocked = guard && Vector3.Dot(player.forward, -contact.normalized) > .2f;
+                        int hit = foe.Kind == RaiderKind.Warder ? 26 : foe.Kind == RaiderKind.Skirmisher ? 13 : 18;
+                        Health = Mathf.Max(0, Health - (blocked ? hit / 5 : hit));
                         recoil = 1;
                         hitPause = .055f;
                         if (blocked) effects.Burst(RaidCue.Guard, camera.position + camera.forward * .7f - Vector3.up * .35f, -direction);
@@ -235,24 +305,28 @@ namespace ImagineQuest.Gameplay
             if (foe.WindingUp)
             {
                 foe.Flash.gameObject.SetActive(true);
-                float load = Mathf.SmoothStep(0, 1, 1 - Mathf.Clamp01(foe.Timer / Windup));
+                float load = Mathf.SmoothStep(0, 1, 1 - Mathf.Clamp01(foe.Timer / foe.Windup));
                 foe.SwordArm.localRotation = Quaternion.Euler(Mathf.Lerp(-22, -140, load), -load * 15, -12);
                 foe.Body.localRotation = Quaternion.Euler(-load * 13, load * 28, 0);
+                if (foe.Kind == RaiderKind.Warder) foe.FreeArm.localRotation = Quaternion.Euler(-12, 0, 25);
                 if (foe.Timer > 0) return;
                 foe.WindingUp = false;
                 foe.Flash.gameObject.SetActive(false);
-                foe.Timer = 1.05f;
-                foe.Recovery = .45f;
+                foe.Timer = foe.Kind == RaiderKind.Warder ? 1.47f : 1.05f;
+                foe.Recovery = RecoveryTime;
                 foe.AttackPending = true;
                 return;
             }
-            if (distance < 1.62f && foe.Timer <= 0 && player.position.z < -6.5f)
+            if (distance < foe.Engage && foe.Timer <= 0 && player.position.z < -6.5f && ClearPathToPlayer(foe))
             {
+                foe.AttackHeading = direction;
                 foe.WindingUp = true;
-                foe.Timer = Windup;
+                foe.Timer = foe.Windup;
                 return;
             }
             Vector3 step = direction;
+            if (foe.Kind == RaiderKind.Skirmisher && distance > 2.5f)
+                step += Vector3.Cross(Vector3.up, direction) * (Mathf.Sin(age * 3.7f + foe.Phase) * .54f);
             foreach (var other in enemies)
             {
                 if (other == foe) continue;
@@ -262,28 +336,17 @@ namespace ImagineQuest.Gameplay
             bool walking = distance > 1.43f;
             if (walking)
             {
-                float length = dt * (1.42f + Wave * .16f);
-                if (!TryStep(step.normalized))
+                float speed = foe.Kind == RaiderKind.Skirmisher ? 2.48f : foe.Kind == RaiderKind.Warder ? 1.06f : 1.54f;
+                float length = dt * (speed + Wave * .10f);
+                if (!TryStep(foe, step.normalized, length))
                 {
                     float dodge = foe.Phase % 2f > 1 ? -50f : 50f;
-                    walking = TryStep(Quaternion.Euler(0, dodge, 0) * direction) ||
-                        TryStep(Quaternion.Euler(0, -dodge, 0) * direction);
-                }
-
-                bool TryStep(Vector3 heading)
-                {
-                    var target = foe.Root.position + heading * length;
-                    if (target.z > -7.35f || target.z < -59.5f ||
-                        Physics.Linecast(foe.Root.position + Vector3.up * .65f, target + Vector3.up * .65f,
-                            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore) ||
-                        !Physics.Raycast(target + Vector3.up * .16f, Vector3.down, .23f,
-                            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) return false;
-                    foe.Root.position = target;
-                    return true;
+                    walking = TryStep(foe, Quaternion.Euler(0, dodge, 0) * direction, length) ||
+                        TryStep(foe, Quaternion.Euler(0, -dodge, 0) * direction, length);
                 }
             }
             foe.Gait = Mathf.MoveTowards(foe.Gait, walking ? 1 : 0, dt * 5);
-            float phase = age * 8 + foe.Phase;
+            float phase = age * (foe.Kind == RaiderKind.Skirmisher ? 11f : foe.Kind == RaiderKind.Warder ? 6f : 8f) + foe.Phase;
             float stride = Mathf.Sin(phase) * 27 * foe.Gait;
             foe.Body.localPosition = Vector3.up * (.012f + Mathf.Abs(Mathf.Cos(phase)) * .035f * foe.Gait);
             foe.LeftLeg.localRotation = Quaternion.Euler(stride, 0, 0);
@@ -292,7 +355,28 @@ namespace ImagineQuest.Gameplay
             foe.RightShin.localRotation = Quaternion.Euler(Mathf.Max(0, stride) * 1.35f, 0, 0);
             foe.Head.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(age * 3 + foe.Phase) * 5);
             foe.SwordArm.localRotation = Quaternion.Euler(-20 - stride * .4f, 0, -8);
-            foe.FreeArm.localRotation = Quaternion.Euler(-18 + stride * .65f, 0, 12);
+            foe.FreeArm.localRotation = foe.ShieldRaised ? Quaternion.Euler(-58, -13, 4) :
+                Quaternion.Euler(-18 + stride * .65f, 0, 12);
+        }
+
+        private bool ClearPathToPlayer(Raider foe)
+        {
+            var origin = foe.Root.position + Vector3.up * .84f;
+            var destination = player.position + Vector3.up * .84f;
+            var end = Vector3.MoveTowards(destination, origin, .31f);
+            return !Physics.Linecast(origin, end, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        }
+
+        private static bool TryStep(Raider foe, Vector3 heading, float length)
+        {
+            var target = foe.Root.position + heading * length;
+            if (target.z > -7.35f || target.z < -59.5f ||
+                Physics.Linecast(foe.Root.position + Vector3.up * .65f, target + Vector3.up * .65f,
+                    Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore) ||
+                !Physics.Raycast(target + Vector3.up * .16f, Vector3.down, .23f,
+                    Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) return false;
+            foe.Root.position = target;
+            return true;
         }
 
         public void UpdateHeldBlade(float dt)
@@ -313,9 +397,9 @@ namespace ImagineQuest.Gameplay
                 Mathf.FloorToInt((strideTime - dt * (5 + 4 * pace)) / Mathf.PI)) effects.Play(RaidCue.Footstep);
             guardBlend = Mathf.MoveTowards(guardBlend, guard ? 1 : 0, dt * 8);
             recoil = Mathf.MoveTowards(recoil, 0, dt * 6);
-            Vector3 rest = new Vector3(.36f + Mathf.Sin(strideTime) * .038f * pace,
-                -.40f + Mathf.Sin(age * 2.5f) * .012f + Mathf.Abs(Mathf.Cos(strideTime)) * .032f * pace, .80f - recoil * .10f);
-            Quaternion idle = Quaternion.Euler(19 + recoil * 18, -15, -19);
+            Vector3 rest = new Vector3(.40f + Mathf.Sin(strideTime) * .032f * pace,
+                -.41f + Mathf.Sin(age * 2.5f) * .012f + Mathf.Abs(Mathf.Cos(strideTime)) * .030f * pace, .91f - recoil * .10f);
+            Quaternion idle = Quaternion.Euler(29 + recoil * 16, -18, 7);
             float phase = timer > 0 ? 1 - timer / SwingDuration : 1;
             if (timer > 0)
             {
@@ -383,7 +467,10 @@ namespace ImagineQuest.Gameplay
             handle[axis] = Mathf.Lerp(min, max, Mathf.Clamp01(guardAt - up[axis] * .085f));
             var placement = weapon.transform;
             placement.localRotation = Quaternion.Inverse(Quaternion.LookRotation(Vector3.Cross(rightAxis, up), up));
-            placement.localScale = Vector3.one * (.95f / Mathf.Max(.001f, size[axis]));
+            float scale = 1.23f / Mathf.Max(.001f, size[axis]);
+            var proportions = Vector3.one * scale;
+            proportions[face] *= .94f;
+            placement.localScale = proportions;
             placement.localPosition = -(placement.localRotation * Vector3.Scale(handle, placement.localScale));
             var finish = new MaterialPropertyBlock();
             finish.SetColor("_BaseColor", damage < 24 ? new Color(.72f, .64f, .54f) :
@@ -398,34 +485,70 @@ namespace ImagineQuest.Gameplay
 
         private void BuildWeaponHand(Transform grip)
         {
-            // The grip is the animation pivot, so the fingers never slide off the handle.
-            var hand = Joint(grip, "Right hand viewmodel", Vector3.zero);
-            WeaponPart(hand, new Vector3(.052f, -.005f, -.051f), new Vector3(.132f, .157f, .090f), glove, -17);
-            for (int finger = 0; finger < 4; finger++)
-            {
-                float y = .054f - .038f * finger;
-                WeaponPart(hand, new Vector3(.005f, y, .019f), new Vector3(.12f - .008f * finger, .039f, .055f), glove, 6);
-                WeaponPart(hand, new Vector3(-.045f, y, -.006f), new Vector3(.034f, .035f, .058f), glove, -12);
-                WeaponPart(hand, new Vector3(.018f, y + .012f, .047f), new Vector3(.062f, .005f, .013f), gloveSeam, 4);
-            }
-            WeaponPart(hand, new Vector3(-.032f, .05f, -.038f), new Vector3(.072f, .115f, .060f), glove, 41);
-            WeaponPart(hand, new Vector3(.14f, -.08f, -.115f), new Vector3(.142f, .17f, .12f), leather, -47);
-            WeaponPart(hand, new Vector3(.242f, -.18f, -.21f), new Vector3(.19f, .32f, .17f), cloth, -42);
-            WeaponPart(hand, new Vector3(.17f, -.106f, -.144f), new Vector3(.15f, .041f, .15f), brass, -44);
+            var hand = new GameObject("Right hand viewmodel", typeof(MeshFilter), typeof(MeshRenderer));
+            hand.transform.SetParent(grip, false);
+            hand.GetComponent<MeshFilter>().sharedMesh = gauntletMesh;
+            var renderer = hand.GetComponent<MeshRenderer>();
+            renderer.sharedMaterials = new[] { glove, brass, cloth };
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
-        private static void WeaponPart(Transform root, Vector3 p, Vector3 size, Material material, float roll)
+        private static Mesh BuildGauntlet()
         {
-            var piece = Part(root, PrimitiveType.Sphere, p, size, material);
-            piece.localRotation = Quaternion.Euler(0, 0, roll);
-            piece.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            // One continuous bent silhouette for curled knuckles, glove and cuff.
+            var centres = new[] {
+                new Vector3(-.039f, .013f, .031f), new Vector3(-.014f, .014f, .054f),
+                new Vector3(.038f, .014f, .016f), new Vector3(.071f, -.019f, -.049f),
+                new Vector3(.102f, -.057f, -.095f), new Vector3(.121f, -.075f, -.116f),
+                new Vector3(.149f, -.098f, -.143f), new Vector3(.212f, -.15f, -.207f),
+                new Vector3(.313f, -.229f, -.292f)
+            };
+            var radii = new[] {
+                new Vector2(.043f, .022f), new Vector2(.061f, .028f), new Vector2(.067f, .042f),
+                new Vector2(.057f, .044f), new Vector2(.047f, .039f), new Vector2(.052f, .05f),
+                new Vector2(.054f, .051f), new Vector2(.066f, .059f), new Vector2(.073f, .071f)
+            };
+            const int sides = 10;
+            var vertices = new List<Vector3>();
+            var faces = new[] { new List<int>(), new List<int>(), new List<int>() };
+            for (int i = 0; i < centres.Length; i++)
+            {
+                Vector3 along = (centres[Mathf.Min(i + 1, centres.Length - 1)] - centres[Mathf.Max(0, i - 1)]).normalized;
+                Vector3 top = Vector3.ProjectOnPlane(Vector3.up, along).normalized;
+                Vector3 across = Vector3.Cross(along, top);
+                for (int j = 0; j < sides; j++)
+                {
+                    float theta = j * 2 * Mathf.PI / sides;
+                    vertices.Add(centres[i] + top * (Mathf.Cos(theta) * radii[i].x) + across * (Mathf.Sin(theta) * radii[i].y));
+                    if (i == centres.Length - 1) continue;
+                    int a = i * sides + j, b = i * sides + (j + 1) % sides;
+                    faces[i < 5 ? 0 : i == 5 ? 1 : 2].AddRange(new[] { a, b, b + sides, a, b + sides, a + sides });
+                }
+            }
+            int last = (centres.Length - 1) * sides;
+            for (int j = 1; j < sides - 1; j++)
+            {
+                faces[0].AddRange(new[] { 0, j + 1, j });
+                faces[2].AddRange(new[] { last, last + j, last + j + 1 });
+            }
+            var mesh = new Mesh { name = "Fitted leather gauntlet and sleeve", subMeshCount = faces.Length };
+            mesh.SetVertices(vertices);
+            for (int i = 0; i < faces.Length; i++) mesh.SetTriangles(faces[i], i);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         private void Spawn(Vector3 at, int index)
         {
-            var root = Joint(null, "Drowned raider", at);
+            var kind = index % 3 == 1 ? RaiderKind.Skirmisher : index % 3 == 2 ? RaiderKind.Warder : RaiderKind.Swordsman;
+            var name = kind == RaiderKind.Skirmisher ? "Salt Skirmisher" : kind == RaiderKind.Warder ? "Iron Warder" : "Drowned Swordsman";
+            var sash = kind == RaiderKind.Skirmisher ? runnerCloth : cloth;
+            var root = Joint(null, name, at);
             root.SetParent(player.parent, true);
-            var foe = new Raider { Root = root, Health = 48, Timer = .7f + index * .22f, Phase = index * 2.1f, Rise = .48f };
+            var foe = new Raider { Root = root, Kind = kind, AttackHeading = Vector3.forward,
+                Health = kind == RaiderKind.Warder ? 64 : kind == RaiderKind.Skirmisher ? 32 : 48,
+                Timer = .7f + index * .22f, Phase = index * 2.1f, Rise = .48f };
             Part(root, PrimitiveType.Sphere, new Vector3(0, .91f, 0), new Vector3(.34f, .24f, .2f), bone);
             Part(root, PrimitiveType.Capsule, new Vector3(0, 1.16f, -.045f), new Vector3(.10f, .27f, .095f), bone);
             for (int i = 0; i < 4; i++)
@@ -439,16 +562,20 @@ namespace ImagineQuest.Gameplay
                 }
             }
             Part(root, PrimitiveType.Cube, new Vector3(0, 1.22f, .106f), new Vector3(.1f, .32f, .08f), bone);
-            Part(root, PrimitiveType.Cube, new Vector3(-.11f, .91f, .105f), new Vector3(.24f, .13f, .055f), cloth).localRotation = Quaternion.Euler(0, 0, -12);
+            Part(root, PrimitiveType.Cube, new Vector3(-.11f, .91f, .105f), new Vector3(.24f, .13f, .055f), sash).localRotation = Quaternion.Euler(0, 0, -12);
+            if (kind == RaiderKind.Warder)
+                Part(root, PrimitiveType.Cube, new Vector3(0, 1.25f, .09f), new Vector3(.43f, .29f, .19f), steel);
             foe.Head = Joint(root, "Skull", new Vector3(0, 1.57f, .018f));
             Part(foe.Head, PrimitiveType.Sphere, Vector3.up * .09f, new Vector3(.32f, .34f, .29f), bone);
             Part(foe.Head, PrimitiveType.Cube, new Vector3(0, -.046f, .048f), new Vector3(.19f, .12f, .16f), bone);
             Part(foe.Head, PrimitiveType.Cube, new Vector3(0, -.04f, .132f), new Vector3(.15f, .026f, .02f), dark);
-            Part(foe.Head, PrimitiveType.Cube, new Vector3(0, .184f, .016f), new Vector3(.34f, .078f, .31f), cloth);
+            Part(foe.Head, PrimitiveType.Cube, new Vector3(0, .184f, .016f), new Vector3(.34f, .078f, .31f),
+                kind == RaiderKind.Warder ? steel : sash);
             for (int side = -1; side <= 1; side += 2)
             {
                 Part(foe.Head, PrimitiveType.Sphere, new Vector3(.074f * side, .079f, .129f), new Vector3(.084f, .081f, .053f), dark);
-                Part(foe.Head, PrimitiveType.Sphere, new Vector3(.074f * side, .081f, .157f), Vector3.one * .034f, eyes);
+                Part(foe.Head, PrimitiveType.Sphere, new Vector3(.074f * side, .081f, .157f), Vector3.one * .034f,
+                    kind == RaiderKind.Skirmisher ? runnerEyes : eyes);
                 var leg = Joint(root, "Leg", new Vector3(side * .13f, .88f, 0));
                 Part(leg, PrimitiveType.Capsule, new Vector3(0, -.218f, 0), new Vector3(.091f, .24f, .092f), bone);
                 Part(leg, PrimitiveType.Sphere, new Vector3(0, -.444f, .017f), Vector3.one * .112f, bone);
@@ -465,7 +592,8 @@ namespace ImagineQuest.Gameplay
                     foe.RightLeg = leg;
                     foe.RightShin = shin;
                     foe.SwordArm = arm;
-                    var blade = Cutlass(arm, steel, brass, leather, .66f);
+                    var blade = Cutlass(arm, steel, brass, leather,
+                        kind == RaiderKind.Skirmisher ? .43f : kind == RaiderKind.Warder ? .78f : .66f);
                     blade.localPosition = new Vector3(0, -.51f, .12f);
                     blade.localRotation = Quaternion.Euler(105, 0, 0);
                 }
@@ -474,6 +602,13 @@ namespace ImagineQuest.Gameplay
                     foe.LeftLeg = leg;
                     foe.LeftShin = shin;
                     foe.FreeArm = arm;
+                    if (kind == RaiderKind.Warder)
+                    {
+                        var shield = Joint(arm, "Iron warder's shield", new Vector3(0, -.37f, .115f));
+                        Part(shield, PrimitiveType.Sphere, Vector3.zero, new Vector3(.49f, .58f, .105f), steel);
+                        Part(shield, PrimitiveType.Sphere, Vector3.forward * .061f, new Vector3(.385f, .47f, .045f), dark);
+                        Part(shield, PrimitiveType.Sphere, Vector3.forward * .087f, new Vector3(.147f, .147f, .081f), brass);
+                    }
                 }
             }
             foe.Flash = Part(foe.Head, PrimitiveType.Sphere, Vector3.up * .39f, Vector3.one * .103f, flare);
@@ -482,6 +617,19 @@ namespace ImagineQuest.Gameplay
             while (root.childCount > 1) root.GetChild(0).SetParent(body, false);
             body.localPosition = Vector3.down * .57f;
             foe.Body = body;
+            var torso = body.gameObject.AddComponent<CapsuleCollider>();
+            torso.center = new Vector3(0, .99f, .018f);
+            torso.radius = kind == RaiderKind.Warder ? .245f : .205f;
+            torso.height = .92f;
+            torso.isTrigger = true;
+            foe.TorsoTarget = torso;
+            var skull = foe.Head.gameObject.AddComponent<SphereCollider>();
+            skull.center = new Vector3(0, .049f, .02f);
+            skull.radius = .16f;
+            skull.isTrigger = true;
+            foe.SkullTarget = skull;
+            targets.Add(torso, foe);
+            targets.Add(skull, foe);
             effects.Burst(RaidCue.Wave, at + Vector3.up * .14f, Vector3.up, false);
             enemies.Add(foe);
         }
