@@ -78,8 +78,6 @@ namespace ImagineQuest.Gameplay
             var fire = Glow(new Color(1, .28f, .025f), 2.5f);
             var hot = Glow(new Color(1, .65f, .12f), 2);
             var moon = Glow(new Color(.14f, .40f, .65f), .7f);
-            runeIdle = Glow(new Color(.72f, .37f, .08f), .8f);
-            runeComplete = Glow(new Color(.1f, .72f, .62f), 1.4f);
 
             // Brick courses and inset trim give the forge a more architectural silhouette.
             for (int row = 0; row < 4; row++)
@@ -88,7 +86,7 @@ namespace ImagineQuest.Gameplay
                         new Vector3(-3.78f + col * .36f, .16f + row * .20f, 2.57f),
                         new Vector3(.34f, .18f, .10f), (row + col) % 3 == 0 ? paleStone : stone);
             Block("Forge lintel", new Vector3(-2.7f, 2.5f, 3.22f), new Vector3(2.52f, .25f, .26f), iron);
-            WorldLabel("Forge inscription", "IGNIS  /  THE HEART OF THE WORKSHOP", new Vector3(-2.7f, 2.9f, 3.15f), new Vector2(670, 65), 22, Gold);
+            if (!raidPractice) WorldLabel("Forge inscription", "IGNIS  /  THE HEART OF THE WORKSHOP", new Vector3(-2.7f, 2.9f, 3.15f), new Vector2(670, 65), 22, Gold);
             for (int i = 0; i < 10; i++)
             {
                 var flame = Decor("Living flame", PrimitiveType.Sphere, new Vector3(-3.3f + i * .135f, 1.18f, 3.4f + (i % 2) * .3f),
@@ -115,31 +113,22 @@ namespace ImagineQuest.Gameplay
                     Decor("Repair nail head", PrimitiveType.Cube, new Vector3(x, 1.20f, z + .11f), new Vector3(.07f, .04f, .035f), brass);
                 }
             }
-            WorldLabel("Workbench calculation", "3 TRAYS  x  4 NAILS", new Vector3(3.45f, 1.40f, .82f), new Vector2(420, 65), 25, Cream, true);
+            if (!raidPractice) WorldLabel("Workbench calculation", "3 TRAYS  x  4 NAILS", new Vector3(3.45f, 1.40f, .82f), new Vector2(420, 65), 25, Cream, true);
             Decor("Hot repair brace", PrimitiveType.Cube, new Vector3(-.1f, 1.28f, 4.17f), new Vector3(.64f, .045f, .14f), hot);
 
-            // Navigation and completed states are represented in the world, as well as the HUD.
-            for (int i = 0; i < 3; i++)
-            {
-                Vector3 basePos = stationPositions[i]; basePos.y = .045f;
-                if (i == 0) basePos.z -= .7f;
-                if (i == 1) basePos.x -= .5f;
-                if (i == 2) basePos.z -= .65f;
-                stationHalos.Add(Ring("Station " + i + " floor inlay", basePos, .55f, .018f, runeIdle, true));
-                var rune = Decor("Station " + i + " beacon", PrimitiveType.Cube, stationPositions[i] + Vector3.up * .25f, Vector3.one * .11f, runeIdle);
-                rune.rotation = Quaternion.Euler(0, 0, 45);
-                stationRunes.Add(rune.GetComponent<Renderer>());
-                stationLabels.Add(WorldLabel("Station " + i + " label", "", stationPositions[i] + Vector3.up * .57f, new Vector2(560, 64), 24, Gold, true));
-            }
+            BuildStationMarkers(false);
 
-            var rewardRoot = new GameObject("Workshop Completion Reward");
-            rewardRoot.transform.SetParent(transform, false);
-            rewardRoot.transform.position = Vector3.zero;
-            rewardRoot.transform.rotation = Quaternion.identity;
-            forgeReward = rewardRoot.AddComponent<WorkshopForgeReward>();
-            forgeReward.Initialize(TryActivateForgeStone);
-            portalLabel = WorldLabel("Portal destination", "THE AURORA\nAWAKEN THE FORGE STONE",
-                new Vector3(0, 3.6f, -4.28f), new Vector2(720, 95), 25, Teal, false, 180);
+            if (!raidPractice)
+            {
+                var rewardRoot = new GameObject("Workshop Completion Reward");
+                rewardRoot.transform.SetParent(transform, false);
+                rewardRoot.transform.position = Vector3.zero;
+                rewardRoot.transform.rotation = Quaternion.identity;
+                forgeReward = rewardRoot.AddComponent<WorkshopForgeReward>();
+                forgeReward.Initialize(TryActivateForgeStone);
+                portalLabel = WorldLabel("Portal destination", "THE AURORA\nAWAKEN THE FORGE STONE",
+                    new Vector3(0, 3.6f, -4.28f), new Vector2(720, 95), 25, Teal, false, 180);
+            }
 
             // Portholes and hanging navy standards introduce cool color and a ship identity.
             for (int side = -1; side <= 1; side += 2)
@@ -153,8 +142,9 @@ namespace ImagineQuest.Gameplay
                 Decor("Standard gold bar", PrimitiveType.Cube, new Vector3(side * 1.25f, 3.64f, 4.64f), new Vector3(.82f, .07f, .09f), brass);
                 Decor("Standard crest", PrimitiveType.Cube, new Vector3(side * 1.25f, 2.99f, 4.65f), new Vector3(.26f, .26f, .045f), brass).rotation = Quaternion.Euler(0, 0, 45);
             }
-            WorldLabel("Workshop guild plaque", "A U R O R A\nTHE WAYFARER'S FORGE", new Vector3(0, 3.12f, 4.6f), new Vector2(650, 120), 29, Gold);
+            WorldLabel("Workshop guild plaque", raidPractice ? "CINDER QUAY" : "A U R O R A\nTHE WAYFARER'S FORGE", new Vector3(0, 3.12f, 4.6f), new Vector2(650, 120), 29, Gold);
 
+            if (raidPractice) { BuildWorkshopAudio(); return; }
             // The repair kit visibly fills as each craft is mastered.
             Block("Repair kit display", new Vector3(-3.7f, .65f, -1), new Vector3(1.4f, .16f, 1), wood);
             Block("Display pedestal", new Vector3(-3.7f, .3f, -1), new Vector3(.85f, .6f, .65f), stone);
@@ -163,6 +153,30 @@ namespace ImagineQuest.Gameplay
             repairParts.Add(Decor("Completed prepared ingot", PrimitiveType.Cube, new Vector3(-3.3f, .82f, -1), new Vector3(.24f, .16f, .5f), brass).gameObject);
             WorldLabel("Repair kit sign", "THE CAPTAIN'S REPAIR KIT\nYour work takes shape here", new Vector3(-3.7f, 1.2f, -1), new Vector2(540, 110), 24, Cream, true);
             BuildWorkshopAudio();
+        }
+
+        private void BuildStationMarkers(bool useAuthoredForge)
+        {
+            runeIdle = Glow(new Color(.72f, .37f, .08f), .8f);
+            runeComplete = Glow(new Color(.1f, .72f, .62f), 1.4f);
+            for (int i = 0; i < stationPositions.Length; i++)
+            {
+                var spot = stationPositions[i];
+                if (!useAuthoredForge)
+                {
+                    Vector3 floor = spot;
+                    floor.y = .045f;
+                    if (i == 0) floor.z -= .7f;
+                    if (i == 1) floor.x -= .5f;
+                    if (i == 2) floor.z -= .65f;
+                    stationHalos.Add(Ring("Station " + i + " floor inlay", floor, .55f, .018f, runeIdle, true));
+                }
+                var rune = Decor("Station " + i + " beacon", PrimitiveType.Cube, spot + Vector3.up * .25f, Vector3.one * .11f, runeIdle);
+                rune.rotation = Quaternion.Euler(0, 0, 45);
+                stationRunes.Add(rune.GetComponent<Renderer>());
+                stationLabels.Add(WorldLabel("Station " + i + " label", "", spot + Vector3.up * .49f,
+                    new Vector2(useAuthoredForge ? 235 : 560, 47), 24, Gold, true));
+            }
         }
 
         private void AnimateAtmosphere(float time)
@@ -200,7 +214,7 @@ namespace ImagineQuest.Gameplay
             errorSound = Chime("Try again", new[] { 293.66f, 261.63f }, .25f);
             var hearth = new GameObject("Quiet hearth ambience", typeof(AudioSource));
             hearth.transform.SetParent(transform, false);
-            hearth.transform.position = new Vector3(-2.7f, 1.3f, 3.4f);
+            hearth.transform.position = workshopEmberPosition;
             var ambient = hearth.GetComponent<AudioSource>();
             const int rate = 22050;
             var samples = new float[rate * 4];
