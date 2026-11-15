@@ -65,6 +65,7 @@ namespace ImagineQuest.Gameplay
             var t = Time.time;
             if (forgeLight != null) forgeLight.intensity = 2.25f + Mathf.PerlinNoise(t * 3, .5f) * .6f;
             AnimateAtmosphere(t);
+            if (raidPractice) { UpdateRaid(); return; }
             var keyboard = Keyboard.current;
             if (personalStatus != null && personalStatus.IsOpen)
             {
@@ -104,6 +105,15 @@ namespace ImagineQuest.Gameplay
                 else if (station >= 0) OpenStation(station);
                 return;
             }
+            bool moving = MoveWorkshopPlayer(keyboard);
+            CheckPortalContact();
+            idleSeconds = moving ? 0 : idleSeconds + Time.deltaTime;
+            if (idleSeconds > 35 && (!quest.Ready || !quest.State.HasKey))
+                prompt.text = "Need a direction? Follow the station labels.  [ J ] opens your journal.";
+        }
+
+        private bool MoveWorkshopPlayer(Keyboard keyboard)
+        {
             var mouse = Mouse.current;
             Vector2 look = mouse == null ? Vector2.zero : mouse.delta.ReadValue();
             player.transform.Rotate(0, look.x * .095f, 0);
@@ -123,10 +133,7 @@ namespace ImagineQuest.Gameplay
             var velocity = (player.transform.forward * move.y + player.transform.right * move.x) * speed;
             velocity.y = fallSpeed;
             player.Move(velocity * Time.deltaTime);
-            CheckPortalContact();
-            idleSeconds = move.sqrMagnitude > 0 || look.sqrMagnitude > 1 ? 0 : idleSeconds + Time.deltaTime;
-            if (idleSeconds > 35 && (!quest.Ready || !quest.State.HasKey))
-                prompt.text = "Need a direction? Follow the station labels.  [ J ] opens your journal.";
+            return move.sqrMagnitude > 0 || look.sqrMagnitude > 1;
         }
 
         private void CheckPortalContact()
@@ -157,7 +164,8 @@ namespace ImagineQuest.Gameplay
             {
                 Vector3 flat = stationPositions[i] - player.transform.position;
                 flat.y = 0;
-                if (flat.magnitude < distance && Vector3.Dot(view.forward, (stationPositions[i] - view.position).normalized) > .45f)
+                float aim = Vector3.Dot(view.forward, (stationPositions[i] - view.position).normalized);
+                if (flat.magnitude < distance && aim > (raidPractice ? .88f : .45f))
                 { closest = i; distance = flat.magnitude; }
             }
             return closest;
@@ -429,7 +437,7 @@ namespace ImagineQuest.Gameplay
 
         private void OnApplicationFocus(bool focus)
         {
-            if (!focus && pausePanel != null && modal == null && !returning) ShowModal(pausePanel);
+            if (!focus && pausePanel != null && modal == null && !returning && !arrivingAtForge) ShowModal(pausePanel);
         }
 
         private void OnDestroy()

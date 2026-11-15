@@ -126,11 +126,12 @@ namespace ImagineQuest.Gameplay
 
         private void Start()
         {
-            // The ship is the persistent quest arena. Learners arrive in control and
-            // deliberately start story/video content by interacting with the captain
-            // or one of the lesson fixtures instead of being trapped in an autoplay.
-            BeginExploration();
-            RestoreSavedAvatar();
+            if (arenaOnly) StartCoroutine(ArriveOnShip());
+            else
+            {
+                BeginExploration();
+                RestoreSavedAvatar();
+            }
             if (arenaMusic != null)
             {
                 if (AudioManager.Instance == null)
@@ -139,12 +140,31 @@ namespace ImagineQuest.Gameplay
             }
         }
 
+        private bool arrivingOnShip;
+
+        private IEnumerator ArriveOnShip()
+        {
+            arrivingOnShip = true;
+            playerController.SetInputEnabled(false);
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+            bool handoff = SceneTransition.IsTransitioning;
+            if (handoff) playerController.SetArrivalProgress(0);
+            while (SceneTransition.IsTransitioning) yield return null;
+            yield return QuestArrival.Play(transform, "THE AURORA", "QUEST ARENA", playerController.SetArrivalProgress, handoff);
+            arrivingOnShip = false;
+            BeginExploration();
+            RestoreSavedAvatar();
+        }
+
         private async void RestoreSavedAvatar()
         {
-            var user = FirebaseAuth.DefaultInstance.CurrentUser;
-            if (user == null) return;
+            // Direct scene previews have no classroom account to refresh.
+            if (arenaOnly && string.IsNullOrWhiteSpace(QuestSession.Instance?.ClassId)) return;
             try
             {
+                var user = FirebaseAuth.DefaultInstance.CurrentUser;
+                if (user == null) return;
                 var profile = await FirebaseFirestore.DefaultInstance.Collection("users").Document(user.UserId).GetSnapshotAsync();
                 if (this == null || FirebaseAuth.DefaultInstance.CurrentUser?.UserId != user.UserId || !profile.Exists) return;
                 StudentAvatarIdentity.Cache(user.UserId,
@@ -210,6 +230,7 @@ namespace ImagineQuest.Gameplay
 
         private void Update()
         {
+            if (arrivingOnShip) return;
             if (personalStatus != null && personalStatus.IsOpen)
             {
                 if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) personalStatus.CloseRecap();
@@ -486,6 +507,10 @@ namespace ImagineQuest.Gameplay
             var player = new GameObject("Student Navigator");
             player.tag = "Player";
             player.transform.position = DeckPosition(0.45f, -5.8f);
+            if (arenaOnly && ArenaDeckPlacement.TryClearArea(deckSurfaces,
+                    new[] { new Vector2(.45f, -2.55f), new Vector2(0f, -2.1f), new Vector2(.4f, -.75f) },
+                    new Vector2(.5f, .5f), out var middleDeck))
+                player.transform.position = middleDeck;
 
             var controller = player.AddComponent<CharacterController>();
             controller.height = 1.08f;
@@ -550,7 +575,7 @@ namespace ImagineQuest.Gameplay
             visual.AddComponent<PirateVisualGrounding>().Configure(playerRoot, playerRoot.GetComponent<CharacterController>());
         }
 
-        private static void AlignVisualFeetToPlayerRoot(GameObject visual, Transform playerRoot)
+        internal static void AlignVisualFeetToPlayerRoot(GameObject visual, Transform playerRoot)
         {
             // Imported bounds cover all animation poses and inactive outfits. Use
             // the evaluated vertices of active meshes to locate the actual feet.
@@ -936,6 +961,7 @@ namespace ImagineQuest.Gameplay
                 body.height = 1f / 0.52f; body.radius = 0.18f / 0.52f;
                 body.center = Vector3.up * ((position.y + 0.5f - crew.transform.position.y) / 0.52f);
                 AddShipInteraction(crew, QuestArenaShipAction.Crew, "TALK TO " + names[index].Split('—')[0].Trim().ToUpperInvariant());
+                crew.AddComponent<AuroraCrewRoutine>().Configure(deckSurfaces, position, index);
             }
         }
 
@@ -1253,17 +1279,21 @@ namespace ImagineQuest.Gameplay
             var demoTitle = CreateText("Dummy Quest Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -122f), new Vector2(710f, 40f), 27f, TextAlignmentOptions.Center,
                 new Color(1f, 0.85f, 0.5f));
-            demoTitle.text = "FIRST VOYAGE  •  DUMMY QUEST";
+            demoTitle.text = "CINDER QUAY";
             var demoCopy = CreateText("Dummy Quest Description", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -172f), new Vector2(710f, 60f), 20f, TextAlignmentOptions.Center,
                 new Color(0.97f, 0.93f, 0.83f));
-            demoCopy.text = "Try the captain's video projection above this table.\nVideo-only demo — no scores, rewards, or saved progress.";
-            var demoPlay = CreateButton("Play Dummy Quest", card.transform, "PLAY DUMMY QUEST",
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -238f),
-                new Vector2(480f, 54f), new Color(0.4f, 0.25f, 0.075f));
-            demoPlay.onClick.AddListener(PlayDummyQuest);
+            demoCopy.text = "Forge a blade. Explore the Tide Crypt.";
+            var demoPlay = CreateButton("Play Cinder Quay", card.transform, "ENTER THE FORGE",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-128f, -238f),
+                new Vector2(244f, 54f), new Color(0.4f, 0.25f, 0.075f));
+            demoPlay.onClick.AddListener(BlacksmithRoomBootstrap.LaunchRaidPractice);
+            var preview = CreateButton("Watch chart preview", card.transform, "WATCH PREVIEW",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(128f, -238f),
+                new Vector2(224f, 54f), new Color(0.14f, 0.10f, 0.06f));
+            preview.onClick.AddListener(PlayDummyQuest);
             var workshop = CreateButton("Play assigned workshop", card.transform, "THE AURORA'S REPAIR  /  ASSIGNED WORKSHOP",
-                new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -310), new Vector2(650, 48), new Color(.10f, .27f, .25f));
+                new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -296), new Vector2(650, 40), new Color(.10f, .27f, .25f));
             if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
                 workshop.GetComponentInChildren<TMP_Text>().text = "THE AURORA'S REPAIR  /  LOCAL PRACTICE";
             workshop.onClick.AddListener(() => {
@@ -1850,10 +1880,10 @@ namespace ImagineQuest.Gameplay
 
         public void UpdateInteractionPrompt(string prompt)
         {
-            if (interactionText == null || videoVisible || lessonVisible || briefingVisible || pauseVisible || journalVisible || questComplete)
-                return;
+            if (interactionText == null) return;
 
-            if (string.IsNullOrWhiteSpace(prompt))
+            if (string.IsNullOrWhiteSpace(prompt) || arrivingOnShip || videoVisible || lessonVisible ||
+                briefingVisible || pauseVisible || journalVisible || questComplete)
             {
                 interactionText.gameObject.SetActive(false);
                 return;
@@ -2214,6 +2244,10 @@ namespace ImagineQuest.Gameplay
         private Vector3 projectionDirection;
         private IQuestArenaInteractable nearbyInteraction;
         private QuestArenaOutline focusedOutline;
+        private Vector3 respawnPoint;
+        private float arrivalProgress = 1f;
+
+        public void SetArrivalProgress(float progress) => arrivalProgress = Mathf.Clamp01(progress);
 
         public void Configure(CelestialClockQuestBootstrap owner, float moveSpeed, float lookSensitivity)
         {
@@ -2225,6 +2259,7 @@ namespace ImagineQuest.Gameplay
         private void Awake()
         {
             characterController = GetComponent<CharacterController>();
+            respawnPoint = transform.position;
             var camera = GetComponentInChildren<Camera>();
             playerCamera = camera == null ? transform : camera.transform;
             cameraPivot = camera == null ? transform : camera.transform.parent;
@@ -2323,7 +2358,7 @@ namespace ImagineQuest.Gameplay
             if (transform.position.y < -3f)
             {
                 characterController.enabled = false;
-                transform.position = new Vector3(0.45f, 3f, -5.8f);
+                transform.position = respawnPoint + Vector3.up * .06f;
                 characterController.enabled = true;
                 horizontalVelocity = Vector3.zero;
                 verticalVelocity = 0f;
@@ -2343,7 +2378,7 @@ namespace ImagineQuest.Gameplay
             if (Mathf.Abs(scroll) > 0.01f)
                 targetCameraDistance = Mathf.Clamp(targetCameraDistance - Mathf.Sign(scroll) * 0.3f, 0.85f, 2.0f);
 
-            nearbyInteraction = QuestArenaInteractionRegistry.FindNearest(transform.position + Vector3.up * 0.8f, 2.45f);
+            nearbyInteraction = QuestArenaInteractionRegistry.FindNearest(transform.position + Vector3.up * .68f, 1.65f, transform);
             var nextOutline = (nearbyInteraction as Component)?.GetComponent<QuestArenaOutline>();
             if (nextOutline != focusedOutline)
             {
@@ -2371,11 +2406,13 @@ namespace ImagineQuest.Gameplay
             }
 
             cameraDistance = Mathf.SmoothDamp(cameraDistance, targetCameraDistance, ref cameraZoomVelocity, 0.075f);
-            cameraPivot.rotation = Quaternion.Euler(pitch, yaw, 0f);
+            float arrive = 1 - arrivalProgress;
+            cameraPivot.rotation = Quaternion.Euler(pitch + 13 * arrive, yaw - 62 * arrive, 0f);
             var desiredDirection = -cameraPivot.forward;
-            var resolvedDistance = cameraDistance;
+            var requestedDistance = cameraDistance + 1.6f * arrive;
+            var resolvedDistance = requestedDistance;
             // Ignore the player's own capsule even if it is the first hit.
-            foreach (var hit in Physics.SphereCastAll(cameraPivot.position, 0.14f, desiredDirection, cameraDistance,
+            foreach (var hit in Physics.SphereCastAll(cameraPivot.position, 0.14f, desiredDirection, requestedDistance,
                          Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
             {
                 if (hit.transform.IsChildOf(transform))

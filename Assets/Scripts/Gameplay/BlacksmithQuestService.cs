@@ -48,7 +48,7 @@ namespace ImagineQuest.Gameplay
         {
             // Opening this scene directly must work without Firebase initialization.
             owner = "local-guest";
-            try
+            if (Environment.GetEnvironmentVariable("IMAGINEQUEST_OFFLINE_TESTS") != "1") try
             {
                 var app = FirebaseApp.GetInstance(FirebaseApp.DefaultName);
                 if (app != null) owner = FirebaseAuth.GetAuth(app).CurrentUser?.UserId ?? owner;

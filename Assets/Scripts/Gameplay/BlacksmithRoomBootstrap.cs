@@ -32,6 +32,8 @@ namespace ImagineQuest.Gameplay
 
         private void Awake()
         {
+            raidPractice = launchRaidPractice || QuestSession.Instance == null || QuestSession.Instance.QuestId != BlacksmithQuestContent.Id;
+            launchRaidPractice = false;
             Time.timeScale = 1f;
             previousPipeline = QualitySettings.renderPipeline;
             if (workshopPipeline != null) QualitySettings.renderPipeline = workshopPipeline;
@@ -52,11 +54,63 @@ namespace ImagineQuest.Gameplay
             ember.EnableKeyword("_EMISSION");
             ember.SetColor("_EmissionColor", new Color(0.85f, 0.12f, 0.005f));
 
+            if (raidPractice)
+            {
+                ResolveLocalForgeArt();
+                if (authoredForgePrefab != null) BuildAuthoredForge();
+                else BuildBundledForge(wood, iron, stone, ember);
+            }
+            else BuildPrototypeWorkshop(wood, iron, stone, ember);
+
+            var actor = new GameObject("First Person Player");
+            actor.transform.SetParent(transform, true);
+            actor.transform.position = raidPractice ? raidIndoorSpawn : new Vector3(0, .05f, -2.8f);
+            player = actor.AddComponent<CharacterController>();
+            player.height = 1.8f;
+            player.radius = 0.28f;
+            player.center = new Vector3(0, 0.9f, 0);
+            var cameraObject = new GameObject("Blacksmith Camera");
+            cameraObject.tag = "MainCamera";
+            view = cameraObject.transform;
+            view.SetParent(actor.transform, false);
+            view.localPosition = new Vector3(0, 1.65f, 0);
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.nearClipPlane = 0.05f;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.08f, 0.06f, 0.04f);
+            cameraObject.AddComponent<AudioListener>();
+            camera.fieldOfView = 68;
+            if (raidPractice)
+            {
+                BuildStationMarkers(true);
+                BuildWorkshopAudio();
+            }
+            else BuildAtmosphere(wood, iron, stone);
+            if (raidPractice)
+            {
+                BuildTideCrypt(wood);
+                BuildRaidInterface();
+            }
+            else
+            {
+                BuildInterface();
+                InitializeQuest();
+            }
+        }
+
+        private void BuildPrototypeWorkshop(Material wood, Material iron, Material stone, Material ember)
+        {
             BuildFloor(wood);
             Block("Back wall", new Vector3(0, 2, 5), new Vector3(10, 4, 0.4f), stone);
             Block("Left wall", new Vector3(-5, 2, 0), new Vector3(0.4f, 4, 10), stone);
             Block("Right wall", new Vector3(5, 2, 0), new Vector3(0.4f, 4, 10), stone);
-            Block("Front wall", new Vector3(0, 2, -5), new Vector3(10, 4, 0.4f), stone);
+            if (raidPractice)
+            {
+                Block("Doorway left", new Vector3(-3.05f, 2, -5), new Vector3(3.9f, 4, .4f), stone);
+                Block("Doorway right", new Vector3(3.05f, 2, -5), new Vector3(3.9f, 4, .4f), stone);
+                Block("Doorway lintel", new Vector3(0, 3.4f, -5), new Vector3(2.2f, 1.2f, .4f), stone);
+            }
+            else Block("Front wall", new Vector3(0, 2, -5), new Vector3(10, 4, 0.4f), stone);
             Block("Ceiling", new Vector3(0, 4.1f, 0), new Vector3(10, 0.2f, 10), wood);
             for (var x = -4; x <= 4; x += 2)
             {
@@ -87,34 +141,14 @@ namespace ImagineQuest.Gameplay
                 Block("Hanging tool handle", new Vector3(4.55f, 1.9f, 1.6f + i * 0.7f), new Vector3(0.08f, 0.7f, 0.08f), wood);
                 Block("Hanging tool head", new Vector3(4.55f, 2.28f, 1.6f + i * 0.7f), new Vector3(0.18f, 0.15f, 0.35f), iron);
             }
-            Block("Workshop door", new Vector3(0, 1.25f, -4.75f), new Vector3(1.6f, 2.5f, 0.15f), wood);
-            Block("Door handle", new Vector3(0.55f, 1.15f, -4.6f), new Vector3(0.12f, 0.12f, 0.12f), iron);
-            Lamp("Warm ceiling light", new Vector3(0, 3.5f, 0), new Color(1, 0.78f, 0.5f), 4.8f, 12);
+            raidDoor = Block("Workshop door", new Vector3(0, 1.25f, -4.75f), new Vector3(raidPractice ? 2.2f : 1.6f, 2.5f, 0.15f), wood);
+            Block("Door handle", new Vector3(0.55f, 1.15f, -4.6f), new Vector3(0.12f, 0.12f, 0.12f), iron).transform.SetParent(raidDoor.transform, true);
+            Lamp("Warm ceiling light", new Vector3(0, 3.5f, 0), new Color(1, 0.78f, 0.5f), raidPractice ? 2.7f : 4.8f, 12);
 
             var fill = Lamp("Soft workshop fill", new Vector3(0, 2.8f, -2), new Color(0.40f, 0.65f, 1f), 2.8f, 10);
             fill.shadows = LightShadows.None;
             DressWorkshop(wood, iron, stone, ember);
 
-            var actor = new GameObject("First Person Player");
-            actor.transform.position = new Vector3(0, 0.05f, -2.8f);
-            player = actor.AddComponent<CharacterController>();
-            player.height = 1.8f;
-            player.radius = 0.28f;
-            player.center = new Vector3(0, 0.9f, 0);
-            var cameraObject = new GameObject("Blacksmith Camera");
-            cameraObject.tag = "MainCamera";
-            view = cameraObject.transform;
-            view.SetParent(actor.transform, false);
-            view.localPosition = new Vector3(0, 1.65f, 0);
-            var camera = cameraObject.AddComponent<Camera>();
-            camera.nearClipPlane = 0.05f;
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.08f, 0.06f, 0.04f);
-            cameraObject.AddComponent<AudioListener>();
-            camera.fieldOfView = 68;
-            BuildAtmosphere(wood, iron, stone);
-            BuildInterface();
-            InitializeQuest();
         }
 
         private void BuildFloor(Material wood)
@@ -310,8 +344,8 @@ namespace ImagineQuest.Gameplay
             Block("Lower workbench shelf", new Vector3(3.6f, 0.3f, 2.4f), new Vector3(1.5f, 0.12f, 3.1f), wood);
             for (var i = 0; i < 3; i++)
                 Block("Stored steel billet", new Vector3(3.5f, 0.42f, 1.8f + i * 0.3f), new Vector3(0.9f, 0.12f, 0.2f), iron);
-            Block("Door lower iron strap", new Vector3(0, 0.6f, -4.64f), new Vector3(1.55f, 0.09f, 0.08f), iron);
-            Block("Door upper iron strap", new Vector3(0, 1.9f, -4.64f), new Vector3(1.55f, 0.09f, 0.08f), iron);
+            Block("Door lower iron strap", new Vector3(0, 0.6f, -4.64f), new Vector3(1.55f, 0.09f, 0.08f), iron).transform.SetParent(raidDoor.transform, true);
+            Block("Door upper iron strap", new Vector3(0, 1.9f, -4.64f), new Vector3(1.55f, 0.09f, 0.08f), iron).transform.SetParent(raidDoor.transform, true);
         }
 
         private void PlaceProp(GameObject prefab, string label, Vector3 position, float height, float yaw)
@@ -343,7 +377,7 @@ namespace ImagineQuest.Gameplay
             return material;
         }
 
-        private void Block(string label, Vector3 position, Vector3 scale, Material material)
+        private GameObject Block(string label, Vector3 position, Vector3 scale, Material material)
         {
             var block = GameObject.CreatePrimitive(PrimitiveType.Cube);
             block.name = label;
@@ -384,6 +418,7 @@ namespace ImagineQuest.Gameplay
                 filter.sharedMesh = mesh;
                 meshes.Add(mesh);
             }
+            return block;
         }
 
         private Light Lamp(string label, Vector3 position, Color color, float intensity, float range)

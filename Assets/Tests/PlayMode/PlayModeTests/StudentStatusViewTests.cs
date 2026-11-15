@@ -14,9 +14,16 @@ using UnityEngine.SceneManagement;
 
 public class StudentStatusViewTests
 {
+    [TearDown]
+    public void ClearWorkshopContext()
+    {
+        if (QuestSession.Instance != null) QuestSession.Instance.Clear();
+    }
+
     [UnityTest]
     public IEnumerator WorkshopHudFitsBetweenMissionAndPortalAtSupportedAspectRatios()
     {
+        QuestSession.Begin(BlacksmithQuestContent.Id, "local-practice");
         yield return SceneManager.LoadSceneAsync("BlacksmithRoom"); yield return null;
         var room = UnityEngine.Object.FindFirstObjectByType<BlacksmithRoomBootstrap>();
         typeof(BlacksmithRoomBootstrap).GetMethod("ShowModal", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(room, new object[] {null});

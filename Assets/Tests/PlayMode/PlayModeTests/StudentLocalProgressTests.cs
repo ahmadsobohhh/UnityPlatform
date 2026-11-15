@@ -23,6 +23,7 @@ public sealed class StudentLocalProgressTests
     public IEnumerator ActualWorkshopUpdatesHudPersistsXpAndPreservesClassroomHearts()
     {
         Assert.AreEqual("1", Environment.GetEnvironmentVariable("IMAGINEQUEST_OFFLINE_TESTS"), "This fixture must never use a real account.");
+        QuestSession.Begin(BlacksmithQuestContent.Id, "local-practice");
         yield return SceneManager.LoadSceneAsync("BlacksmithRoom"); yield return null;
         room = UnityEngine.Object.FindFirstObjectByType<BlacksmithRoomBootstrap>();
         status = StudentStatusService.GetOrCreate();
@@ -89,6 +90,7 @@ public sealed class StudentLocalProgressTests
     {
         if (room != null) UnityEngine.Object.Destroy(room.gameObject);
         if (status != null) UnityEngine.Object.Destroy(status.gameObject);
+        if (QuestSession.Instance != null) QuestSession.Instance.Clear();
         yield return null;
         if (checkpoint != null && File.Exists(checkpoint)) File.Delete(checkpoint);
         if (directory != null && Directory.Exists(directory))
