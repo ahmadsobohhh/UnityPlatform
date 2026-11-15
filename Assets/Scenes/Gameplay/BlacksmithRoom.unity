@@ -149,6 +149,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GameRuntime::ImagineQuest.Gameplay.BlacksmithRoomBootstrap
   weatheredStone: {fileID: 2800000, guid: 594d451d9f994dfba34e4d4156b64d01, type: 3}
+  bundledRaidSword: {fileID: 4764510604297581600, guid: 64bd14ac020b56d4abb677e5791db699, type: 3}
+  forgeResidentPrefab: {fileID: 7726325505321076126, guid: 54d96ebabc3051b478368267348bcec4, type: 3}
+  forgeResidentAvatar: {fileID: 9000000, guid: 067eed6340abfa94383b955a0cb27fad, type: 3}
+  forgeResidentController: {fileID: 9100000, guid: 563aa7254d1b4f279fcd01d869679e80, type: 2}
   raidHeadingFont: {fileID: 11400000, guid: b643a157f9b9f4b158b3b4091191fb1a, type: 2}
   raidSky: {fileID: 2100000, guid: 50817f43cdb44a1589e07847d4854ded, type: 2}
   raidWater: {fileID: 2100000, guid: 3440f18d4a204a5daec9c0c6dc409337, type: 2}

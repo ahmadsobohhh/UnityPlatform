@@ -54,6 +54,52 @@ namespace ImagineQuest.Gameplay
             ember.EnableKeyword("_EMISSION");
             ember.SetColor("_EmissionColor", new Color(0.85f, 0.12f, 0.005f));
 
+            if (raidPractice)
+            {
+                ResolveLocalForgeArt();
+                if (authoredForgePrefab != null) BuildAuthoredForge();
+                else BuildBundledForge(wood, iron, stone, ember);
+            }
+            else BuildPrototypeWorkshop(wood, iron, stone, ember);
+
+            var actor = new GameObject("First Person Player");
+            actor.transform.SetParent(transform, true);
+            actor.transform.position = raidPractice ? raidIndoorSpawn : new Vector3(0, .05f, -2.8f);
+            player = actor.AddComponent<CharacterController>();
+            player.height = 1.8f;
+            player.radius = 0.28f;
+            player.center = new Vector3(0, 0.9f, 0);
+            var cameraObject = new GameObject("Blacksmith Camera");
+            cameraObject.tag = "MainCamera";
+            view = cameraObject.transform;
+            view.SetParent(actor.transform, false);
+            view.localPosition = new Vector3(0, 1.65f, 0);
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.nearClipPlane = 0.05f;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.08f, 0.06f, 0.04f);
+            cameraObject.AddComponent<AudioListener>();
+            camera.fieldOfView = 68;
+            if (raidPractice)
+            {
+                BuildStationMarkers(true);
+                BuildWorkshopAudio();
+            }
+            else BuildAtmosphere(wood, iron, stone);
+            if (raidPractice)
+            {
+                BuildTideCrypt(wood);
+                BuildRaidInterface();
+            }
+            else
+            {
+                BuildInterface();
+                InitializeQuest();
+            }
+        }
+
+        private void BuildPrototypeWorkshop(Material wood, Material iron, Material stone, Material ember)
+        {
             BuildFloor(wood);
             Block("Back wall", new Vector3(0, 2, 5), new Vector3(10, 4, 0.4f), stone);
             Block("Left wall", new Vector3(-5, 2, 0), new Vector3(0.4f, 4, 10), stone);
@@ -103,35 +149,6 @@ namespace ImagineQuest.Gameplay
             fill.shadows = LightShadows.None;
             DressWorkshop(wood, iron, stone, ember);
 
-            var actor = new GameObject("First Person Player");
-            actor.transform.SetParent(transform, true);
-            actor.transform.position = new Vector3(0, 0.05f, -2.8f);
-            player = actor.AddComponent<CharacterController>();
-            player.height = 1.8f;
-            player.radius = 0.28f;
-            player.center = new Vector3(0, 0.9f, 0);
-            var cameraObject = new GameObject("Blacksmith Camera");
-            cameraObject.tag = "MainCamera";
-            view = cameraObject.transform;
-            view.SetParent(actor.transform, false);
-            view.localPosition = new Vector3(0, 1.65f, 0);
-            var camera = cameraObject.AddComponent<Camera>();
-            camera.nearClipPlane = 0.05f;
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.08f, 0.06f, 0.04f);
-            cameraObject.AddComponent<AudioListener>();
-            camera.fieldOfView = 68;
-            BuildAtmosphere(wood, iron, stone);
-            if (raidPractice)
-            {
-                BuildRaidVillage(wood, iron, stone, ember);
-                BuildRaidInterface();
-            }
-            else
-            {
-                BuildInterface();
-                InitializeQuest();
-            }
         }
 
         private void BuildFloor(Material wood)

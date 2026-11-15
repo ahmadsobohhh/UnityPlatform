@@ -18,6 +18,7 @@ namespace ImagineQuest.Gameplay
     public static class QuestArenaInteractionRegistry
     {
         private static readonly List<IQuestArenaInteractable> Items = new List<IQuestArenaInteractable>();
+        private static readonly RaycastHit[] SightHits = new RaycastHit[24];
 
         public static void Register(IQuestArenaInteractable interactable)
         {
@@ -27,7 +28,7 @@ namespace ImagineQuest.Gameplay
 
         public static void Unregister(IQuestArenaInteractable interactable) => Items.Remove(interactable);
 
-        public static IQuestArenaInteractable FindNearest(Vector3 position, float radius)
+        public static IQuestArenaInteractable FindNearest(Vector3 position, float radius, Transform observer = null)
         {
             IQuestArenaInteractable nearest = null;
             var nearestSquaredDistance = radius * radius;
@@ -47,12 +48,32 @@ namespace ImagineQuest.Gameplay
                 var squaredDistance = (candidate.InteractionTransform.position - position).sqrMagnitude;
                 if (squaredDistance >= nearestSquaredDistance)
                     continue;
+                if (candidate is QuestArenaShipInteractable fixture && squaredDistance >= fixture.Reach * fixture.Reach)
+                    continue;
+                if (observer != null && !HasClearReach(position, candidate.InteractionTransform, observer))
+                    continue;
 
                 nearestSquaredDistance = squaredDistance;
                 nearest = candidate;
             }
 
             return nearest;
+        }
+
+        private static bool HasClearReach(Vector3 origin, Transform target, Transform observer)
+        {
+            var delta = target.position - origin;
+            float length = delta.magnitude;
+            if (length < .01f) return true;
+            int count = Physics.RaycastNonAlloc(origin, delta / length, SightHits, length - .01f,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
+            {
+                var obstacle = SightHits[i].transform;
+                if (obstacle != null && !obstacle.IsChildOf(observer) && !obstacle.IsChildOf(target))
+                    return false;
+            }
+            return true;
         }
     }
 
@@ -77,6 +98,7 @@ namespace ImagineQuest.Gameplay
         public Transform InteractionTransform => transform;
         public string InteractionPrompt => prompt;
         public bool CanInteract => enabled && gameObject.activeInHierarchy;
+        internal float Reach => action == QuestArenaShipAction.Helm ? 1.08f : 1.65f;
 
         public void Configure(CelestialClockQuestBootstrap arenaOwner, QuestArenaShipAction shipAction, string interactionPrompt)
         {

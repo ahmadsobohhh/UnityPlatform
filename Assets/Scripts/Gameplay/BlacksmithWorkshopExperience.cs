@@ -158,7 +158,8 @@ namespace ImagineQuest.Gameplay
             {
                 Vector3 flat = stationPositions[i] - player.transform.position;
                 flat.y = 0;
-                if (flat.magnitude < distance && Vector3.Dot(view.forward, (stationPositions[i] - view.position).normalized) > .45f)
+                float aim = Vector3.Dot(view.forward, (stationPositions[i] - view.position).normalized);
+                if (flat.magnitude < distance && aim > (raidPractice ? .88f : .45f))
                 { closest = i; distance = flat.magnitude; }
             }
             return closest;
@@ -416,7 +417,7 @@ namespace ImagineQuest.Gameplay
 
         private void OnApplicationFocus(bool focus)
         {
-            if (!focus && pausePanel != null && modal == null && !returning) ShowModal(pausePanel);
+            if (!focus && pausePanel != null && modal == null && !returning && !arrivingAtForge) ShowModal(pausePanel);
         }
 
         private void OnDestroy()

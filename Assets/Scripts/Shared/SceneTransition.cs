@@ -10,6 +10,7 @@ using UnityEngine.UI;
 public class SceneTransition : MonoBehaviour
 {
     public static SceneTransition Instance { get; private set; }
+    public static bool IsTransitioning => Instance != null && Instance.busy;
 
     [SerializeField] private float defaultFadeTime = 0.5f;
 

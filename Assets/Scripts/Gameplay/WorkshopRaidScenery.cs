@@ -50,6 +50,7 @@ namespace ImagineQuest.Gameplay
                 BuildQuayLantern(new Vector3(side * 3.5f, 0, -23.5f), oak, iron, amber);
 
                 // Hammered iron, stocked shelves and cloth bring depth to the forge without more signage.
+                if (authoredForgePrefab != null) continue;
                 for (int row = 0; row < 4; row++)
                     Decor("Forge side masonry", PrimitiveType.Cube, new Vector3(side * 4.79f, .27f + row * .39f, -1.45f),
                         new Vector3(.13f, .34f, 5.8f), row % 2 == 0 ? stone : soot);
@@ -63,7 +64,8 @@ namespace ImagineQuest.Gameplay
             WorldLabel("East gate lettering", "EAST GATE", new Vector3(0, 3.11f, -24.19f), new Vector2(340, 60), 29, Gold, false, 180);
             Block("West retaining wall", new Vector3(-9, .6f, -5), new Vector3(8, 1.2f, .5f), stone);
             Block("East retaining wall", new Vector3(9, .6f, -5), new Vector3(8, 1.2f, .5f), stone);
-            Block("Back of workshop", new Vector3(0, .65f, 5.4f), new Vector3(10, 1.3f, .4f), stone);
+            if (authoredForgePrefab == null)
+                Block("Back of workshop", new Vector3(0, .65f, 5.4f), new Vector3(10, 1.3f, .4f), stone);
 
             var sky = new GameObject("Quay moonlight", typeof(Light));
             sky.transform.SetParent(transform);

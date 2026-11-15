@@ -13,8 +13,12 @@ namespace ImagineQuest.Gameplay
         public int Health { get; private set; } = MaxHealth;
         public int Wave { get; private set; }
         public int Remaining => enemies.Count;
+        public void RecoverHealth(int amount) => Health = Mathf.Min(MaxHealth, Health + Mathf.Max(0, amount));
         private readonly Transform player, camera;
         private readonly WorkshopRaidEffects effects;
+        private readonly GameObject authoredSword;
+        private readonly Func<int, bool> waveReady;
+        private readonly Material glove, gloveSeam;
         private readonly Material bone, dark, leather, steel, brass, cloth, eyes, flare;
         private readonly Material[] blades;
         private readonly Mesh bladeMesh;
@@ -36,17 +40,22 @@ namespace ImagineQuest.Gameplay
         }
 
         public WorkshopRaidCombat(Transform player, Transform camera, Func<Color, float, Material> surface,
-            Func<Color, float, Material> glow, List<Mesh> ownedMeshes, WorkshopRaidEffects effects)
+            Func<Color, float, Material> glow, List<Mesh> ownedMeshes, WorkshopRaidEffects effects,
+            GameObject authoredSword, Func<int, bool> waveReady)
         {
             this.player = player;
             this.camera = camera;
             this.effects = effects;
+            this.authoredSword = authoredSword;
+            this.waveReady = waveReady;
             bone = surface(new Color(.72f, .64f, .49f), 0);
             dark = surface(new Color(.045f, .035f, .026f), 0);
             leather = surface(new Color(.17f, .086f, .045f), 0);
             steel = surface(new Color(.41f, .47f, .49f), .32f);
             brass = surface(new Color(.62f, .39f, .15f), .26f);
             cloth = surface(new Color(.25f, .055f, .045f), 0);
+            glove = surface(new Color(.285f, .145f, .074f), 0);
+            gloveSeam = surface(new Color(.53f, .35f, .20f), 0);
             eyes = glow(new Color(.19f, .9f, .71f), 1.1f);
             flare = glow(new Color(1f, .31f, .06f), 1.6f);
             blades = new[] { surface(new Color(.34f, .26f, .20f), .22f), steel,
@@ -59,13 +68,10 @@ namespace ImagineQuest.Gameplay
         {
             if (sword != null) UnityEngine.Object.Destroy(sword.gameObject);
             damage = swordDamage;
-            sword = Cutlass(camera, blades[Mathf.Clamp((damage - 16) / 8, 0, 3)], brass, leather, .75f);
-            var hand = Part(sword, PrimitiveType.Capsule, new Vector3(.018f, .045f, -.054f),
-                new Vector3(.137f, .109f, .13f), leather);
-            hand.localRotation = Quaternion.Euler(0, 0, -17);
-            Part(sword, PrimitiveType.Capsule, new Vector3(.09f, -.105f, -.105f),
-                new Vector3(.143f, .19f, .14f), cloth).localRotation = Quaternion.Euler(18, 0, 24);
-            var tip = Joint(sword, "Cutlass swing trail", new Vector3(.12f, .97f, 0));
+            sword = authoredSword == null ? Cutlass(camera, blades[Mathf.Clamp((damage - 16) / 8, 0, 3)], brass, leather, .8f)
+                : BuildForgedSword();
+            BuildWeaponHand(sword);
+            var tip = Joint(sword, "Sword swing trail", new Vector3(.025f, .99f, 0));
             trail = tip.gameObject.AddComponent<TrailRenderer>();
             trail.sharedMaterial = effects.ParticleMaterial;
             trail.time = .14f;
@@ -144,13 +150,14 @@ namespace ImagineQuest.Gameplay
                 return true;
             }
             nextWave -= dt;
-            if (nextWave <= 0)
+            if (nextWave <= 0 && waveReady(Wave + 1))
             {
                 Wave++;
                 effects.Play(RaidCue.Wave);
-                int count = Wave + 1;
+                int count = Wave == 1 ? 3 : 5;
                 for (int i = 0; i < count; i++)
-                    Spawn(new Vector3((i - (count - 1) * .5f) * 2.1f, .026f, -23 - i % 2 * 1.1f), i);
+                    Spawn(new Vector3((i - (count - 1) * .5f) * 2.1f, .026f,
+                        (Wave == 1 ? -22f : -47f) - i % 2 * 2.2f), i);
                 nextWave = 1.6f;
             }
             return false;
@@ -255,12 +262,25 @@ namespace ImagineQuest.Gameplay
             bool walking = distance > 1.43f;
             if (walking)
             {
-                Vector3 advance = step.normalized * dt * (1.42f + Wave * .16f);
-                Vector3 target = foe.Root.position + advance;
-                target.x = Mathf.Clamp(target.x, -5.6f, 5.6f);
-                target.z = Mathf.Clamp(target.z, -24.7f, -7.35f);
-                if (!Physics.Linecast(foe.Root.position + Vector3.up * .65f, target + Vector3.up * .65f))
+                float length = dt * (1.42f + Wave * .16f);
+                if (!TryStep(step.normalized))
+                {
+                    float dodge = foe.Phase % 2f > 1 ? -50f : 50f;
+                    walking = TryStep(Quaternion.Euler(0, dodge, 0) * direction) ||
+                        TryStep(Quaternion.Euler(0, -dodge, 0) * direction);
+                }
+
+                bool TryStep(Vector3 heading)
+                {
+                    var target = foe.Root.position + heading * length;
+                    if (target.z > -7.35f || target.z < -59.5f ||
+                        Physics.Linecast(foe.Root.position + Vector3.up * .65f, target + Vector3.up * .65f,
+                            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore) ||
+                        !Physics.Raycast(target + Vector3.up * .16f, Vector3.down, .23f,
+                            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) return false;
                     foe.Root.position = target;
+                    return true;
+                }
             }
             foe.Gait = Mathf.MoveTowards(foe.Gait, walking ? 1 : 0, dt * 5);
             float phase = age * 8 + foe.Phase;
@@ -293,15 +313,15 @@ namespace ImagineQuest.Gameplay
                 Mathf.FloorToInt((strideTime - dt * (5 + 4 * pace)) / Mathf.PI)) effects.Play(RaidCue.Footstep);
             guardBlend = Mathf.MoveTowards(guardBlend, guard ? 1 : 0, dt * 8);
             recoil = Mathf.MoveTowards(recoil, 0, dt * 6);
-            Vector3 rest = new Vector3(.41f + Mathf.Sin(strideTime) * .038f * pace,
-                -.53f + Mathf.Sin(age * 2.5f) * .012f + Mathf.Abs(Mathf.Cos(strideTime)) * .032f * pace, .71f - recoil * .16f);
+            Vector3 rest = new Vector3(.36f + Mathf.Sin(strideTime) * .038f * pace,
+                -.40f + Mathf.Sin(age * 2.5f) * .012f + Mathf.Abs(Mathf.Cos(strideTime)) * .032f * pace, .80f - recoil * .10f);
             Quaternion idle = Quaternion.Euler(19 + recoil * 18, -15, -19);
             float phase = timer > 0 ? 1 - timer / SwingDuration : 1;
             if (timer > 0)
             {
                 float side = reverseSwing ? -1 : 1;
-                var wind = new Vector3(side * .47f, -.39f, .53f);
-                var follow = new Vector3(side * -.55f, -.42f, .72f);
+                var wind = new Vector3(side * .38f, -.30f, .69f);
+                var follow = new Vector3(side * -.40f, -.34f, .82f);
                 var windRot = Quaternion.Euler(-16, side * 38, side * -55);
                 var followRot = Quaternion.Euler(56, side * -53, side * 108);
                 if (phase < .31f)
@@ -324,8 +344,81 @@ namespace ImagineQuest.Gameplay
                 }
             }
             trail.emitting = phase >= .30f && phase <= .65f;
-            sword.localPosition = Vector3.Lerp(rest, new Vector3(.13f, -.38f, .68f - recoil * .15f), guardBlend);
+            sword.localPosition = Vector3.Lerp(rest, new Vector3(.13f, -.30f, .77f - recoil * .12f), guardBlend);
             sword.localRotation = Quaternion.Slerp(idle, Quaternion.Euler(12 + recoil * 21, -9, 68), guardBlend);
+        }
+
+        private Transform BuildForgedSword()
+        {
+            var grip = Joint(camera, "Forged longsword grip", Vector3.zero);
+            var weapon = UnityEngine.Object.Instantiate(authoredSword, grip);
+            weapon.name = "Authored steel longsword";
+            var mesh = weapon.GetComponentInChildren<MeshFilter>().sharedMesh;
+            Vector3 size = mesh.bounds.size;
+            int axis = size.x > size.y && size.x > size.z ? 0 : size.y > size.z ? 1 : 2;
+            int a = (axis + 1) % 3, b = (axis + 2) % 3;
+            int face = size[a] > size[b] ? a : b;
+            float min = mesh.bounds.min[axis], max = mesh.bounds.max[axis];
+            float guardAt = .20f, widest = 0;
+            if (mesh.isReadable)
+            {
+                var points = mesh.vertices;
+                for (int band = 0; band < 18; band++)
+                {
+                    float left = float.PositiveInfinity, right = float.NegativeInfinity;
+                    foreach (var vertex in points)
+                    {
+                        int slot = Mathf.Min(17, Mathf.FloorToInt(Mathf.InverseLerp(min, max, vertex[axis]) * 18));
+                        if (slot != band) continue;
+                        left = Mathf.Min(left, vertex[face]); right = Mathf.Max(right, vertex[face]);
+                    }
+                    if (right - left > widest) { widest = right - left; guardAt = (band + .5f) / 18; }
+                }
+            }
+            var up = Vector3.zero;
+            up[axis] = guardAt < .5f ? 1 : -1;
+            var rightAxis = Vector3.zero;
+            rightAxis[face] = 1;
+            var handle = mesh.bounds.center;
+            handle[axis] = Mathf.Lerp(min, max, Mathf.Clamp01(guardAt - up[axis] * .085f));
+            var placement = weapon.transform;
+            placement.localRotation = Quaternion.Inverse(Quaternion.LookRotation(Vector3.Cross(rightAxis, up), up));
+            placement.localScale = Vector3.one * (.95f / Mathf.Max(.001f, size[axis]));
+            placement.localPosition = -(placement.localRotation * Vector3.Scale(handle, placement.localScale));
+            var finish = new MaterialPropertyBlock();
+            finish.SetColor("_BaseColor", damage < 24 ? new Color(.72f, .64f, .54f) :
+                damage < 40 ? new Color(.89f, .91f, .95f) : new Color(.79f, .94f, 1f));
+            foreach (var renderer in weapon.GetComponentsInChildren<Renderer>())
+            {
+                renderer.SetPropertyBlock(finish);
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            return grip;
+        }
+
+        private void BuildWeaponHand(Transform grip)
+        {
+            // The grip is the animation pivot, so the fingers never slide off the handle.
+            var hand = Joint(grip, "Right hand viewmodel", Vector3.zero);
+            WeaponPart(hand, new Vector3(.052f, -.005f, -.051f), new Vector3(.132f, .157f, .090f), glove, -17);
+            for (int finger = 0; finger < 4; finger++)
+            {
+                float y = .054f - .038f * finger;
+                WeaponPart(hand, new Vector3(.005f, y, .019f), new Vector3(.12f - .008f * finger, .039f, .055f), glove, 6);
+                WeaponPart(hand, new Vector3(-.045f, y, -.006f), new Vector3(.034f, .035f, .058f), glove, -12);
+                WeaponPart(hand, new Vector3(.018f, y + .012f, .047f), new Vector3(.062f, .005f, .013f), gloveSeam, 4);
+            }
+            WeaponPart(hand, new Vector3(-.032f, .05f, -.038f), new Vector3(.072f, .115f, .060f), glove, 41);
+            WeaponPart(hand, new Vector3(.14f, -.08f, -.115f), new Vector3(.142f, .17f, .12f), leather, -47);
+            WeaponPart(hand, new Vector3(.242f, -.18f, -.21f), new Vector3(.19f, .32f, .17f), cloth, -42);
+            WeaponPart(hand, new Vector3(.17f, -.106f, -.144f), new Vector3(.15f, .041f, .15f), brass, -44);
+        }
+
+        private static void WeaponPart(Transform root, Vector3 p, Vector3 size, Material material, float roll)
+        {
+            var piece = Part(root, PrimitiveType.Sphere, p, size, material);
+            piece.localRotation = Quaternion.Euler(0, 0, roll);
+            piece.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         private void Spawn(Vector3 at, int index)

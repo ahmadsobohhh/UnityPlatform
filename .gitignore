@@ -97,3 +97,9 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# Optional local Asset Store source files (do not publish in the public repository).
+/Assets/3DForge/
+/Assets/3DForge.meta
+/Assets/Gameplay/AuthoredForge/
+/Assets/Gameplay/AuthoredForge.meta

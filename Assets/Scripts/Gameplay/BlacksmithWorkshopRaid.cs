@@ -1,3 +1,4 @@
+using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -14,12 +15,18 @@ namespace ImagineQuest.Gameplay
         private static readonly Color Brass = new Color(.76f, .53f, .26f);
         private static readonly Vector3 YardStart = new Vector3(0, .06f, -9);
         [SerializeField] private TMP_FontAsset raidHeadingFont;
+        [SerializeField] private GameObject authoredRaidSword;
         private readonly WorkshopBladeTrial bladeTrial = new WorkshopBladeTrial();
-        private bool raidPractice, bladeForged, inRaid, raidWon;
+        private bool raidPractice, bladeForged, inRaid;
+        private bool arrivingAtForge;
         private static bool launchRaidPractice;
         private GameObject raidDoor, raidQuestion, raidResult, raidGate;
+        private Vector3 shutterRest;
+        private float shutterProgress;
+        private Collider shutterCollider;
+        private bool shutterLatched;
         private TMP_Text raidTitle, raidScore, raidQuestionText, raidHint, raidResultText, raidResultTitle;
-        private Button raidRetry;
+        private Button raidRetry, raidReturn;
         private int raidStation;
         private WorkshopRaidCombat raidCombat;
         private WorkshopRaidEffects raidEffects;
@@ -28,6 +35,10 @@ namespace ImagineQuest.Gameplay
         private int hammerBeat;
         private Image raidHealthBar, raidDamageVeil;
         private float raidDamageFlash;
+        private GameObject raidDeparture;
+        private CanvasGroup raidDepartureFade;
+        private RectTransform raidDepartureTitle, raidDepartureRule;
+        private TMP_Text raidPauseStatus, raidResultStatus;
 
         public static void LaunchRaidPractice()
         {
@@ -78,18 +89,20 @@ namespace ImagineQuest.Gameplay
             pausePanel = RaidCard("Paused", new Vector2(450, 240), out var pause);
             Label(pause, "Take a breather", 30, 28, 390, 55, 31, Cream);
             RaidButton(pause, "Resume", 30, 100, 390, () => ShowModal(null));
-            RaidButton(pause, "Back to the ship", 30, 158, 390, () => ReturnToShip(false));
+            RaidButton(pause, "Back to the ship", 30, 158, 390, ReturnFromRaid);
+            raidPauseStatus = Label(pause, "", 30, 213, 390, 22, 16, Gold);
 
             raidResult = RaidCard("Raid outcome", new Vector2(530, 284), out var result);
             raidResultTitle = Label(result, "", 32, 29, 466, 55, 34, Cream);
             if (raidHeadingFont != null) raidResultTitle.font = raidHeadingFont;
             raidResultText = Label(result, "", 32, 88, 466, 45, 20, Gold);
-            raidRetry = RaidButton(result, "Fight again", 32, 146, 223, RetryRaid);
-            RaidButton(result, "Reforge", 275, 146, 223, ResetRaid);
-            RaidButton(result, "Back to the ship", 32, 208, 466, () => ReturnToShip(false));
+            raidRetry = RaidButton(result, "Fight again", 32, 146, 466, RetryRaid);
+            raidReturn = RaidButton(result, "Back to the ship", 32, 208, 466, ReturnFromRaid);
+            raidResultStatus = Label(result, "", 32, 257, 466, 22, 16, Gold);
+            BuildRaidDeparture();
 
             raidEffects = new WorkshopRaidEffects(transform, effectsAudio, generatedAudio, materials);
-            raidCombat = new WorkshopRaidCombat(player.transform, view, Surface, Glow, meshes, raidEffects);
+            raidCombat = new WorkshopRaidCombat(player.transform, view, Surface, Glow, meshes, raidEffects, authoredRaidSword, CryptWaveReady);
             raidHammer = new GameObject("Forging hammer").transform;
             raidHammer.SetParent(transform, false);
             Decor("Hammer shaft", PrimitiveType.Cylinder, new Vector3(0, .18f, 0),
@@ -100,6 +113,77 @@ namespace ImagineQuest.Gameplay
             for (int i = 0; i < 3; i++) stationLabels[i].text = StationNames[i];
             UpdateRaidHud();
             ShowModal(null);
+            StartCoroutine(ArriveAtForge());
+        }
+
+        private IEnumerator ArriveAtForge()
+        {
+            arrivingAtForge = true;
+            Vector3 eye = view.localPosition;
+            bool handoff = SceneTransition.IsTransitioning;
+            while (SceneTransition.IsTransitioning) yield return null;
+            yield return QuestArrival.Play(transform, "CINDER QUAY", "THE BLACKSMITH", t =>
+            {
+                float reveal = 1 - t;
+                view.localPosition = eye + new Vector3(-.13f, -.15f, -.35f) * reveal;
+                view.localRotation = Quaternion.Euler(8 * reveal, -29 * reveal, -4 * reveal);
+            }, handoff);
+            pitch = 0;
+            arrivingAtForge = false;
+        }
+
+        private void BuildRaidDeparture()
+        {
+            raidDeparture = CelestialClockQuestBootstrap.CreateFullOverlay("Back to the Aurora", hud, Color.black);
+            raidDepartureFade = raidDeparture.AddComponent<CanvasGroup>();
+            raidDepartureFade.alpha = 0;
+            raidDepartureFade.interactable = false;
+            var title = Text(raidDeparture.transform, "Departure title", Vector2.one * .5f, new Vector2(0, 18),
+                new Vector2(480, 54), 34, Cream, TextAlignmentOptions.Center);
+            if (raidHeadingFont != null) title.font = raidHeadingFont;
+            title.text = "Back to the Aurora";
+            raidDepartureTitle = title.rectTransform;
+            raidDepartureRule = (RectTransform)Panel("Departure brass rule", raidDeparture.transform, Vector2.one * .5f,
+                new Vector2(0, -19), new Vector2(180, 2), Brass);
+            raidDeparture.SetActive(false);
+        }
+
+        private void ReturnFromRaid()
+        {
+            if (returning) return;
+            if (!Application.CanStreamedLevelBeLoaded("QuestArena"))
+            {
+                (modal == raidResult ? raidResultStatus : raidPauseStatus).text = "The ship is unavailable in this build.";
+                return;
+            }
+
+            // Practice has no quest service or checkpoint to turn in. Keep the
+            // existing QuestSession so the returning ship still belongs to the class.
+            returning = true;
+            ShowModal(null);
+            raidDeparture.transform.SetAsLastSibling();
+            raidDeparture.SetActive(true);
+            effectsAudio.PlayOneShot(keySound, .25f);
+            StartCoroutine(AnimateRaidDeparture());
+        }
+
+        private IEnumerator AnimateRaidDeparture()
+        {
+            const float duration = .5f;
+            float elapsed = 0;
+            while (elapsed < duration)
+            {
+                float progress = Mathf.SmoothStep(0, 1, elapsed / duration);
+                raidDepartureFade.alpha = progress;
+                raidDepartureTitle.anchoredPosition = new Vector2(0, Mathf.Lerp(5, 18, progress));
+                raidDepartureRule.localScale = new Vector3(progress, 1, 1);
+                yield return null;
+                elapsed += Time.unscaledDeltaTime;
+            }
+            raidDepartureFade.alpha = 1;
+            // The persistent transition keeps the frame covered while the scene
+            // changes, and fades the ship back in on arrival.
+            SceneTransition.LoadScene("QuestArena", .32f);
         }
 
         private GameObject RaidCard(string name, Vector2 size, out Transform card)
@@ -121,7 +205,7 @@ namespace ImagineQuest.Gameplay
 
         private void UpdateRaid()
         {
-            if (returning || !Application.isFocused) return;
+            if (returning || arrivingAtForge || !Application.isFocused) return;
             var key = Keyboard.current;
             if (key != null && key.escapeKey.wasPressedThisFrame && modal != raidResult)
             {
@@ -143,26 +227,28 @@ namespace ImagineQuest.Gameplay
 
             MoveWorkshopPlayer(key);
             AnimateRaidHammer(Time.deltaTime);
-            if (player.transform.position.y < -3) PlaceRaidPlayer(inRaid ? YardStart : new Vector3(0, .06f, -2.8f), inRaid ? 180 : 0);
+            if (player.transform.position.y < -3) PlaceRaidPlayer(inRaid ? YardStart : raidIndoorSpawn, inRaid ? 180 : 0);
+            if (!inRaid && bladeForged && player.transform.position.z < -7) StartRaid();
             if (inRaid)
             {
+                StepClosingShutter(Time.deltaTime);
                 int previousHealth = raidCombat.Health;
-                if (!raidWon && raidCombat.Tick(Time.deltaTime, Mouse.current))
-                    ShowRaidResult(raidCombat.Health > 0);
+                if (!cryptCleared && raidCombat.Tick(Time.deltaTime, Mouse.current))
+                {
+                    if (raidCombat.Health <= 0) { ShowRaidResult(false); return; }
+                    cryptCleared = true;
+                }
+                if (cryptCleared) raidCombat.UpdateHeldBlade(Time.deltaTime);
+                UpdateCryptInteraction(key);
                 if (raidCombat.Health < previousHealth) raidDamageFlash = .25f;
                 raidDamageFlash = Mathf.Max(0, raidDamageFlash - Time.deltaTime);
                 raidDamageVeil.color = new Color(.6f, .07f, .03f, raidDamageFlash);
                 UpdateRaidHud();
                 return;
             }
-            if (bladeForged && player.transform.position.z < -7)
-            {
-                StartRaid();
-                return;
-            }
             if (bladeForged) raidCombat.UpdateHeldBlade(Time.deltaTime);
             int station = NearbyStation();
-            prompt.text = bladeForged ? "Head outside" :
+            prompt.text = bladeForged ? "Enter the crypt" :
                 bladeTrial.Complete ? (station == 0 ? "[E]  Forge blade" : "Return to the anvil") :
                 station >= 0 && !bladeTrial.Answered(station) ? "[E]  " + StationNames[station] : "";
             if (key == null || !key.eKey.wasPressedThisFrame || bladeForged) return;
@@ -213,10 +299,10 @@ namespace ImagineQuest.Gameplay
             if (strikes > hammerBeat)
             {
                 hammerBeat = strikes;
-                raidEffects.Burst(RaidCue.Forge, AnvilPosition + new Vector3(0, 1.28f, -.08f), Vector3.up);
+                raidEffects.Burst(RaidCue.Forge, raidAnvilTop, Vector3.up);
             }
             float lift = Mathf.Sin(phase * Mathf.PI);
-            raidHammer.position = AnvilPosition + new Vector3(.39f, 1.38f + .62f * lift, -.07f);
+            raidHammer.position = raidAnvilTop + new Vector3(.39f, .10f + .62f * lift, .01f);
             raidHammer.rotation = Quaternion.Euler(0, 0, 105 - 66 * lift);
         }
 
@@ -236,48 +322,44 @@ namespace ImagineQuest.Gameplay
         private void StartRaid()
         {
             inRaid = true;
-            raidWon = false;
+            ResetCrypt();
             raidDamageFlash = 0;
             raidDamageVeil.color = Color.clear;
+            shutterProgress = 0;
+            shutterLatched = false;
+            shutterCollider.enabled = false;
+            raidGate.transform.position = shutterRest + Vector3.up * 2.7f;
             raidGate.SetActive(true);
-            PlaceRaidPlayer(YardStart, 180);
             raidCombat.Begin(bladeTrial.Damage);
             prompt.text = "";
             UpdateRaidHud();
         }
 
+        private void StepClosingShutter(float dt)
+        {
+            if (shutterLatched) return;
+            // Never move a solid collider onto the player as they cross the threshold.
+            // Slide back open until the full capsule is clear on the crypt side.
+            bool clear = player.transform.position.z < shutterRest.z - player.radius - .36f;
+            shutterProgress = Mathf.MoveTowards(shutterProgress, clear ? 1 : 0, dt * 1.65f);
+            raidGate.transform.position = shutterRest + Vector3.up * (2.7f * (1 - Mathf.SmoothStep(0, 1, shutterProgress)));
+            shutterLatched = clear && shutterProgress >= 1f;
+            shutterCollider.enabled = shutterLatched;
+        }
+
         private void ShowRaidResult(bool won)
         {
-            raidWon = won;
-            raidResultTitle.text = won ? "The quay is safe." : "The dead broke through.";
-            raidResultText.text = bladeTrial.BladeName + "   /   " + bladeTrial.Correct + " of 3 correct";
+            raidResultTitle.text = won ? "Tidekeeper recovered." : "The crypt claims another.";
+            raidResultText.text = $"{bladeTrial.BladeName}   /   {cryptGoldEarned} gold   •   {cryptXpEarned} XP";
             raidRetry.gameObject.SetActive(!won);
+            raidReturn.GetComponent<RectTransform>().anchoredPosition = new Vector2(32, won ? -146 : -208);
             ShowModal(raidResult);
         }
 
         private void RetryRaid()
         {
+            PlaceRaidPlayer(YardStart, 180);
             StartRaid();
-            ShowModal(null);
-        }
-
-        private void ResetRaid()
-        {
-            raidCombat.Clear();
-            raidHammer.gameObject.SetActive(false);
-            raidDamageVeil.color = Color.clear;
-            bladeTrial.Reset();
-            inRaid = bladeForged = raidWon = false;
-            raidDoor.SetActive(true);
-            raidGate.SetActive(false);
-            for (int i = 0; i < 3; i++)
-            {
-                stationLabels[i].text = StationNames[i];
-                stationLabels[i].color = Gold;
-                stationRunes[i].sharedMaterial = runeIdle;
-            }
-            PlaceRaidPlayer(new Vector3(0, .06f, -2.8f), 0);
-            UpdateRaidHud();
             ShowModal(null);
         }
 
@@ -293,9 +375,12 @@ namespace ImagineQuest.Gameplay
 
         private void UpdateRaidHud()
         {
-            raidTitle.text = inRaid ? "Defend the quay" : bladeForged ? bladeTrial.BladeName :
+            raidTitle.text = inRaid ? (cryptCleared ? "Claim the relic" : !cryptFirstOpen ? "Read the seal" :
+                !cryptSecondOpen && raidCombat.Wave == 1 && raidCombat.Remaining == 0 ? "Open the vault" : "Explore the crypt") : bladeForged ? bladeTrial.BladeName :
                 bladeTrial.Complete ? "Forge your blade" : "Work the three stations";
-            raidScore.text = inRaid ? $"HP {raidCombat.Health}   •   Wave {Mathf.Max(1, raidCombat.Wave)}/2   •   {raidCombat.Remaining} left"
+            raidScore.text = inRaid ? (raidCombat.Remaining > 0
+                ? $"HP {raidCombat.Health}   •   {raidCombat.Remaining} left   •   {cryptGoldEarned}g / {cryptXpEarned} XP"
+                : $"HP {raidCombat.Health}   •   {cryptGoldEarned} gold   •   {cryptXpEarned} XP")
                 : bladeForged ? $"{bladeTrial.Damage} damage   •   {bladeTrial.Correct}/3 correct" : $"{bladeTrial.Total}/3 stations";
             raidHealthBar.enabled = inRaid;
             raidHealthBar.rectTransform.sizeDelta = new Vector2(308f * raidCombat.Health / WorkshopRaidCombat.MaxHealth, 3);
