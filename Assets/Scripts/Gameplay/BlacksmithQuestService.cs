@@ -20,6 +20,15 @@ namespace ImagineQuest.Gameplay
         public event Action Changed;
         private BlacksmithQuestStore store;
         private string owner;
+        private float nextRetryAt;
+        private bool cloudLoaded;
+
+        private void Update()
+        {
+            if (!ImagineQuest.Student.StudentCloudConfig.Enabled || !Ready || IsPractice || Busy || Time.realtimeSinceStartup < nextRetryAt) return;
+            nextRetryAt = Time.realtimeSinceStartup + 15;
+            if (!cloudLoaded || State.pending.Count > 0) RetrySync();
+        }
 
         [Serializable] private sealed class Payload
         {
@@ -39,13 +48,13 @@ namespace ImagineQuest.Gameplay
         {
             // Opening this scene directly must work without Firebase initialization.
             owner = "local-guest";
-            try
+            if (Environment.GetEnvironmentVariable("IMAGINEQUEST_OFFLINE_TESTS") != "1") try
             {
                 var app = FirebaseApp.GetInstance(FirebaseApp.DefaultName);
                 if (app != null) owner = FirebaseAuth.GetAuth(app).CurrentUser?.UserId ?? owner;
             }
             catch (Exception) { }
-            if (owner == "local-guest") classId = "local-practice";
+            if (owner == "local-guest" || !ImagineQuest.Student.StudentCloudConfig.Enabled) classId = "local-practice";
             store = new BlacksmithQuestStore(Path.Combine(Application.persistentDataPath, "BlacksmithQuest"));
             try
             {
@@ -69,7 +78,9 @@ namespace ImagineQuest.Gameplay
             {
                 store.Save(State);
                 LocalSaved = true;
-                Status = IsPractice ? "Practice saved on this PC • No wallet rewards"
+                if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
+                    ImagineQuest.Student.StudentStatusService.GetOrCreate().RecordLocalWorkshop(State);
+                Status = IsPractice || !ImagineQuest.Student.StudentCloudConfig.Enabled ? string.Empty
                     : "Saved on this PC • Awaiting cloud verification";
             }
             catch (Exception)
@@ -83,7 +94,8 @@ namespace ImagineQuest.Gameplay
 
         public void RetrySync()
         {
-            if (Busy || State == null || !Save() || IsPractice) return;
+            if (!ImagineQuest.Student.StudentCloudConfig.Enabled || Busy || State == null || !Save() || IsPractice) return;
+            nextRetryAt = Time.realtimeSinceStartup + 15;
             StartCoroutine(Sync());
         }
 
@@ -133,9 +145,11 @@ namespace ImagineQuest.Gameplay
                     if (!SameUser) { SyncFailed(); yield break; }
                     if (request.result != UnityWebRequest.Result.Success)
                     {
-                        SyncFailed(request.responseCode == 403
+                        string cloudMessage = null;
+                        try { cloudMessage = JsonUtility.FromJson<CloudErrorReply>(request.downloadHandler.text)?.error?.message; } catch (Exception) { }
+                        SyncFailed(cloudMessage ?? (request.responseCode == 403
                             ? "Cloud access denied. Ask your teacher to check the assignment."
-                            : "Cloud sync unavailable. Progress is saved on this PC; use Retry sync.");
+                            : "Cloud sync unavailable. Your progress is saved; reconnect to sync."));
                         yield break;
                     }
                     Response response = null;
@@ -150,6 +164,7 @@ namespace ImagineQuest.Gameplay
                 loading = false;
             }
             Busy = false;
+            cloudLoaded = true;
             Status = SameUser ? "Progress synced • " + State.verifiedXp + " XP verified"
                 : "Saved on this PC. Sign in with the same student to sync.";
             Changed?.Invoke();
@@ -161,5 +176,7 @@ namespace ImagineQuest.Gameplay
             Status = message;
             Changed?.Invoke();
         }
+        [Serializable] private sealed class CloudErrorReply { public CloudError error; }
+        [Serializable] private sealed class CloudError { public string message; }
     }
 }

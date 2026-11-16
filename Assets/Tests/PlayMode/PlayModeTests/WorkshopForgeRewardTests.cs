@@ -143,6 +143,7 @@ public sealed class WorkshopPortalFlowTests
     [UnityTest]
     public IEnumerator CraftsTouchSaveReloadAndWalkThroughReturnToShip()
     {
+        QuestSession.Begin(BlacksmithQuestContent.Id, "local-practice");
         yield return SceneManager.LoadSceneAsync("BlacksmithRoom");
         yield return null;
         room = UnityEngine.Object.FindFirstObjectByType<BlacksmithRoomBootstrap>();
@@ -175,6 +176,7 @@ public sealed class WorkshopPortalFlowTests
         Assert.That(service.State.verifiedXp, Is.Zero);
         Assert.IsFalse(service.State.turnedIn);
 
+        QuestSession.Begin(BlacksmithQuestContent.Id, "local-practice");
         yield return SceneManager.LoadSceneAsync("BlacksmithRoom");
         yield return null;
         room = UnityEngine.Object.FindFirstObjectByType<BlacksmithRoomBootstrap>();
@@ -216,6 +218,7 @@ public sealed class WorkshopPortalFlowTests
     [UnityTearDown]
     public IEnumerator Cleanup()
     {
+        if (QuestSession.Instance != null) QuestSession.Instance.Clear();
         if (checkpoint != null && File.Exists(checkpoint)) File.Delete(checkpoint);
         yield return null;
     }

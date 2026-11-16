@@ -1,6 +1,8 @@
 import * as admin from "firebase-admin";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {setGlobalOptions} from "firebase-functions/v2";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
+export {ensureStudentStatus, adjustStudentHearts, getClassStudentStatus, setWorkshopAssignment, blacksmithQuest} from "./studentStatus.js";
 
 admin.initializeApp();
 
@@ -336,7 +338,7 @@ export const joinClassByCode = onCall(async (request) => {
     const classCode = dataString(classData, "code", code);
     const firstName = dataString(profileSnapshot.data() ?? {}, "firstName");
     const lastName = dataString(profileSnapshot.data() ?? {}, "lastName");
-    const joinedAt = admin.firestore.Timestamp.now();
+    const joinedAt = Timestamp.now();
     const memberRef = classRef.collection("members").doc(uid);
     const indexRef = profileRef.collection("classes").doc(classRef.id);
 
@@ -398,7 +400,7 @@ export const upsertQuestAssignment = onCall(async (request) => {
 
   const assignmentId = optionalDocumentId(input, "assignmentId") ?? classRef.collection("assignments").doc().id;
   const assignmentRef = classRef.collection("assignments").doc(assignmentId);
-  const now = admin.firestore.Timestamp.now();
+  const now = Timestamp.now();
   const existing = await assignmentRef.get();
 
   await assignmentRef.set({
@@ -411,8 +413,8 @@ export const upsertQuestAssignment = onCall(async (request) => {
     portalPlan,
     targetConcepts,
     rewardsPolicy,
-    releaseAt: releaseAtMillis === null ? null : admin.firestore.Timestamp.fromMillis(releaseAtMillis),
-    dueAt: dueAtMillis === null ? null : admin.firestore.Timestamp.fromMillis(dueAtMillis),
+    releaseAt: releaseAtMillis === null ? null : Timestamp.fromMillis(releaseAtMillis),
+    dueAt: dueAtMillis === null ? null : Timestamp.fromMillis(dueAtMillis),
     createdBy: existing.exists ? dataString(existing.data() ?? {}, "createdBy", uid) : uid,
     createdAt: existing.exists ? (existing.data()?.createdAt ?? now) : now,
     updatedBy: uid,
@@ -455,18 +457,20 @@ export const recordQuestEvent = onCall(async (request): Promise<QuestEventResult
   const eventRef = progressRef.collection("events").doc(eventId);
   const runRef = progressRef.collection("runs").doc(runId);
   const walletRef = db.collection("wallets").doc(uid);
+  const standingRef = db.collection("studentStanding").doc(uid);
   const uniqueEventId = `${uid}_${classId}_${assignmentId}_${eventId}`;
   const walletLedgerRef = db.collection("walletLedger").doc(uniqueEventId);
   const auditRef = db.collection("questEventAudit").doc(uniqueEventId);
 
   return db.runTransaction(async (transaction): Promise<QuestEventResult> => {
-    const [classSnapshot, memberSnapshot, assignmentSnapshot, profileSnapshot, progressSnapshot, eventSnapshot] = await Promise.all([
+    const [classSnapshot, memberSnapshot, assignmentSnapshot, profileSnapshot, progressSnapshot, eventSnapshot, standingSnapshot] = await Promise.all([
       transaction.get(classRef),
       transaction.get(memberRef),
       transaction.get(assignmentRef),
       transaction.get(profileRef),
       transaction.get(progressRef),
       transaction.get(eventRef),
+      transaction.get(standingRef),
     ]);
 
     if (!classSnapshot.exists || !memberSnapshot.exists || profileSnapshot.data()?.role !== "student") {
@@ -533,7 +537,7 @@ export const recordQuestEvent = onCall(async (request): Promise<QuestEventResult
     }
 
     const sortedCompletedIds = [...completedIds].sort();
-    const now = admin.firestore.Timestamp.now();
+    const now = Timestamp.now();
     const progressUpdate: Record<string, unknown> = {
       classId,
       assignmentId,
@@ -548,7 +552,7 @@ export const recordQuestEvent = onCall(async (request): Promise<QuestEventResult
       progressUpdate.completedAt = now;
     }
     if (awardedXp > 0) {
-      progressUpdate.earnedXp = admin.firestore.FieldValue.increment(awardedXp);
+      progressUpdate.earnedXp = FieldValue.increment(awardedXp);
     }
 
     transaction.set(progressRef, progressUpdate, {merge: true});
@@ -563,7 +567,7 @@ export const recordQuestEvent = onCall(async (request): Promise<QuestEventResult
       completedChallengeIds: sortedCompletedIds,
       completed,
       updatedAt: now,
-      ...(awardedXp > 0 ? {earnedXp: admin.firestore.FieldValue.increment(awardedXp)} : {}),
+      ...(awardedXp > 0 ? {earnedXp: FieldValue.increment(awardedXp)} : {}),
     }, {merge: true});
     transaction.set(eventRef, {
       eventId,
@@ -593,8 +597,11 @@ export const recordQuestEvent = onCall(async (request): Promise<QuestEventResult
     });
 
     if (awardedXp > 0) {
+      if (standingSnapshot.data()?.hearts === 0)
+        throw new HttpsError("failed-precondition", "Ask your teacher to restore Hearts before earning more XP.");
       transaction.set(walletRef, {
-        xp: admin.firestore.FieldValue.increment(awardedXp),
+        xp: FieldValue.increment(awardedXp),
+        lastMutationId: uniqueEventId,
         updatedAt: now,
       }, {merge: true});
       transaction.set(walletLedgerRef, {
@@ -606,6 +613,11 @@ export const recordQuestEvent = onCall(async (request): Promise<QuestEventResult
         rewardType: "xp",
         amount: awardedXp,
         serverRecordedAt: now,
+      });
+      transaction.set(db.collection("studentActivity").doc(uid).collection("entries").doc(uniqueEventId), {
+        title: eventType === "quest-completed" ? "Quest completed" : "Challenge mastered",
+        detail: typeof assignment.title === "string" ? assignment.title : "Class quest",
+        kind: "xp", deltaXp: awardedXp, deltaHearts: 0, occurredAt: now,
       });
     }
 

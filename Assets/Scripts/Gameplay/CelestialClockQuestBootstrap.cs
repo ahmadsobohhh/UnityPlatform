@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections;
+using System.Threading.Tasks;
+using ImagineQuest.Characters;
 using Firebase.Auth;
 using Firebase.Firestore;
 using TMPro;
@@ -88,10 +90,14 @@ namespace ImagineQuest.Gameplay
         private Button lessonSecondaryButton;
         private GameObject journalPanel;
         private GameObject pausePanel;
+        private ImagineQuest.Student.StudentStatusView personalStatus;
         private GameObject completionPanel;
         private TMP_Text completionSummaryText;
         private GameObject questPickerPanel;
         private PirateAvatarStyler playerStyler;
+        private ImagineQuest.Characters.StudentCharacterAvatar playerAvatar;
+        private bool appearanceLoading;
+        private int appearanceRequest;
         private bool briefingVisible;
         private bool lessonVisible;
         private bool journalVisible;
@@ -110,6 +116,7 @@ namespace ImagineQuest.Gameplay
 
         private void Awake()
         {
+            appearanceLoading=Environment.GetEnvironmentVariable("IMAGINEQUEST_OFFLINE_TESTS")!="1" && !StudentAvatarIdentity.HasVerifiedCache;
             // Also recognize the scene by name when an already-open editor instance
             // still has the old serialized component values after a script reload.
             arenaOnly = arenaOnly || gameObject.scene.name == "QuestArena";
@@ -125,11 +132,11 @@ namespace ImagineQuest.Gameplay
 
         private void Start()
         {
+            _=RefreshStudentAppearanceAsync();
             if (arenaOnly) StartCoroutine(ArriveOnShip());
             else
             {
                 BeginExploration();
-                RestoreSavedAvatar();
             }
             if (arenaMusic != null)
             {
@@ -138,6 +145,9 @@ namespace ImagineQuest.Gameplay
                 AudioManager.Instance.PlayMusic(arenaMusic, 0.55f);
             }
         }
+
+        private void OnEnable() => StudentAvatarIdentity.Changed+=ApplyStudentAppearance;
+        private void OnDisable() {StudentAvatarIdentity.Changed-=ApplyStudentAppearance;++appearanceRequest;}
 
         private bool arrivingOnShip;
 
@@ -153,29 +163,47 @@ namespace ImagineQuest.Gameplay
             yield return QuestArrival.Play(transform, "THE AURORA", "QUEST ARENA", playerController.SetArrivalProgress, handoff);
             arrivingOnShip = false;
             BeginExploration();
-            RestoreSavedAvatar();
         }
 
-        private async void RestoreSavedAvatar()
+        public async Task RefreshStudentAppearanceAsync(IAppearanceRepository source=null)
         {
-            // Direct scene previews have no classroom account to refresh.
-            if (arenaOnly && string.IsNullOrWhiteSpace(QuestSession.Instance?.ClassId)) return;
+            if(source==null && Environment.GetEnvironmentVariable("IMAGINEQUEST_OFFLINE_TESTS")=="1") return;
+            bool initializeAccount=source==null;
+            int version=++appearanceRequest;
             try
             {
-                var user = FirebaseAuth.DefaultInstance.CurrentUser;
-                if (user == null) return;
-                var profile = await FirebaseFirestore.DefaultInstance.Collection("users").Document(user.UserId).GetSnapshotAsync();
-                if (this == null || FirebaseAuth.DefaultInstance.CurrentUser?.UserId != user.UserId || !profile.Exists) return;
-                StudentAvatarIdentity.Cache(user.UserId,
-                    profile.ContainsField("avatarId") ? profile.GetValue<string>("avatarId") : "navigator",
-                    profile.ContainsField("characterColor") ? profile.GetValue<string>("characterColor") : "FFFFFF");
-                if (playerStyler != null) playerStyler.Apply(StudentAvatarIdentity.AvatarId, StudentAvatarIdentity.ColorHex);
+                if(source==null)
+                {
+                    var connection=FirebaseAppearanceRepository.Connect();
+                    if(await Task.WhenAny(connection,Task.Delay(20000))!=connection) {_=ObserveAppearanceRead(connection);throw new TimeoutException();}
+                    source=await connection;
+                }
+                if(this==null || version!=appearanceRequest || !source.IsCurrent) return;
+                // Authentication is now initialized, so even a failed network read uses
+                // this account's cache rather than the guest/default preview character.
+                if(initializeAccount)
+                {
+                    ApplyStudentAppearance();
+                    if(source.IsLocal || StudentAvatarIdentity.HasVerifiedCache)
+                    {appearanceLoading=false;SetPlayerAppearanceVisible(true);playerController?.RefreshCharacterAnimator();}
+                }
+                var load=source.LoadAsync();
+                if(await Task.WhenAny(load,Task.Delay(15000))!=load) {_=ObserveAppearanceRead(load);throw new TimeoutException();}
+                string saved=await load;
+                if(this==null || version!=appearanceRequest || !source.IsCurrent) return;
+                ApplyAppearance(StudentAppearance.FromAvatarId(saved));
             }
             catch (Exception)
             {
                 Debug.LogWarning("[Quest Arena] Saved appearance unavailable; using this account's cached or default skin.");
             }
+            finally
+            {
+                if(this!=null && version==appearanceRequest)
+                {appearanceLoading=false;SetPlayerAppearanceVisible(true);playerController?.RefreshCharacterAnimator();}
+            }
         }
+        private static async Task ObserveAppearanceRead(Task operation) {try {await operation;} catch(Exception) {}}
 
         private void PlayQuestVideo(string url, Action completed, Action exited = null, Vector3? worldAnchor = null)
         {
@@ -207,7 +235,7 @@ namespace ImagineQuest.Gameplay
             {
                 questVideo.WorldAnchor = null;
             }
-            questVideo.AssignedQuestAction = arenaOnly ? () => SceneTransition.LoadScene("BlacksmithRoom") : (Action)null;
+            questVideo.AssignedQuestAction = arenaOnly ? () => WorkshopAssignmentLauncher.Launch(message => OpenArenaPanel("WORKSHOP", message)) : (Action)null;
             Debug.Log("[Quest Video] Opening configured URL: " + url);
             questVideo.Play(url, () =>
             {
@@ -230,6 +258,11 @@ namespace ImagineQuest.Gameplay
         private void Update()
         {
             if (arrivingOnShip) return;
+            if (personalStatus != null && personalStatus.IsOpen)
+            {
+                if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) personalStatus.CloseRecap();
+                return;
+            }
             if (questChartMarker != null)
                 questChartMarker.SetActive(!videoVisible && !journalVisible && !pauseVisible && !briefingVisible);
             if (videoVisible || Keyboard.current == null)
@@ -536,8 +569,18 @@ namespace ImagineQuest.Gameplay
             playerController.SetInputEnabled(false);
         }
 
-        private void CreateSelectedPlayerVisual(Transform playerRoot)
+        private void CreateSelectedPlayerVisual(Transform playerRoot,StudentAppearance? selectedAppearance=null)
         {
+            if(ImagineQuest.Characters.StudentCharacterCatalog.Load()!=null)
+            {
+                playerAvatar=ImagineQuest.Characters.StudentCharacterAvatar.Create(playerRoot,
+                    selectedAppearance??ImagineQuest.Characters.StudentAppearance.FromAvatarId(StudentAvatarIdentity.AvatarId),.58f);
+                playerAvatar.name="Selected Pirate Avatar";
+                AlignVisualFeetToPlayerRoot(playerAvatar.gameObject,playerRoot);
+                playerAvatar.gameObject.AddComponent<PirateVisualGrounding>().Configure(playerRoot,playerRoot.GetComponent<CharacterController>());
+                SetPlayerAppearanceVisible(!appearanceLoading);
+                return;
+            }
             GameObject prefab = null;
             if (piratePlayerPrefabs != null && piratePlayerPrefabs.Length > 0)
                 prefab = piratePlayerPrefabs[piratePlayerPrefabs.Length - 1];
@@ -567,6 +610,26 @@ namespace ImagineQuest.Gameplay
             playerStyler.Apply(StudentAvatarIdentity.AvatarId, StudentAvatarIdentity.ColorHex);
             AlignVisualFeetToPlayerRoot(visual, playerRoot);
             visual.AddComponent<PirateVisualGrounding>().Configure(playerRoot, playerRoot.GetComponent<CharacterController>());
+        }
+
+        private void ApplyStudentAppearance()
+        {
+            if(playerAvatar==null) {if(playerStyler!=null) playerStyler.Apply(StudentAvatarIdentity.AvatarId,StudentAvatarIdentity.ColorHex);return;}
+            var next=ImagineQuest.Characters.StudentAppearance.FromAvatarId(StudentAvatarIdentity.AvatarId);
+            ApplyAppearance(next);
+        }
+        private void SetPlayerAppearanceVisible(bool visible)
+        {
+            if(playerAvatar==null) return;
+            foreach(var renderer in playerAvatar.GetComponentsInChildren<Renderer>(true)) renderer.forceRenderingOff=!visible;
+        }
+        private void ApplyAppearance(StudentAppearance next)
+        {
+            if(playerAvatar==null) return;
+            if(playerAvatar.Body==next.Body) {playerAvatar.Apply(next);return;}
+            var root=playerAvatar.transform.parent;
+            playerAvatar.gameObject.SetActive(false);Destroy(playerAvatar.gameObject);
+            CreateSelectedPlayerVisual(root,next);playerController?.RefreshCharacterAnimator();
         }
 
         internal static void AlignVisualFeetToPlayerRoot(GameObject visual, Transform playerRoot)
@@ -1188,6 +1251,7 @@ namespace ImagineQuest.Gameplay
                 BuildLessonPanel(canvasObject.transform);
                 BuildCompletionPanel(canvasObject.transform);
             }
+            personalStatus = ImagineQuest.Student.StudentStatusView.Attach(canvasObject.transform, arenaOnly);
         }
 
         /// <summary>
@@ -1285,6 +1349,14 @@ namespace ImagineQuest.Gameplay
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(128f, -238f),
                 new Vector2(224f, 54f), new Color(0.14f, 0.10f, 0.06f));
             preview.onClick.AddListener(PlayDummyQuest);
+            var workshop = CreateButton("Play assigned workshop", card.transform, "THE AURORA'S REPAIR  /  ASSIGNED WORKSHOP",
+                new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -296), new Vector2(650, 40), new Color(.10f, .27f, .25f));
+            if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
+                workshop.GetComponentInChildren<TMP_Text>().text = "THE AURORA'S REPAIR  /  LOCAL PRACTICE";
+            workshop.onClick.AddListener(() => {
+                CloseJournal();
+                WorkshopAssignmentLauncher.Launch(message => OpenArenaPanel("WORKSHOP", message));
+            });
             var back = CreateButton("Close Quest Selection", card.transform, "RETURN TO SHIP",
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 48f),
                 new Vector2(350f, 48f), new Color(0.14f, 0.10f, 0.06f));
@@ -1384,6 +1456,10 @@ namespace ImagineQuest.Gameplay
             var close = CreateButton("Close Journal", card.transform, arenaOnly ? "RETURN TO SHIP" : "CLOSE JOURNAL", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 42f), new Vector2(320f, 52f), new Color(0.12f, 0.36f, 0.6f));
             close.onClick.AddListener(CloseJournal);
+            close.GetComponent<RectTransform>().anchoredPosition = new Vector2(-180, 42);
+            var recap = CreateButton("Open personal recap", card.transform, "PERSONAL RECAP", new Vector2(.5f, 0), new Vector2(.5f, 0),
+                new Vector2(180, 42), new Vector2(320, 52), new Color(.12f, .27f, .29f));
+            recap.onClick.AddListener(() => personalStatus.OpenRecap());
             journalPanel.SetActive(false);
         }
 
@@ -1638,6 +1714,10 @@ namespace ImagineQuest.Gameplay
             if (!completedNodeIds.Contains(completed.NodeId))
                 completedNodeIds.Add(completed.NodeId);
             provisionalXp += completed.XpAward;
+            if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
+                ImagineQuest.Student.StudentStatusService.GetOrCreate().RecordLocalReward(
+                    "celestial-clock/" + (QuestSession.Instance?.AssignmentId ?? "practice") + "/" + completed.NodeId,
+                    "Seal restored", completed.Title, completed.XpAward);
             SaveRunSnapshot();
 
             var justUnlockedFinale = CompletedCount == RequiredSealsBeforeFinale;
@@ -1774,6 +1854,10 @@ namespace ImagineQuest.Gameplay
                 return;
 
             provisionalXp += questDefinition.RewardPolicy.CompletionExperience;
+            if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
+                ImagineQuest.Student.StudentStatusService.GetOrCreate().RecordLocalReward(
+                    "celestial-clock/" + (QuestSession.Instance?.AssignmentId ?? "practice") + "/completion",
+                    "Celestial Clock restored", "All four seals complete", questDefinition.RewardPolicy.CompletionExperience);
         }
 
         private void CloseCompletionPanel()
@@ -2237,6 +2321,12 @@ namespace ImagineQuest.Gameplay
             playerCamera = camera == null ? transform : camera.transform;
             cameraPivot = camera == null ? transform : camera.transform.parent;
             yaw = transform.eulerAngles.y;
+            RefreshCharacterAnimator();
+        }
+
+        public void RefreshCharacterAnimator()
+        {
+            animatorParameters.Clear();
             animator = GetComponentInChildren<Animator>();
             if (animator != null)
             {

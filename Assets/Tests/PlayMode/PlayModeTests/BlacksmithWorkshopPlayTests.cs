@@ -189,7 +189,10 @@ public class BlacksmithWorkshopPlayTests
         Assert.That(weapon, Is.Not.Null, "Use a textured sword in both forge variants.");
         Assert.That(weapon.Find("Authored steel longsword").GetComponentInChildren<MeshRenderer>(), Is.Not.Null);
         var hand = weapon.Find("Right hand viewmodel");
-        Assert.That(hand.GetComponentsInChildren<Renderer>().Length, Is.GreaterThan(10));
+        var handMesh = hand.GetComponent<MeshFilter>().sharedMesh;
+        Assert.That(handMesh.vertexCount, Is.GreaterThan(60), "Main's fitted gauntlet must have real hand/sleeve geometry.");
+        Assert.That(handMesh.subMeshCount, Is.EqualTo(3));
+        Assert.That(hand.GetComponent<Renderer>().sharedMaterials.Length, Is.EqualTo(3));
         Vector3 onScreen = view.GetComponent<Camera>().WorldToViewportPoint(hand.position);
         Assert.That(onScreen.x, Is.InRange(0f, 1f));
         Assert.That(onScreen.y, Is.InRange(0f, 1f));
@@ -212,8 +215,10 @@ public class BlacksmithWorkshopPlayTests
         var combat = Field("raidCombat");
         var combatType = combat.GetType();
         var tick = combatType.GetMethod("Tick");
-        var strike = combatType.GetMethod("Strike", Private);
+        var captureStrike = combatType.GetMethod("CaptureStrike", Private);
+        var resolveStrike = combatType.GetMethod("ResolveStrike", Private);
         var enemies = (IList)combatType.GetField("enemies", Private).GetValue(combat);
+        var targets = (IDictionary)combatType.GetField("targets", Private).GetValue(combat);
         var entrance = (GameObject)Field("cryptSealGate");
         var vault = (GameObject)Field("cryptVaultGate");
         Assert.That(entrance.activeSelf && vault.activeSelf, Is.True);
@@ -253,14 +258,35 @@ public class BlacksmithWorkshopPlayTests
             Call("PlaceRaidPlayer", new Vector3(0, .06f, wave == 1 ? -18f : -38f), 180f);
             tick.Invoke(combat, new object[] { 2f, null });
             Assert.That(enemies.Count, Is.EqualTo(wave == 1 ? 3 : 5));
+            tick.Invoke(combat, new object[] { .6f, null }); // Finish the spawn rise before attempting a real hit.
             while (enemies.Count > 0)
             {
                 var foe = enemies[0];
                 var root = (Transform)foe.GetType().GetField("Root").GetValue(foe);
-                Call("PlaceRaidPlayer", root.position + new Vector3(0, .035f, 1.7f), 180f);
-                Physics.SyncTransforms();
-                for (int hit = 0; hit < 3; hit++) strike.Invoke(combat, null);
-                Assert.That(enemies.Contains(foe), Is.False, "48 HP requires three 16-damage strikes.");
+                int health = (int)foe.GetType().GetField("Health").GetValue(foe);
+                var torsoTarget = (Collider)foe.GetType().GetField("TorsoTarget").GetValue(foe);
+                // Find a clear rear/side approach around the crypt's pillars; keep the Warder's shield rules intact.
+                bool reached = false;
+                foreach (float angle in new[] {0f, -45f, 45f, -90f, 90f})
+                {
+                    Vector3 strikeApproach = Quaternion.Euler(0, angle, 0) * -root.forward * 1.35f;
+                    Call("PlaceRaidPlayer", root.position + strikeApproach + Vector3.up * .035f, root.eulerAngles.y);
+                    Physics.SyncTransforms();
+                    view.rotation = Quaternion.LookRotation(torsoTarget.bounds.center - view.position);
+                    captureStrike.Invoke(combat, null);
+                    reached = combatType.GetField("aimedRaider", Private).GetValue(combat) == foe;
+                    if (reached) break;
+                }
+                Assert.IsTrue(reached, "There must be an unobstructed approach to " + root.name);
+                for (int hit = 0; hit < Mathf.CeilToInt(health / (float)trial.Damage); hit++)
+                {
+                    captureStrike.Invoke(combat, null);
+                    Assert.That(combatType.GetField("aimedRaider", Private).GetValue(combat), Is.SameAs(foe),
+                        "Aim must reach the skeleton before the strike is resolved: " + root.name);
+                    resolveStrike.Invoke(combat, null);
+                }
+                Assert.That(enemies.Contains(foe), Is.False, "The weakest blade must defeat each enemy with its existing health.");
+                Assert.That(targets.Count, Is.EqualTo(enemies.Count * 2), "Defeated skeletons must release their hit targets.");
                 var fallen = (IList)combatType.GetField("debris", Private).GetValue(combat);
                 Assert.That(fallen.Count, Is.GreaterThanOrEqualTo(6));
                 var skull = (GameObject)fallen[fallen.Count - 6];

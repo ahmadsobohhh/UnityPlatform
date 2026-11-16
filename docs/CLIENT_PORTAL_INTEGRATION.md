@@ -20,8 +20,9 @@ procedural approximation of the artwork.
 This integrates with the existing class/student/assignment-scoped device checkpoint.
 Portal activation is local presentation state and does not mint currency or add a
 new backend action. Existing cloud verification remains independent. The repository
-still does not supply the `blacksmithQuest` server function; do not describe local
-completion as verified wallet XP.
+now supplies a tested `blacksmithQuest` server function in the Hearts/XP extension.
+Deployment and its client release gate are intentionally pending; local completion
+still must not be described as verified wallet XP. See `HEARTS_XP_STATUS.md`.
 
 ## Client media
 

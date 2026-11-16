@@ -1,0 +1,200 @@
+[
+  {
+    "file": "Textures/T_Eye_Brown.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Eye_Brown.png",
+    "pack": "universal-base-characters",
+    "sha256": "d08e3356a83211bc6ca21fe3a8e39f4b5c1a3b8f85457fc2c0fb57be09935025"
+  },
+  {
+    "file": "Textures/T_Eye_Normal.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Eye_Normal.png",
+    "pack": "universal-base-characters",
+    "sha256": "a74aa37050f26fe336e7dbe5d1e9f01942879dd541c67be2f836633529bc68b7"
+  },
+  {
+    "file": "Textures/T_Hair_1_BaseColor.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Hair_1_BaseColor.png",
+    "pack": "universal-base-characters",
+    "sha256": "bc7aa863bd22ab0a995cd838cceb4d3a5186ee54ee2fb0108fad85d20c057e6e"
+  },
+  {
+    "file": "Textures/T_Hair_1_Normal.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Hair_1_Normal.png",
+    "pack": "universal-base-characters",
+    "sha256": "fd4530bb696a083ac7f9c2f685b4bb15d91150040e76c905db591c7644b4aa87"
+  },
+  {
+    "file": "Textures/T_Hair_2_BaseColor.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Hair_2_BaseColor.png",
+    "pack": "universal-base-characters",
+    "sha256": "f9f4f2fb3eeeefb0b6f0fdef38b0770fd6607640c1c680b8139dd76697e9f9b3"
+  },
+  {
+    "file": "Textures/T_Hair_2_Normal.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Hair_2_Normal.png",
+    "pack": "universal-base-characters",
+    "sha256": "214dff8981ab87319b2acfaf1ad9143db020989afa14896a0d70048a667e17e3"
+  },
+  {
+    "file": "Textures/T_Superhero_Female_Dark_BaseColor.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Superhero_Female_Dark_BaseColor.png",
+    "pack": "universal-base-characters",
+    "sha256": "d366843ee7d9e9f37ec87a0e1c98c7f2e45573c08eeb80a51a6d9344e68cf288"
+  },
+  {
+    "file": "Textures/T_Superhero_Female_Light_BaseColor.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Superhero_Female_Light_BaseColor.png",
+    "pack": "universal-base-characters",
+    "sha256": "743f811857db0b950f3ad09a0733dfa4888801ead332313ca25becea14c54f8d"
+  },
+  {
+    "file": "Textures/T_Superhero_Female_Normal.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Superhero_Female_Normal.png",
+    "pack": "universal-base-characters",
+    "sha256": "3b90600cbd90d1e8b39bcb0befee4333388003a82af9d0ff00825d144cf99373"
+  },
+  {
+    "file": "Textures/T_Superhero_Female_Roughness.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Superhero_Female_Roughness.png",
+    "pack": "universal-base-characters",
+    "sha256": "4e00eb2d8196cebacd027e3360b9da6431d8915e27e1b5262c14f20eaaa6dced"
+  },
+  {
+    "file": "Textures/T_Superhero_Male_Dark.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Superhero_Male_Dark.png",
+    "pack": "universal-base-characters",
+    "sha256": "df680cbc1967a61e85998bfafb8f7bc0a36dd604bb3266486c4b06b1a184bb45"
+  },
+  {
+    "file": "Textures/T_Superhero_Male_Ligh.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Superhero_Male_Ligh.png",
+    "pack": "universal-base-characters",
+    "sha256": "419f96dbb8811511e2d515bcdabc085ff2f219ec7b8b4e91050a84cba6888fe9"
+  },
+  {
+    "file": "Textures/T_Superhero_Male_Normal.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Superhero_Male_Normal.png",
+    "pack": "universal-base-characters",
+    "sha256": "3645858289beb51643155a924e5148735dd5fe226230532936375c06ba829dec"
+  },
+  {
+    "file": "Textures/T_Superhero_Male_Roughness.png",
+    "source": "Universal Base Characters[Standard]/Base Characters/Textures/T_Superhero_Male_Roughness.png",
+    "pack": "universal-base-characters",
+    "sha256": "5079fd95603bdd34700abd42ca6bcf43b615929f29134822aeb63a3a8bb3400c"
+  },
+  {
+    "file": "Models/Superhero_Female_FullBody.fbx",
+    "source": "Universal Base Characters[Standard]/Base Characters/Unity/Superhero_Female_FullBody.fbx",
+    "pack": "universal-base-characters",
+    "sha256": "0727e7b236eeea4115531e07aeb2bb7690c1a58155f743bbf54282944fb97ea9"
+  },
+  {
+    "file": "Models/Superhero_Male_FullBody.fbx",
+    "source": "Universal Base Characters[Standard]/Base Characters/Unity/Superhero_Male_FullBody.fbx",
+    "pack": "universal-base-characters",
+    "sha256": "79344418d754a59730b79d1874752e9592143db34abe8adf138fa9a92a4768e9"
+  },
+  {
+    "file": "Models/Eyebrows_Female.fbx",
+    "source": "Universal Base Characters[Standard]/Hairstyles/Rigged to Head Bone/FBX (Unity)/Eyebrows_Female.fbx",
+    "pack": "universal-base-characters",
+    "sha256": "ea6a6d1a3deddcf24b984684543c53693425560e670957e8486b4d2ba7b345dc"
+  },
+  {
+    "file": "Models/Eyebrows_Regular.fbx",
+    "source": "Universal Base Characters[Standard]/Hairstyles/Rigged to Head Bone/FBX (Unity)/Eyebrows_Regular.fbx",
+    "pack": "universal-base-characters",
+    "sha256": "1005c97901cc6eb09d0d9f8b11fb2a692f1dab90229498b27cd50b87c48f96e8"
+  },
+  {
+    "file": "Models/Hair_Beard.fbx",
+    "source": "Universal Base Characters[Standard]/Hairstyles/Rigged to Head Bone/FBX (Unity)/Hair_Beard.fbx",
+    "pack": "universal-base-characters",
+    "sha256": "00899e7d2cceebab8c07456ca1c25e54e441eb271bb3427c3d12e371c2ef5189"
+  },
+  {
+    "file": "Models/Hair_Buns.fbx",
+    "source": "Universal Base Characters[Standard]/Hairstyles/Rigged to Head Bone/FBX (Unity)/Hair_Buns.fbx",
+    "pack": "universal-base-characters",
+    "sha256": "cb45536c0e8c2b715732d9a75a33849239ca5e788c7dee4e17998daa0986fdfc"
+  },
+  {
+    "file": "Models/Hair_Buzzed.fbx",
+    "source": "Universal Base Characters[Standard]/Hairstyles/Rigged to Head Bone/FBX (Unity)/Hair_Buzzed.fbx",
+    "pack": "universal-base-characters",
+    "sha256": "01c5c2ededd8b164274147ee8713a7a68cf74cd699fad6b969ce5e37c1b7b686"
+  },
+  {
+    "file": "Models/Hair_BuzzedFemale.fbx",
+    "source": "Universal Base Characters[Standard]/Hairstyles/Rigged to Head Bone/FBX (Unity)/Hair_BuzzedFemale.fbx",
+    "pack": "universal-base-characters",
+    "sha256": "aeb3a606d8b9b1818025dbf6b4640ff33f14b0e9676f3cbfe410321e1a1d6a5d"
+  },
+  {
+    "file": "Models/Hair_Long.fbx",
+    "source": "Universal Base Characters[Standard]/Hairstyles/Rigged to Head Bone/FBX (Unity)/Hair_Long.fbx",
+    "pack": "universal-base-characters",
+    "sha256": "206f14b69e05758425278f074eb61a730bfe40250e7cc30e0c433ab0b05342c7"
+  },
+  {
+    "file": "Models/Hair_SimpleParted.fbx",
+    "source": "Universal Base Characters[Standard]/Hairstyles/Rigged to Head Bone/FBX (Unity)/Hair_SimpleParted.fbx",
+    "pack": "universal-base-characters",
+    "sha256": "5e98acd3561c814127326fdc78e74f20dfa1c3397760006d17ebaea4c8d7a24d"
+  },
+  {
+    "file": "Licenses/universal-base-characters.txt",
+    "source": "Universal Base Characters[Standard]/License_Standard.txt",
+    "pack": "universal-base-characters",
+    "sha256": "0f4beaf0fe360a7732e58bbe3dbf60a2422367fbea60cb9ea4add968f383268e"
+  },
+  {
+    "file": "Models/Female_Peasant.fbx",
+    "source": "Modular Character Outfits - Fantasy[Standard]/Exports/FBX (Unity)/Outfits/Female_Peasant.fbx",
+    "pack": "modular-character-outfits-fantasy",
+    "sha256": "cb33c493852310400ca3974fe6734fcd4e1da5232b527708a6082a86b90ca5d5"
+  },
+  {
+    "file": "Models/Male_Peasant.fbx",
+    "source": "Modular Character Outfits - Fantasy[Standard]/Exports/FBX (Unity)/Outfits/Male_Peasant.fbx",
+    "pack": "modular-character-outfits-fantasy",
+    "sha256": "d083f08a910c739b5a337207e4b6112f70c1235cdc3891c314ba26357c5f4965"
+  },
+  {
+    "file": "Licenses/modular-character-outfits-fantasy.txt",
+    "source": "Modular Character Outfits - Fantasy[Standard]/License_Standard.txt",
+    "pack": "modular-character-outfits-fantasy",
+    "sha256": "2202cc2f608c4210790b112e5f121bc2e7f8dced7b5b1c7f4be6203461bdebbb"
+  },
+  {
+    "file": "Textures/T_Peasant_2_BaseColor.png",
+    "source": "Modular Character Outfits - Fantasy[Standard]/Textures/Peasant/T_Peasant_2_BaseColor.png",
+    "pack": "modular-character-outfits-fantasy",
+    "sha256": "0019ae4ae3f1a9005d3a6993cfca9218d7e74ec7e10ce1c54e67d63e8054f134"
+  },
+  {
+    "file": "Textures/T_Peasant_BaseColor.png",
+    "source": "Modular Character Outfits - Fantasy[Standard]/Textures/Peasant/T_Peasant_BaseColor.png",
+    "pack": "modular-character-outfits-fantasy",
+    "sha256": "a43635628d95571cd62fd4db0cc3a6ea32778b2bc02f242dda224c89d07f1ade"
+  },
+  {
+    "file": "Textures/T_Peasant_ORM.png",
+    "source": "Modular Character Outfits - Fantasy[Standard]/Textures/Peasant/T_Peasant_ORM.png",
+    "pack": "modular-character-outfits-fantasy",
+    "sha256": "e1932f5f91104afca89c501416a5fec09069b8552734237fc09045fabc4ca9b4"
+  },
+  {
+    "file": "Licenses/universal-animation-library.txt",
+    "source": "Universal Animation Library[Standard]/License.txt",
+    "pack": "universal-animation-library",
+    "sha256": "6d01f55c6e4c49a2c9963e147e561945ae2c83958c8ca667d90a6bffdbfac061"
+  },
+  {
+    "file": "Models/UAL1_Standard.fbx",
+    "source": "Universal Animation Library[Standard]/Unity/UAL1_Standard.fbx",
+    "pack": "universal-animation-library",
+    "sha256": "21b32d912da3cb93426d974fb945e86f5b2e86970acd2ce89905e0fbf9f1dcc2"
+  }
+]

@@ -249,7 +249,7 @@ namespace ImagineQuest.Gameplay
                 launch.Invoke();
             });
             var assignedLabel = Label("Label", assigned, Vector2.zero, Vector2.one);
-            assignedLabel.text = "PLAY ASSIGNED QUEST";
+            assignedLabel.text = ImagineQuest.Student.StudentCloudConfig.Enabled ? "PLAY ASSIGNED QUEST" : "OPEN LOCAL WORKSHOP";
             assignedLabel.fontStyle = FontStyles.Bold;
             assignedLabel.color = new Color(1f, 0.96f, 0.84f);
             var retry = Control("Retry", root.transform, 0.52f, 0.72f, () =>

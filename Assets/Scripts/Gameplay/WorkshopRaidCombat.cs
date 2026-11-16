@@ -723,7 +723,6 @@ namespace ImagineQuest.Gameplay
             return part.transform;
         }
 
-
         private void RemoveTargets(Raider foe)
         {
             if (foe.TorsoTarget != null)
@@ -737,16 +736,22 @@ namespace ImagineQuest.Gameplay
                 targets.Remove(foe.SkullTarget);
                 foe.SkullTarget.enabled = false;
             }
+
+            if (aimedRaider == foe) aimedRaider = null;
         }
 
         private void ClearEnemies()
         {
             foreach (var foe in enemies)
+            {
+                RemoveTargets(foe);
                 if (foe.Root != null)
                     UnityEngine.Object.Destroy(foe.Root.gameObject);
+            }
 
             enemies.Clear();
             targets.Clear();
+            aimedRaider = null;
         }
 
         private void Collapse(Raider foe, Vector3 push)
