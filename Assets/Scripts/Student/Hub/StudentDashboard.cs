@@ -127,8 +127,9 @@ namespace ImagineQuest.Student
             crystalsText.text = Format(snapshot.Economy.Crystals);
             goldText.text = Format(snapshot.Economy.Gold);
             heartsText.text = Format(snapshot.Standing.Hearts);
-            statusText.text = "Your progress, rewards and classroom standing";
-
+            statusText.text = snapshot.Standing.Hearts == 0
+                ? "No Hearts remaining. Contact your teacher about your standing."
+                : "Your progress, rewards and classroom standing";
             Sprite sprite = null;
             if (avatarIds != null && avatarSprites != null)
                 for (int i = 0; i < Math.Min(avatarIds.Length, avatarSprites.Length); i++)
