@@ -620,4 +620,4 @@ export const recordQuestEvent = onCall(async (request): Promise<QuestEventResult
 });
 
 // Teacher-owned classroom standing (separate from quest and wallet services).
-export {getStudentHeartsForTeacher} from "./teacherHearts";
+export {getStudentHeartsForTeacher, adjustStudentHeartsForTeacher, getStudentHeartHistoryForTeacher} from "./teacherHearts";

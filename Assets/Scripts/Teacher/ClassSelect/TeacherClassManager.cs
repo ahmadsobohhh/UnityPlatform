@@ -72,6 +72,140 @@ public class TeacherClassManager : MonoBehaviour
     [Header("Font")]
     [SerializeField] private TMP_FontAsset cardFont;
 
+    // Teacher Heart controls are drawn at runtime in the class detail view.
+    private readonly List<string> _heartStudentUids = new List<string>();
+    private readonly List<string> _heartStudentNames = new List<string>();
+    private int _heartSelectedStudent;
+    private string _heartAmount = "1";
+    private string _heartNote = "";
+    private int _heartReasonIndex;
+    private bool _heartBusy;
+    private string _heartFeedback = "";
+    private string _heartHistory = "";
+    private static readonly string[] HeartReasons = { "late", "homework", "disruption", "other", "recovery" };
+
+    private void OnGUI()
+    {
+        if (classListContainer != null || string.IsNullOrEmpty(ClassSelection.CurrentClassId) ||
+            auth == null || auth.CurrentUser == null || _heartStudentUids.Count == 0) return;
+        GUILayout.BeginArea(new Rect(Screen.width - 345, 80, 330, Mathf.Min(Screen.height - 90, 520)), GUI.skin.box);
+        GUILayout.Label("Teacher Heart Management");
+        GUILayout.Label("Student: " + _heartStudentNames[Mathf.Clamp(_heartSelectedStudent, 0, _heartStudentNames.Count - 1)]);
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Previous", GUILayout.Width(95))) _heartSelectedStudent = (_heartSelectedStudent + _heartStudentUids.Count - 1) % _heartStudentUids.Count;
+        if (GUILayout.Button("Next", GUILayout.Width(95))) _heartSelectedStudent = (_heartSelectedStudent + 1) % _heartStudentUids.Count;
+        GUILayout.EndHorizontal();
+        GUILayout.Label("Amount (1-50)");
+        _heartAmount = GUILayout.TextField(_heartAmount, 3);
+        GUILayout.Label("Reason: " + HeartReasons[_heartReasonIndex]);
+        if (GUILayout.Button("Next reason")) _heartReasonIndex = (_heartReasonIndex + 1) % HeartReasons.Length;
+        GUILayout.Label("Note (required for Other)");
+        _heartNote = GUILayout.TextField(_heartNote, 200);
+        GUI.enabled = !_heartBusy;
+        if (GUILayout.Button("Deduct Hearts")) StartCoroutine(ChangeHearts(false));
+        if (GUILayout.Button("Restore Hearts")) StartCoroutine(ChangeHearts(true));
+        if (GUILayout.Button("View recent history")) StartCoroutine(LoadHeartHistory());
+        GUI.enabled = true;
+        GUILayout.Label(_heartFeedback);
+        GUILayout.TextArea(_heartHistory, GUILayout.Height(120));
+        GUILayout.EndArea();
+    }
+
+    private IEnumerator PostHeartCallable(string functionName, string json, System.Action<string, string> completed)
+    {
+        var teacher = auth.CurrentUser;
+        if (teacher == null) { completed(null, "Teacher not signed in."); yield break; }
+        var tokenTask = teacher.TokenAsync(false);
+        yield return new WaitUntil(() => tokenTask.IsCompleted);
+        if (tokenTask.IsFaulted || tokenTask.IsCanceled || auth.CurrentUser?.UserId != teacher.UserId)
+        {
+            completed(null, "Authentication failed."); yield break;
+        }
+        var projectId = Firebase.FirebaseApp.DefaultInstance.Options.ProjectId;
+        if (string.IsNullOrEmpty(projectId)) { completed(null, "Firebase project ID missing."); yield break; }
+        var url = "https://northamerica-northeast1-" + projectId + ".cloudfunctions.net/" + functionName;
+        var body = System.Text.Encoding.UTF8.GetBytes("{\\"data\\":" + json + "}");
+        using (var request = new UnityWebRequest(url, "POST"))
+        {
+            request.uploadHandler = new UploadHandlerRaw(body);
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.SetRequestHeader("Authorization", "Bearer " + tokenTask.Result);
+            yield return request.SendWebRequest();
+            if (auth.CurrentUser?.UserId != teacher.UserId) { completed(null, "Session changed."); yield break; }
+            completed(request.result == UnityWebRequest.Result.Success ? request.downloadHandler.text : null,
+                request.result == UnityWebRequest.Result.Success ? null : request.error + " " + request.downloadHandler.text);
+        }
+    }
+
+    [System.Serializable]
+    private sealed class HeartChangePayload
+    {
+        public string classId, studentUid, requestId, kind, reason, note;
+        public int amount;
+    }
+
+    private IEnumerator ChangeHearts(bool restore)
+    {
+        if (_heartBusy || _heartStudentUids.Count == 0) yield break;
+        if (!int.TryParse(_heartAmount, out int amount) || amount < 1 || amount > 50)
+        { _heartFeedback = "Enter a whole amount from 1 to 50."; yield break; }
+        if (!restore && _heartReasonIndex == 4)
+        { _heartFeedback = "Choose a deduction reason."; yield break; }
+        if (!restore && _heartReasonIndex == 3 && string.IsNullOrWhiteSpace(_heartNote))
+        { _heartFeedback = "Enter a note for Other."; yield break; }
+        _heartBusy = true;
+        string classId = ClassSelection.CurrentClassId;
+        string uid = _heartStudentUids[_heartSelectedStudent];
+        var payload = new HeartChangePayload
+        {
+            classId = classId, studentUid = uid, requestId = System.Guid.NewGuid().ToString("N"),
+            kind = restore ? "restore" : "deduct", amount = amount,
+            reason = restore ? "recovery" : HeartReasons[_heartReasonIndex], note = _heartNote
+        };
+        string result = null, error = null;
+        yield return StartCoroutine(PostHeartCallable("adjustStudentHeartsForTeacher",
+            JsonUtility.ToJson(payload), (response, failure) => { result = response; error = failure; }));
+        _heartBusy = false;
+        _heartFeedback = error == null ? "Heart balance updated. Refreshing roster..." : "Change failed: " + error;
+        if (error == null && ClassSelection.CurrentClassId == classId)
+            StartCoroutine(LoadSelectedClassDetailsRoutine());
+    }
+
+    [System.Serializable]
+    private sealed class HeartHistoryPayload { public string classId, studentUid; }
+    [System.Serializable]
+    private sealed class HeartHistoryEntry
+    {
+        public string kind, reason, note;
+        public int amount, before, after;
+    }
+    [System.Serializable]
+    private sealed class HeartHistoryResult { public HeartHistoryEntry[] entries; }
+    [System.Serializable]
+    private sealed class HeartHistoryResponse { public HeartHistoryResult result; }
+
+    private IEnumerator LoadHeartHistory()
+    {
+        if (_heartBusy || _heartStudentUids.Count == 0) yield break;
+        _heartBusy = true;
+        string json = JsonUtility.ToJson(new HeartHistoryPayload {
+            classId = ClassSelection.CurrentClassId, studentUid = _heartStudentUids[_heartSelectedStudent] });
+        string response = null, error = null;
+        yield return StartCoroutine(PostHeartCallable("getStudentHeartHistoryForTeacher", json,
+            (value, failure) => { response = value; error = failure; }));
+        _heartBusy = false;
+        if (error != null) { _heartHistory = "History unavailable: " + error; yield break; }
+        var parsed = JsonUtility.FromJson<HeartHistoryResponse>(response);
+        var sb = new StringBuilder();
+        if (parsed?.result?.entries != null)
+        {
+            foreach (var item in parsed.result.entries)
+                sb.AppendLine(item.kind + " " + item.amount + " (" + item.reason + "): " + item.before + " -> " + item.after);
+        }
+        _heartHistory = sb.Length == 0 ? "No recent changes." : sb.ToString();
+    }
+
     private FirebaseAuth auth;
     private FirebaseFirestore db;
 
@@ -591,6 +725,11 @@ public class TeacherClassManager : MonoBehaviour
             memberUids.Add(uid);
         }
 
+        _heartStudentUids.Clear();
+        _heartStudentUids.AddRange(memberUids);
+        _heartStudentNames.Clear();
+        _heartStudentNames.AddRange(memberNames);
+        _heartSelectedStudent = 0;
         if (studentsListText)
         {
             if (memberNames.Count == 0)
