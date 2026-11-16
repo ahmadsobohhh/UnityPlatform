@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using UnityEditor;
 using UnityEditor.Animations;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
 using ImagineQuest.Characters;
 using System.Collections.Generic;
 using UnityEngine;
@@ -12,6 +14,7 @@ public static class StudentCharacterAssetTools
 {
     public const string Art = "Assets/Art/StudentCharacters";
     public const string Generated = "Assets/Art/StudentCharacters/Generated";
+    [MenuItem("Imagine Quest/Character/Rebuild Character Art")]
     public static void Build()
     {
         Directory.CreateDirectory(Generated); Directory.CreateDirectory("Assets/Resources/StudentCharacters");
@@ -47,25 +50,36 @@ public static class StudentCharacterAssetTools
         {
             var importer=(TextureImporter)AssetImporter.GetAtPath(path); importer.maxTextureSize=1024;
             if(path.Contains("Normal")) importer.textureType=TextureImporterType.NormalMap;
+            if(path.Contains("Superhero") && path.Contains("Ligh")) importer.isReadable=true;
             importer.SaveAndReimport();
         }
         var clothes=Material("Deckhand linen and leather","T_Peasant_BaseColor");
         var eyes=Material("Warm brown eyes","T_Eye_Brown");
         var hair=Material("Hair",null,"T_Hair_1_Normal");
         var longHair=Material("Long hair",null,"T_Hair_2_Normal");
+        var curls=Material("Textured curls",null);
         var catalog=AssetDatabase.LoadAssetAtPath<StudentCharacterCatalog>("Assets/Resources/StudentCharacters/Catalog.asset");
         if(catalog==null) { catalog=ScriptableObject.CreateInstance<StudentCharacterCatalog>(); AssetDatabase.CreateAsset(catalog,"Assets/Resources/StudentCharacters/Catalog.asset"); }
         catalog.Locomotion=BuildLocomotion(); catalog.Bodies=new GameObject[2];
-        for(int body=0;body<2;body++)
+        catalog.CreatorBackground=AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Images/Student/StudentHubBG.png");
+        catalog.MenuFont=AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>("Assets/Text/WelcomePage/Treamd SDF.asset");
+        catalog.ReadingFont=AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>("Assets/Text/WelcomePage/Almendra-Regular SDF.asset");
+        var previewScene=EditorSceneManager.NewPreviewScene();
+        try
+        {for(int body=0;body<2;body++)
         {
             bool female=body==1; string gender=female?"Female":"Male";
             var outfit=UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(Art+"/Models/"+gender+"_Peasant.fbx"));
+            SceneManager.MoveGameObjectToScene(outfit,previewScene);
             outfit.name=gender+" deckhand";
             var animator=outfit.GetComponent<Animator>();
             if(animator==null || animator.avatar==null || !animator.avatar.isHuman || !animator.avatar.isValid)
                 throw new InvalidOperationException("Invalid Humanoid outfit: "+gender);
             animator.runtimeAnimatorController=catalog.Locomotion; animator.applyRootMotion=false;
             var skin=Material(gender+" skin",female?"T_Superhero_Female_Light_BaseColor":"T_Superhero_Male_Ligh",female?"T_Superhero_Female_Normal":"T_Superhero_Male_Normal");
+            var source=UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(Art+"/Models/Superhero_"+gender+"_FullBody.fbx"));
+            SceneManager.MoveGameObjectToScene(source,previewScene);
+            var exposedSkin=ExposedSkinMaterial(gender,source,skin);
             var skinParts=new List<Renderer>(); var skinSlots=new List<int>(); var hairParts=new List<Renderer>();
             foreach(var renderer in outfit.GetComponentsInChildren<SkinnedMeshRenderer>())
             {
@@ -74,49 +88,92 @@ public static class StudentCharacterAssetTools
                 var materials=renderer.sharedMaterials;
                 for(int slot=0;slot<materials.Length;slot++)
                 {
-                    bool exposedSkin=materials[slot]!=null && materials[slot].name.Contains("Regular");
-                    materials[slot]=exposedSkin?skin:clothes;
-                    if(exposedSkin) {skinParts.Add(renderer);skinSlots.Add(slot);}
+                    bool isSkin=materials[slot]!=null && materials[slot].name.Contains("Regular");
+                    materials[slot]=isSkin?exposedSkin:clothes;
+                    if(isSkin) {skinParts.Add(renderer);skinSlots.Add(slot);}
                 }
                 renderer.sharedMaterials=materials;
             }
             var skeleton=outfit.GetComponentsInChildren<Transform>(true).GroupBy(t=>t.name).ToDictionary(g=>g.Key,g=>g.First());
-            var source=UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(Art+"/Models/Superhero_"+gender+"_FullBody.fbx"));
+            SkinnedMeshRenderer headRenderer=null,eyesRenderer=null;
             foreach(var renderer in source.GetComponentsInChildren<SkinnedMeshRenderer>())
             {
                 var copy=CopyMesh(renderer,outfit.transform,skeleton);
-                if(renderer.name=="Eyes") copy.sharedMaterials=new[]{eyes};
+                if(renderer.name=="Eyes") {copy.sharedMaterials=new[]{eyes};eyesRenderer=copy;}
                 else if(renderer.name=="Eyebrows") { copy.sharedMaterials=new[]{hair}; hairParts.Add(copy); }
                 else
                 {
-                    var neck=source.GetComponentsInChildren<Transform>().First(t=>t.name=="Head").position.y-.12f;
-                    var mesh=HeadMesh(renderer,neck);
+                    var mesh=StudentCharacterMeshTools.Head(renderer);
                     string meshPath=Generated+"/"+gender+"Head.asset";
                     var existingHead=AssetDatabase.LoadAssetAtPath<Mesh>(meshPath);
                     if(existingHead==null) AssetDatabase.CreateAsset(mesh,meshPath);
                     else {EditorUtility.CopySerialized(mesh,existingHead);UnityEngine.Object.DestroyImmediate(mesh);mesh=existingHead;EditorUtility.SetDirty(mesh);}
                     copy.sharedMesh=mesh; copy.sharedMaterials=new[]{skin};
+                    headRenderer=copy;
                     skinParts.Add(copy);skinSlots.Add(0);
                 }
             }
             UnityEngine.Object.DestroyImmediate(source);
-            var styles=new GameObject[4];
-            string[] hairNames={female?"Hair_BuzzedFemale":"Hair_Buzzed","Hair_SimpleParted","Hair_Long","Hair_Buns"};
-            for(int style=0;style<4;style++)
+            var torso=outfit.GetComponentsInChildren<SkinnedMeshRenderer>().Single(r=>r.name==gender+"_Peasant_Body");
+            var collar=CopyMesh(torso,outfit.transform,skeleton);collar.name="Collar skin";
+            var collarMesh=StudentCharacterMeshTools.CollarSkin(torso,skeleton["neck_01"],skeleton["Head"]);
+            collarMesh.name=gender+"CollarSkin";collar.sharedMesh=StoreMesh(Generated+"/"+gender+"CollarSkin.asset",collarMesh);
+            collar.sharedMaterials=new[]{exposedSkin};skinParts.Add(collar);skinSlots.Add(0);
+            var styles=new GameObject[6];
+            styles[0]=new GameObject("Hairstyle 0 Bald");styles[0].transform.SetParent(skeleton["Head"],false);
+            using(var scalp=new StudentCharacterMeshTools.Scalp(headRenderer,skeleton["Head"],eyesRenderer))
+            for(int style=1;style<6;style++)
             {
-                var hairSource=UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(Art+"/Models/"+hairNames[style]+".fbx"));
-                var copy=CopyMesh(hairSource.GetComponentInChildren<SkinnedMeshRenderer>(),outfit.transform,skeleton);
-                copy.name="Hairstyle "+style; copy.sharedMaterials=new[]{style<2?hair:longHair}; hairParts.Add(copy); styles[style]=copy.gameObject;
-                UnityEngine.Object.DestroyImmediate(hairSource);
+                bool curly=female?style==1:style==3;
+                Mesh mesh;Material material;
+                if(curly) {mesh=scalp.Coils(female);material=curls;}
+                else
+                {
+                    string name=female?new[]{"","","Hair_Long","Hair_Buns","Hair_SimpleParted","Hair_BuzzedFemale"}[style]:
+                        new[]{"","Hair_Buzzed","Hair_SimpleParted","","Hair_Long","Hair_Buns"}[style];
+                    var hairSource=UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(Art+"/Models/"+name+".fbx"));
+                    SceneManager.MoveGameObjectToScene(hairSource,previewScene);
+                    var temporary=CopyMesh(hairSource.GetComponentInChildren<SkinnedMeshRenderer>(),outfit.transform,skeleton);
+                    mesh=scalp.Fit(temporary);material=name=="Hair_Long" || name=="Hair_Buns"?longHair:hair;
+                    UnityEngine.Object.DestroyImmediate(temporary.gameObject);UnityEngine.Object.DestroyImmediate(hairSource);
+                }
+                mesh=StoreMesh(Generated+"/"+gender+"Hair"+style+".asset",mesh);
+                var go=new GameObject("Hairstyle "+style,typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(skeleton["Head"],false);
+                go.GetComponent<MeshFilter>().sharedMesh=mesh;var renderer=go.GetComponent<MeshRenderer>();renderer.sharedMaterial=material;
+                styles[style]=go;hairParts.Add(renderer);
             }
             var avatar=outfit.AddComponent<StudentCharacterAvatar>(); avatar.Body=body; avatar.SkinRenderers=skinParts.ToArray();avatar.SkinMaterialIndices=skinSlots.ToArray();
             avatar.HairRenderers=hairParts.ToArray(); avatar.Hairstyles=styles;
             var appearance=StudentAppearance.Default; appearance.Body=body; avatar.Apply(appearance);
             catalog.Bodies[body]=PrefabUtility.SaveAsPrefabAsset(outfit,Generated+"/"+gender+"Deckhand.prefab");
             UnityEngine.Object.DestroyImmediate(outfit);
-        }
+        }} finally {EditorSceneManager.ClosePreviewScene(previewScene);}
         EditorUtility.SetDirty(catalog); AssetDatabase.SaveAssets(); AssetDatabase.Refresh();
         Debug.Log("STUDENT CHARACTER ASSETS BUILT");
+    }
+    private static Mesh StoreMesh(string path,Mesh mesh)
+    {
+        var prior=AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if(prior==null) {AssetDatabase.CreateAsset(mesh,path);return mesh;}
+        EditorUtility.CopySerialized(mesh,prior);UnityEngine.Object.DestroyImmediate(mesh);EditorUtility.SetDirty(prior);return prior;
+    }
+    private static Material ExposedSkinMaterial(string gender,GameObject source,Material headMaterial)
+    {
+        var body=source.GetComponentsInChildren<SkinnedMeshRenderer>().First(r=>r.name!="Eyes" && r.name!="Eyebrows");
+        float neckY=source.GetComponentsInChildren<Transform>().First(t=>t.name=="neck_01").position.y;
+        var texture=(Texture2D)headMaterial.GetTexture("_BaseMap");var vertices=body.sharedMesh.vertices;var uv=body.sharedMesh.uv;
+        Color sum=Color.clear;int count=0;
+        for(int i=0;i<vertices.Length;i++)
+        {
+            Vector3 point=body.transform.TransformPoint(vertices[i]);
+            if(point.y>neckY && point.y<neckY+.065f && Mathf.Abs(point.x)<.075f) {sum+=texture.GetPixelBilinear(uv[i].x,uv[i].y);count++;}
+        }
+        Color neutral=count>0?sum/count:new Color(.84f,.65f,.49f);neutral.a=1;
+        string path=Generated+"/"+gender+" exposed skin.asset";
+        var flat=AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        if(flat==null) {flat=new Texture2D(1,1,TextureFormat.RGBA32,false) {name=gender+" matched skin"};AssetDatabase.CreateAsset(flat,path);}
+        flat.SetPixel(0,0,neutral);flat.Apply();EditorUtility.SetDirty(flat);
+        var material=Material(gender+" exposed skin",null);material.SetTexture("_BaseMap",flat);EditorUtility.SetDirty(material);return material;
     }
     private static Material Material(string name,string texture,string normal=null)
     {
@@ -135,22 +192,6 @@ public static class StudentCharacterAssetTools
         var copy=go.AddComponent<SkinnedMeshRenderer>(); copy.sharedMesh=source.sharedMesh;
         copy.bones=source.bones.Select(b=>skeleton[b.name]).ToArray(); copy.rootBone=skeleton[source.rootBone.name];
         copy.localBounds=source.localBounds; copy.updateWhenOffscreen=true; return copy;
-    }
-    private static Mesh HeadMesh(SkinnedMeshRenderer source,float cutoff)
-    {
-        var original=source.sharedMesh; var vertices=original.vertices;
-        var triangles=original.triangles; var kept=new List<int>(); var map=new Dictionary<int,int>(); var order=new List<int>();
-        for(int i=0;i<triangles.Length;i+=3)
-        {
-            if(Enumerable.Range(0,3).Any(j=>source.transform.TransformPoint(vertices[triangles[i+j]]).y<cutoff)) continue;
-            for(int j=0;j<3;j++) { int index=triangles[i+j]; if(!map.ContainsKey(index)) {map[index]=order.Count;order.Add(index);} kept.Add(map[index]); }
-        }
-        if(kept.Count<300) throw new InvalidOperationException("Head clipping removed too much geometry.");
-        var mesh=new Mesh {name="Clothed character head"};
-        mesh.vertices=order.Select(i=>vertices[i]).ToArray(); mesh.normals=order.Select(i=>original.normals[i]).ToArray();
-        mesh.uv=order.Select(i=>original.uv[i]).ToArray(); mesh.boneWeights=order.Select(i=>original.boneWeights[i]).ToArray();
-        if(original.tangents.Length==vertices.Length) mesh.tangents=order.Select(i=>original.tangents[i]).ToArray();
-        mesh.bindposes=original.bindposes; mesh.triangles=kept.ToArray(); mesh.RecalculateBounds(); return mesh;
     }
     private static RuntimeAnimatorController BuildLocomotion()
     {

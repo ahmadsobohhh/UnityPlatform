@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections;
+using System.Threading.Tasks;
+using ImagineQuest.Characters;
 using Firebase.Auth;
 using Firebase.Firestore;
 using TMPro;
@@ -94,6 +96,8 @@ namespace ImagineQuest.Gameplay
         private GameObject questPickerPanel;
         private PirateAvatarStyler playerStyler;
         private ImagineQuest.Characters.StudentCharacterAvatar playerAvatar;
+        private bool appearanceLoading;
+        private int appearanceRequest;
         private bool briefingVisible;
         private bool lessonVisible;
         private bool journalVisible;
@@ -112,6 +116,7 @@ namespace ImagineQuest.Gameplay
 
         private void Awake()
         {
+            appearanceLoading=Environment.GetEnvironmentVariable("IMAGINEQUEST_OFFLINE_TESTS")!="1" && !StudentAvatarIdentity.HasVerifiedCache;
             // Also recognize the scene by name when an already-open editor instance
             // still has the old serialized component values after a script reload.
             arenaOnly = arenaOnly || gameObject.scene.name == "QuestArena";
@@ -127,11 +132,11 @@ namespace ImagineQuest.Gameplay
 
         private void Start()
         {
+            _=RefreshStudentAppearanceAsync();
             if (arenaOnly) StartCoroutine(ArriveOnShip());
             else
             {
                 BeginExploration();
-                RestoreSavedAvatar();
             }
             if (arenaMusic != null)
             {
@@ -142,7 +147,7 @@ namespace ImagineQuest.Gameplay
         }
 
         private void OnEnable() => StudentAvatarIdentity.Changed+=ApplyStudentAppearance;
-        private void OnDisable() => StudentAvatarIdentity.Changed-=ApplyStudentAppearance;
+        private void OnDisable() {StudentAvatarIdentity.Changed-=ApplyStudentAppearance;++appearanceRequest;}
 
         private bool arrivingOnShip;
 
@@ -158,29 +163,47 @@ namespace ImagineQuest.Gameplay
             yield return QuestArrival.Play(transform, "THE AURORA", "QUEST ARENA", playerController.SetArrivalProgress, handoff);
             arrivingOnShip = false;
             BeginExploration();
-            RestoreSavedAvatar();
         }
 
-        private async void RestoreSavedAvatar()
+        public async Task RefreshStudentAppearanceAsync(IAppearanceRepository source=null)
         {
-            // Direct scene previews have no classroom account to refresh.
-            if (arenaOnly && string.IsNullOrWhiteSpace(QuestSession.Instance?.ClassId)) return;
+            if(source==null && Environment.GetEnvironmentVariable("IMAGINEQUEST_OFFLINE_TESTS")=="1") return;
+            bool initializeAccount=source==null;
+            int version=++appearanceRequest;
             try
             {
-                var user = FirebaseAuth.DefaultInstance.CurrentUser;
-                if (user == null) return;
-                var profile = await FirebaseFirestore.DefaultInstance.Collection("users").Document(user.UserId).GetSnapshotAsync();
-                if (this == null || FirebaseAuth.DefaultInstance.CurrentUser?.UserId != user.UserId || !profile.Exists) return;
-                StudentAvatarIdentity.Cache(user.UserId,
-                    profile.ContainsField("avatarId") ? profile.GetValue<string>("avatarId") : "navigator",
-                    profile.ContainsField("characterColor") ? profile.GetValue<string>("characterColor") : "FFFFFF");
-                ApplyStudentAppearance();
+                if(source==null)
+                {
+                    var connection=FirebaseAppearanceRepository.Connect();
+                    if(await Task.WhenAny(connection,Task.Delay(20000))!=connection) {_=ObserveAppearanceRead(connection);throw new TimeoutException();}
+                    source=await connection;
+                }
+                if(this==null || version!=appearanceRequest || !source.IsCurrent) return;
+                // Authentication is now initialized, so even a failed network read uses
+                // this account's cache rather than the guest/default preview character.
+                if(initializeAccount)
+                {
+                    ApplyStudentAppearance();
+                    if(source.IsLocal || StudentAvatarIdentity.HasVerifiedCache)
+                    {appearanceLoading=false;SetPlayerAppearanceVisible(true);playerController?.RefreshCharacterAnimator();}
+                }
+                var load=source.LoadAsync();
+                if(await Task.WhenAny(load,Task.Delay(15000))!=load) {_=ObserveAppearanceRead(load);throw new TimeoutException();}
+                string saved=await load;
+                if(this==null || version!=appearanceRequest || !source.IsCurrent) return;
+                ApplyAppearance(StudentAppearance.FromAvatarId(saved));
             }
             catch (Exception)
             {
                 Debug.LogWarning("[Quest Arena] Saved appearance unavailable; using this account's cached or default skin.");
             }
+            finally
+            {
+                if(this!=null && version==appearanceRequest)
+                {appearanceLoading=false;SetPlayerAppearanceVisible(true);playerController?.RefreshCharacterAnimator();}
+            }
         }
+        private static async Task ObserveAppearanceRead(Task operation) {try {await operation;} catch(Exception) {}}
 
         private void PlayQuestVideo(string url, Action completed, Action exited = null, Vector3? worldAnchor = null)
         {
@@ -546,15 +569,16 @@ namespace ImagineQuest.Gameplay
             playerController.SetInputEnabled(false);
         }
 
-        private void CreateSelectedPlayerVisual(Transform playerRoot)
+        private void CreateSelectedPlayerVisual(Transform playerRoot,StudentAppearance? selectedAppearance=null)
         {
             if(ImagineQuest.Characters.StudentCharacterCatalog.Load()!=null)
             {
                 playerAvatar=ImagineQuest.Characters.StudentCharacterAvatar.Create(playerRoot,
-                    ImagineQuest.Characters.StudentAppearance.FromAvatarId(StudentAvatarIdentity.AvatarId),.58f);
+                    selectedAppearance??ImagineQuest.Characters.StudentAppearance.FromAvatarId(StudentAvatarIdentity.AvatarId),.58f);
                 playerAvatar.name="Selected Pirate Avatar";
                 AlignVisualFeetToPlayerRoot(playerAvatar.gameObject,playerRoot);
                 playerAvatar.gameObject.AddComponent<PirateVisualGrounding>().Configure(playerRoot,playerRoot.GetComponent<CharacterController>());
+                SetPlayerAppearanceVisible(!appearanceLoading);
                 return;
             }
             GameObject prefab = null;
@@ -592,10 +616,20 @@ namespace ImagineQuest.Gameplay
         {
             if(playerAvatar==null) {if(playerStyler!=null) playerStyler.Apply(StudentAvatarIdentity.AvatarId,StudentAvatarIdentity.ColorHex);return;}
             var next=ImagineQuest.Characters.StudentAppearance.FromAvatarId(StudentAvatarIdentity.AvatarId);
+            ApplyAppearance(next);
+        }
+        private void SetPlayerAppearanceVisible(bool visible)
+        {
+            if(playerAvatar==null) return;
+            foreach(var renderer in playerAvatar.GetComponentsInChildren<Renderer>(true)) renderer.forceRenderingOff=!visible;
+        }
+        private void ApplyAppearance(StudentAppearance next)
+        {
+            if(playerAvatar==null) return;
             if(playerAvatar.Body==next.Body) {playerAvatar.Apply(next);return;}
             var root=playerAvatar.transform.parent;
             playerAvatar.gameObject.SetActive(false);Destroy(playerAvatar.gameObject);
-            CreateSelectedPlayerVisual(root);playerController.RefreshCharacterAnimator();
+            CreateSelectedPlayerVisual(root,next);playerController?.RefreshCharacterAnimator();
         }
 
         internal static void AlignVisualFeetToPlayerRoot(GameObject visual, Transform playerRoot)

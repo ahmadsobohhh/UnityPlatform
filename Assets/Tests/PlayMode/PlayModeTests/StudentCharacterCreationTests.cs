@@ -24,7 +24,8 @@ public sealed class StudentCharacterCreationTests
         public int Writes;
         public bool FailLoad;
         public TaskCompletionSource<bool> Pending;
-        public Task<string> LoadAsync()=>FailLoad?Task.FromException<string>(new Exception("offline")):Task.FromResult(Saved);
+        public TaskCompletionSource<string> PendingLoad;
+        public Task<string> LoadAsync()=>PendingLoad!=null?PendingLoad.Task:FailLoad?Task.FromException<string>(new Exception("offline")):Task.FromResult(Saved);
         public async Task SaveAsync(StudentAppearance appearance) {Writes++;if(Pending!=null) await Pending.Task;Saved=appearance.AvatarId;}
     }
     private IEnumerator Open(Profile profile)
@@ -36,11 +37,18 @@ public sealed class StudentCharacterCreationTests
     public IEnumerator CreatorShowsClothedAnimatedModelsAndSurvivesAllAppearanceChanges()
     {
         yield return Open(new Profile());Assert.IsTrue(creator.Ready);
+        Assert.IsNull(root.transform.Find("3D character creator/Selection summary"));
+        Assert.IsFalse(root.GetComponentsInChildren<TMP_Text>().Any(t=>t.name=="Selection summary"));
+        var theme=StudentCharacterCatalog.Load();Assert.IsNotNull(theme.CreatorBackground);Assert.IsNotNull(theme.MenuFont);
+        Assert.AreSame(theme.MenuFont,root.GetComponentsInChildren<TMP_Text>().Single(t=>t.name=="Title").font);
         foreach(int body in new[]{0,1})
         {
-            creator.Select(0,body);
-            foreach(int hair in new[]{0,1,2,3}) {creator.Select(2,hair);yield return null;Assert.AreEqual(1,creator.Preview.Avatar.Hairstyles.Count(h=>h.activeSelf));}
+            creator.Select(0,body);yield return new WaitUntil(()=>!creator.Preview.IsTransitioning);
+            for(int hair=0;hair<StudentAppearance.HairChoiceCount;hair++)
+                Assert.AreEqual(StudentAppearance.HairName(body,hair),root.GetComponentsInChildren<Button>().Single(b=>b.name==$"Choice 2 {hair}").GetComponentInChildren<TMP_Text>().text);
+            foreach(int hair in new[]{0,1,2,3}) {creator.Select(2,hair);yield return new WaitUntil(()=>!creator.Preview.IsTransitioning);Assert.AreEqual(1,creator.Preview.Avatar.Hairstyles.Count(h=>h.activeSelf));}
             creator.Select(1,body==0?0:5);creator.Select(3,body==0?4:3);
+            yield return new WaitUntil(()=>!creator.Preview.IsTransitioning);
             var avatar=creator.Preview.Avatar;var animator=avatar.GetComponent<Animator>();
             Assert.IsTrue(animator.avatar.isHuman && animator.avatar.isValid);Assert.IsFalse(animator.applyRootMotion);
             Assert.AreEqual(body,avatar.Appearance.Body);
@@ -48,6 +56,8 @@ public sealed class StudentCharacterCreationTests
             Assert.IsTrue(avatar.SkinRenderers.All(r=>r is SkinnedMeshRenderer));
             foreach(var renderer in avatar.GetComponentsInChildren<SkinnedMeshRenderer>())
                 Assert.AreEqual(renderer.sharedMesh.subMeshCount,renderer.sharedMaterials.Length,"Every clothing submesh must be visible: "+renderer.name);
+            var head=avatar.GetComponentsInChildren<SkinnedMeshRenderer>().Single(r=>r.sharedMesh.name=="Clothed character head");
+            Assert.Less(head.sharedMesh.bounds.size.x,.25f,"The head mesh must not retain the shoulders beneath the shirt.");
             if(body==0)
             {
                 var sleeve=avatar.GetComponentsInChildren<SkinnedMeshRenderer>().Single(r=>r.name=="Male_Peasant_Arms");
@@ -68,8 +78,15 @@ public sealed class StudentCharacterCreationTests
                 string folder=Environment.GetEnvironmentVariable("IMAGINEQUEST_CHARACTER_OUTPUT");
                 if(!string.IsNullOrEmpty(folder)) {ScreenCapture.CaptureScreenshot(Path.Combine(folder,"Creator-"+body+"-"+Screen.width+"x"+Screen.height+".png"));yield return null;}
             }
+            creator.Preview.Rotate(180);yield return null;yield return new WaitForEndOfFrame();
+            string backFolder=Environment.GetEnvironmentVariable("IMAGINEQUEST_CHARACTER_OUTPUT");
+            if(!string.IsNullOrEmpty(backFolder)) {ScreenCapture.CaptureScreenshot(Path.Combine(backFolder,"Clothing-back-"+body+".png"));yield return null;}
+            creator.Preview.ResetView();
         }
         var before=creator.Appearance;creator.Select(1,-1);creator.Select(0,100);Assert.AreEqual(before,creator.Appearance);
+        creator.Select(0,0);creator.Select(0,1);creator.Select(2,0);creator.Select(2,3);
+        yield return new WaitUntil(()=>!creator.Preview.IsTransitioning);
+        Assert.AreEqual(creator.Appearance,creator.Preview.Avatar.Appearance,"Rapid selection must settle on the latest choice.");
     }
     [UnityTest]
     public IEnumerator AvatarSelectionSceneOpensTheNewCreatorWithoutLegacyClassControls()
@@ -141,6 +158,26 @@ public sealed class StudentCharacterCreationTests
         Assert.AreEqual(1,profile.Writes);
     }
     [UnityTest]
+    public IEnumerator DirectShipEntryRefreshesTheSavedGirlWithoutAClassAndIgnoresStaleAccounts()
+    {
+        QuestSession.Instance?.Clear();yield return SceneManager.LoadSceneAsync("QuestArena");yield return null;
+        var ship=UnityEngine.Object.FindFirstObjectByType<CelestialClockQuestBootstrap>();
+        var player=UnityEngine.Object.FindFirstObjectByType<CelestialClockPlayerController>();
+        var girl=new StudentAppearance {Body=1,Skin=3,Hair=2,HairColor=5};
+        var delayed=new Profile {PendingLoad=new TaskCompletionSource<string>()};
+        var load=ship.RefreshStudentAppearanceAsync(delayed);yield return null;
+        delayed.PendingLoad.SetResult(girl.AvatarId);yield return new WaitUntil(()=>load.IsCompleted);
+        Assert.IsFalse(load.IsFaulted);Assert.AreEqual(girl,player.GetComponentInChildren<StudentCharacterAvatar>().Appearance);
+        Assert.IsNotNull(player.GetComponentInChildren<Animator>());
+        var switched=new Profile {PendingLoad=new TaskCompletionSource<string>()};
+        var stale=ship.RefreshStudentAppearanceAsync(switched);switched.IsCurrent=false;
+        switched.PendingLoad.SetResult(StudentAppearance.Default.AvatarId);yield return new WaitUntil(()=>stale.IsCompleted);
+        Assert.AreEqual(girl,player.GetComponentInChildren<StudentCharacterAvatar>().Appearance);
+        var failed=new Profile {FailLoad=true};LogAssert.Expect(LogType.Warning,"[Quest Arena] Saved appearance unavailable; using this account's cached or default skin.");
+        var failure=ship.RefreshStudentAppearanceAsync(failed);yield return new WaitUntil(()=>failure.IsCompleted);
+        Assert.AreEqual(girl,player.GetComponentInChildren<StudentCharacterAvatar>().Appearance);
+    }
+    [UnityTest]
     public IEnumerator ShipUsesTheExactSavedAppearanceAndTheSameClothingMeshes()
     {
         bool existed=PlayerPrefs.HasKey("GuestPirateAppearance");string previous=PlayerPrefs.GetString("GuestPirateAppearance","");
@@ -157,6 +194,26 @@ public sealed class StudentCharacterCreationTests
             yield return new WaitForSecondsRealtime(4.5f);
             string folder=Environment.GetEnvironmentVariable("IMAGINEQUEST_CHARACTER_OUTPUT");
             if(!string.IsNullOrEmpty(folder)) {yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(folder,"Saved-character-on-ship.png"));yield return null;}
+            var camera=player.GetComponentInChildren<Camera>();float originalFov=camera.fieldOfView;player.enabled=false;
+            try
+            {
+                foreach(int body in new[]{0,1})
+                {
+                    selected.Body=body;var refresh=ship.RefreshStudentAppearanceAsync(new Profile {Saved=selected.AvatarId});
+                    yield return new WaitUntil(()=>refresh.IsCompleted);Assert.IsFalse(refresh.IsFaulted);
+                    avatar=player.GetComponentInChildren<StudentCharacterAvatar>();
+                    Assert.IsTrue(avatar.SkinRenderers.Any(r=>r.name=="Collar skin"),"The ship must use the repaired chest skin.");
+                    var neck=avatar.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Neck);
+                    var eyes=avatar.GetComponentsInChildren<SkinnedMeshRenderer>().Single(r=>r.name=="Eyes");
+                    var eyeMesh=new Mesh();eyes.BakeMesh(eyeMesh);
+                    Vector3 face=Vector3.ProjectOnPlane(eyes.transform.TransformPoint(eyeMesh.bounds.center)-neck.position,Vector3.up).normalized;
+                    UnityEngine.Object.Destroy(eyeMesh);
+                    camera.fieldOfView=45;camera.transform.position=neck.position+face*.8f+Vector3.up*.4f;camera.transform.LookAt(neck.position+Vector3.up*.03f);
+                    yield return new WaitForEndOfFrame();
+                    if(!string.IsNullOrEmpty(folder)) {ScreenCapture.CaptureScreenshot(Path.Combine(folder,$"Ship-collar-{body}.png"));yield return null;}
+                }
+            }
+            finally {if(player!=null) player.enabled=true;if(camera!=null) camera.fieldOfView=originalFov;}
         }
         finally {if(existed) PlayerPrefs.SetString("GuestPirateAppearance",previous);else PlayerPrefs.DeleteKey("GuestPirateAppearance");PlayerPrefs.Save();}
     }

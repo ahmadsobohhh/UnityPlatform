@@ -16,3 +16,6 @@ MonoBehaviour:
   - {fileID: 8484650957565574937, guid: abd64b9a7ce2fcb4ca8d857f05a2ed18, type: 3}
   - {fileID: 8891423314625813855, guid: 61f976a0380e57b40b30f0c641bf1653, type: 3}
   Locomotion: {fileID: 9100000, guid: 72b7ac5570f50d748af3ec53019e94a8, type: 2}
+  CreatorBackground: {fileID: 21300000, guid: f358e7608d6f9ca459623c989c851cde, type: 3}
+  MenuFont: {fileID: 11400000, guid: b12bb4b197a7383459bd463768c1a11f, type: 2}
+  ReadingFont: {fileID: 11400000, guid: 24e36e277b1e448afade27a5d4e66684, type: 2}

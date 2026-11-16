@@ -9,6 +9,7 @@ namespace ImagineQuest.Gameplay
         public static string AvatarId => OwnerId=="local-guest" ? PlayerPrefs.GetString("GuestPirateAppearance", ImagineQuest.Characters.StudentAppearance.Default.AvatarId) : IsCurrentUser ? PlayerPrefs.GetString("SelectedAvatarId", "navigator") : "navigator";
         public static string ColorHex => IsCurrentUser ? PlayerPrefs.GetString("SelectedAvatarColor", "FFFFFF") : "FFFFFF";
         public static event System.Action Changed;
+        public static bool HasVerifiedCache => IsCurrentUser;
         public static string OwnerId
         {
             get

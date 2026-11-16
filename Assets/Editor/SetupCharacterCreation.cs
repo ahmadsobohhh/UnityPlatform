@@ -25,4 +25,11 @@ public static class SetupCharacterCreation
         EditorSceneManager.OpenScene("Assets/Scenes/StudentPages/StudentAvatarSelect.unity");
         EditorApplication.isPlaying=true;
     }
+    [MenuItem("Imagine Quest/Character/Play Saved Character on Ship")]
+    public static void PlayShip()
+    {
+        if(EditorApplication.isPlaying) return;
+        EditorSceneManager.OpenScene("Assets/Scenes/Gameplay/QuestArena.unity");
+        EditorApplication.delayCall+=()=>EditorApplication.isPlaying=true;
+    }
 }

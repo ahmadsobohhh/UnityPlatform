@@ -43,7 +43,9 @@ namespace ImagineQuest.Characters
             if(!IsCurrent || !profile.Exists || !profile.ContainsField("role") || profile.GetValue<string>("role")!="student")
                 throw new InvalidOperationException("A student profile is required.");
             loaded=true;
-            return profile.ContainsField("avatarId")?profile.GetValue<string>("avatarId"):"";
+            string avatarId=profile.ContainsField("avatarId")?profile.GetValue<string>("avatarId"):"";
+            StudentAvatarIdentity.Cache(owner,avatarId,"FFFFFF");
+            return avatarId;
         }
         public async Task SaveAsync(StudentAppearance appearance)
         {

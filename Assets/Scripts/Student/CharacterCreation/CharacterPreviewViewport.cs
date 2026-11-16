@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using System.Collections;
 
 namespace ImagineQuest.Characters
 {
@@ -15,6 +16,9 @@ namespace ImagineQuest.Characters
         private Material platformMaterial, trimMaterial;
         private float yaw=-18, distance=3.65f;
         private bool walking, portrait;
+        private Coroutine appearanceTransition;
+        private StudentAppearance pendingAppearance;
+        public bool IsTransitioning => appearanceTransition!=null;
         public StudentCharacterAvatar Avatar => avatar;
         public RenderTexture Texture => texture;
         public void Initialize(bool headshot=false)
@@ -42,7 +46,7 @@ namespace ImagineQuest.Characters
         private void CreatePlatform()
         {
             platformMaterial=new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            platformMaterial.SetColor("_BaseColor",new Color(.055f,.105f,.13f));platformMaterial.SetFloat("_Smoothness",.32f);
+            platformMaterial.SetColor("_BaseColor",new Color(.10f,.065f,.035f));platformMaterial.SetFloat("_Smoothness",.32f);
             trimMaterial=new Material(platformMaterial);trimMaterial.SetColor("_BaseColor",new Color(.48f,.31f,.13f));
             trimMaterial.SetFloat("_Metallic",.6f);
             PlatformPart("Brass stage rim",new Vector3(0,-.074f,0),new Vector3(1.28f,.017f,1.28f),trimMaterial);
@@ -60,9 +64,41 @@ namespace ImagineQuest.Characters
             var source=light.GetComponent<Light>();source.type=LightType.Point;source.range=8;source.intensity=intensity;
             source.color=color;source.cullingMask=1<<30;source.shadows=LightShadows.None;
         }
-        public void Show(StudentAppearance appearance)
+        public void Show(StudentAppearance appearance,bool animate=false)
         {
             Initialize(portrait);
+            pendingAppearance=appearance.Valid?appearance:StudentAppearance.Default;
+            if(animate && avatar!=null && isActiveAndEnabled)
+            {
+                if(appearanceTransition==null && !avatar.Appearance.Equals(pendingAppearance))
+                    appearanceTransition=StartCoroutine(ChangeAppearance());
+                return;
+            }
+            if(appearanceTransition!=null) {StopCoroutine(appearanceTransition);appearanceTransition=null;}
+            ApplyNow(pendingAppearance);GetComponent<RawImage>().color=Color.white;
+        }
+        private IEnumerator ChangeAppearance()
+        {
+            do
+            {
+                yield return Fade(1,.25f,.09f);
+                ApplyNow(pendingAppearance);
+                yield return Fade(.25f,1,.16f);
+            } while(!avatar.Appearance.Equals(pendingAppearance));
+            appearanceTransition=null;
+        }
+        private IEnumerator Fade(float from,float to,float duration)
+        {
+            var image=GetComponent<RawImage>();float elapsed=0;
+            while(elapsed<duration)
+            {
+                elapsed+=Time.unscaledDeltaTime;float t=Mathf.SmoothStep(0,1,elapsed/duration);
+                image.color=new Color(1,1,1,Mathf.Lerp(from,to,t));yield return null;
+            }
+            image.color=new Color(1,1,1,to);
+        }
+        private void ApplyNow(StudentAppearance appearance)
+        {
             if(avatar==null || avatar.Body!=appearance.Body)
             {
                 if(avatar!=null) {avatar.gameObject.SetActive(false);Destroy(avatar.gameObject);}
@@ -71,7 +107,8 @@ namespace ImagineQuest.Characters
             }
             else avatar.Apply(appearance);
             avatar.transform.localRotation=Quaternion.Euler(0,yaw,0);
-            avatar.GetComponent<Animator>().SetFloat("Speed",walking?1:0); Frame();
+            var animator=avatar.GetComponent<Animator>();animator.updateMode=AnimatorUpdateMode.UnscaledTime;
+            animator.SetFloat("Speed",walking?1:0); Frame();
         }
         public void Rotate(float degrees) {yaw=Mathf.Repeat(yaw+degrees,360); if(avatar!=null) avatar.transform.localRotation=Quaternion.Euler(0,yaw,0);}
         public void ResetView() {yaw=-18;distance=3.65f;Rotate(0);Frame();}
@@ -87,7 +124,11 @@ namespace ImagineQuest.Characters
         public void OnScroll(PointerEventData data) {if(!portrait) {distance=Mathf.Clamp(distance-data.scrollDelta.y*.14f,2.4f,4.2f);Frame();}}
         private static void SetLayer(GameObject root,int layer) {foreach(var child in root.GetComponentsInChildren<Transform>(true)) child.gameObject.layer=layer;}
         private void OnEnable() {if(stage!=null) stage.SetActive(true);}
-        private void OnDisable() {if(stage!=null) stage.SetActive(false);}
+        private void OnDisable()
+        {
+            if(appearanceTransition!=null) {StopCoroutine(appearanceTransition);appearanceTransition=null;ApplyNow(pendingAppearance);GetComponent<RawImage>().color=Color.white;}
+            if(stage!=null) stage.SetActive(false);
+        }
         private void OnDestroy()
         {
             if(previewCamera!=null) previewCamera.targetTexture=null;
