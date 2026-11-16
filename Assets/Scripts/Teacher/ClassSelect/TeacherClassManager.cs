@@ -86,6 +86,7 @@ public class TeacherClassManager : MonoBehaviour
 
 
     private GameObject _heartPanel;
+    private RectTransform _heartContent;
     private bool _heartPanelOpen;
 
     private void Update()
@@ -117,29 +118,46 @@ public class TeacherClassManager : MonoBehaviour
         if (classListContainer != null || _heartPanel != null || studentsListText == null) return;
         var root = studentsListText.transform.root.GetComponentInChildren<Canvas>();
         if (root == null) return;
-        _heartPanel = new GameObject("TeacherHeartsPanel", typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
-        // Anchor the controls to the roster, not to the screen or root Canvas.
-        _heartPanel.transform.SetParent(studentsListText.transform.parent, false);
+        // Use the same panel coordinates as the class roster. The panel is a
+        // scrollable expanded section below the first roster entry.
+        var dashboard = FindSceneRect("StudentListPanel");
+        if (dashboard == null) return;
+        _heartPanel = new GameObject("TeacherHeartsPanel", typeof(RectTransform),
+            typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+        _heartPanel.transform.SetParent(dashboard, false);
         var rect = (RectTransform)_heartPanel.transform;
-        var rosterRect = studentsListText.rectTransform;
-        rect.anchorMin = rosterRect.anchorMin;
-        rect.anchorMax = rosterRect.anchorMax;
-        rect.pivot = new Vector2(0f, 1f);
-        rect.anchoredPosition = rosterRect.anchoredPosition + new Vector2(0f, -70f);
-        rect.sizeDelta = new Vector2(Mathf.Min(570f, Mathf.Max(350f, rosterRect.rect.width)), 0f);
-        var bg = _heartPanel.GetComponent<Image>();
-        bg.color = new Color(0.19f, 0.13f, 0.065f, 0.97f);
-        var layout = _heartPanel.GetComponent<VerticalLayoutGroup>();
+        rect.anchorMin = new Vector2(0.05f, 0.10f);
+        rect.anchorMax = new Vector2(0.59f, 0.57f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = Vector2.zero;
+        _heartPanel.GetComponent<Image>().color = new Color(0.19f, 0.13f, 0.065f, 0.97f);
+        var contentObject = new GameObject("HeartControls", typeof(RectTransform),
+            typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        contentObject.transform.SetParent(_heartPanel.transform, false);
+        _heartContent = (RectTransform)contentObject.transform;
+        _heartContent.anchorMin = new Vector2(0f, 1f);
+        _heartContent.anchorMax = new Vector2(1f, 1f);
+        _heartContent.pivot = new Vector2(0.5f, 1f);
+        _heartContent.anchoredPosition = Vector2.zero;
+        _heartContent.sizeDelta = Vector2.zero;
+        var layout = contentObject.GetComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(18, 18, 12, 12);
         layout.spacing = 7;
         layout.childControlHeight = true;
         layout.childForceExpandHeight = false;
         layout.childControlWidth = true;
         layout.childForceExpandWidth = true;
-        var fitter = _heartPanel.GetComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        contentObject.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        var scroll = _heartPanel.GetComponent<ScrollRect>();
+        scroll.content = _heartContent;
+        scroll.viewport = rect;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 24f;
         AddHeartText("MANAGE STUDENT HEARTS", 25, new Color(1f, 0.85f, 0.53f), 38);
-        AddHeartButton(_heartPanel.transform, "CLOSE", () => { _heartPanelOpen = false; RefreshHeartPanel(); });
+        AddHeartButton(_heartContent, "CLOSE", () => { _heartPanelOpen = false; RefreshHeartPanel(); });
         _heartSelectedLabel = AddHeartText("Select a student", 19, Color.white, 32);
         var nav = AddHeartRow("StudentNavigation");
         AddHeartButton(nav, "PREVIOUS", () => SelectHeartStudent(-1));
@@ -150,7 +168,7 @@ public class TeacherClassManager : MonoBehaviour
         _heartAmountInput.onValueChanged.AddListener(value => _heartAmount = value);
         AddHeartText("REASON", 17, new Color(1f, 0.85f, 0.53f), 26);
         var reasonObj = new GameObject("Reason", typeof(RectTransform), typeof(Image), typeof(TMP_Dropdown), typeof(LayoutElement));
-        reasonObj.transform.SetParent(_heartPanel.transform, false);
+        reasonObj.transform.SetParent(_heartContent, false);
         reasonObj.GetComponent<Image>().color = new Color(0.31f, 0.23f, 0.13f);
         reasonObj.GetComponent<LayoutElement>().preferredHeight = 44;
         _heartReasonDropdown = reasonObj.GetComponent<TMP_Dropdown>();
@@ -171,7 +189,7 @@ public class TeacherClassManager : MonoBehaviour
         else
         {
             Destroy(reasonObj);
-            var cycle = AddHeartButton(_heartPanel.transform, "Reason: Late arrival (tap to change)", () => {
+            var cycle = AddHeartButton(_heartContent, "Reason: Late arrival (tap to change)", () => {
                 _heartReasonIndex = (_heartReasonIndex + 1) % HeartReasons.Length;
                 if (_heartReasonCycleLabel != null) _heartReasonCycleLabel.text = "Reason: " + HeartReasons[_heartReasonIndex] + " (tap to change)";
             });
@@ -183,7 +201,7 @@ public class TeacherClassManager : MonoBehaviour
         var actions = AddHeartRow("HeartActions");
         AddHeartButton(actions, "DEDUCT HEARTS", () => { if (!_heartBusy) StartCoroutine(ChangeHearts(false)); });
         AddHeartButton(actions, "RESTORE HEARTS", () => { if (!_heartBusy) StartCoroutine(ChangeHearts(true)); });
-        AddHeartButton(_heartPanel.transform, "VIEW HEART HISTORY", () => { if (!_heartBusy) StartCoroutine(LoadHeartHistory()); });
+        AddHeartButton(_heartContent, "VIEW HEART HISTORY", () => { if (!_heartBusy) StartCoroutine(LoadHeartHistory()); });
         _heartFeedbackLabel = AddHeartText("", 16, Color.white, 30);
         _heartHistoryLabel = AddHeartText("", 15, Color.white, 55);
         _heartPanel.SetActive(false);
@@ -194,7 +212,7 @@ public class TeacherClassManager : MonoBehaviour
     private Transform AddHeartRow(string name)
     {
         var row = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
-        row.transform.SetParent(_heartPanel.transform, false);
+        row.transform.SetParent(_heartContent, false);
         row.GetComponent<LayoutElement>().preferredHeight = 43;
         var group = row.GetComponent<HorizontalLayoutGroup>();
         group.spacing = 8;
@@ -207,7 +225,7 @@ public class TeacherClassManager : MonoBehaviour
 
     private TMP_Text AddHeartText(string value, float size, Color color, float height)
     {
-        var t = AddHeartTextTo(_heartPanel.transform, value, size, color);
+        var t = AddHeartTextTo(_heartContent, value, size, color);
         t.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
         return t;
     }
@@ -245,7 +263,7 @@ public class TeacherClassManager : MonoBehaviour
     private TMP_InputField AddHeartInput(string initial, float height)
     {
         var go = new GameObject("HeartInput", typeof(RectTransform), typeof(Image), typeof(TMP_InputField), typeof(LayoutElement));
-        go.transform.SetParent(_heartPanel.transform, false);
+        go.transform.SetParent(_heartContent, false);
         go.GetComponent<Image>().color = new Color(0.11f, 0.08f, 0.045f);
         go.GetComponent<LayoutElement>().preferredHeight = height;
         var text = AddHeartTextTo(go.transform, initial, 19, Color.white);
@@ -292,7 +310,7 @@ public class TeacherClassManager : MonoBehaviour
         var projectId = Firebase.FirebaseApp.DefaultInstance.Options.ProjectId;
         if (string.IsNullOrEmpty(projectId)) { completed(null, "Firebase project ID missing."); yield break; }
         var url = "https://northamerica-northeast1-" + projectId + ".cloudfunctions.net/" + functionName;
-        var body = System.Text.Encoding.UTF8.GetBytes("{\\"data\\":" + json + "}");
+        var body = System.Text.Encoding.UTF8.GetBytes("{\\\"data\\\":" + json + "}");
         using (var request = new UnityWebRequest(url, "POST"))
         {
             request.uploadHandler = new UploadHandlerRaw(body);
