@@ -310,7 +310,7 @@ public class TeacherClassManager : MonoBehaviour
         var projectId = Firebase.FirebaseApp.DefaultInstance.Options.ProjectId;
         if (string.IsNullOrEmpty(projectId)) { completed(null, "Firebase project ID missing."); yield break; }
         var url = "https://northamerica-northeast1-" + projectId + ".cloudfunctions.net/" + functionName;
-        var body = System.Text.Encoding.UTF8.GetBytes("{\\\"data\\\":" + json + "}");
+        var body = System.Text.Encoding.UTF8.GetBytes("{\"data\":" + json + "}");
         using (var request = new UnityWebRequest(url, "POST"))
         {
             request.uploadHandler = new UploadHandlerRaw(body);
