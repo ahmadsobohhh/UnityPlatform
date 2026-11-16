@@ -84,31 +84,177 @@ public class TeacherClassManager : MonoBehaviour
     private string _heartHistory = "";
     private static readonly string[] HeartReasons = { "late", "homework", "disruption", "other", "recovery" };
 
-    private void OnGUI()
+
+    private GameObject _heartPanel;
+    private TMP_Text _heartSelectedLabel;
+    private TMP_Text _heartFeedbackLabel;
+    private TMP_Text _heartHistoryLabel;
+    private TMP_InputField _heartAmountInput;
+    private TMP_InputField _heartNoteInput;
+    private TMP_Dropdown _heartReasonDropdown;
+
+    private void CreateHeartPanel()
     {
-        if (classListContainer != null || string.IsNullOrEmpty(ClassSelection.CurrentClassId) ||
-            auth == null || auth.CurrentUser == null || _heartStudentUids.Count == 0) return;
-        GUILayout.BeginArea(new Rect(Screen.width - 345, 80, 330, Mathf.Min(Screen.height - 90, 520)), GUI.skin.box);
-        GUILayout.Label("Teacher Heart Management");
-        GUILayout.Label("Student: " + _heartStudentNames[Mathf.Clamp(_heartSelectedStudent, 0, _heartStudentNames.Count - 1)]);
-        GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Previous", GUILayout.Width(95))) _heartSelectedStudent = (_heartSelectedStudent + _heartStudentUids.Count - 1) % _heartStudentUids.Count;
-        if (GUILayout.Button("Next", GUILayout.Width(95))) _heartSelectedStudent = (_heartSelectedStudent + 1) % _heartStudentUids.Count;
-        GUILayout.EndHorizontal();
-        GUILayout.Label("Amount (1-50)");
-        _heartAmount = GUILayout.TextField(_heartAmount, 3);
-        GUILayout.Label("Reason: " + HeartReasons[_heartReasonIndex]);
-        if (GUILayout.Button("Next reason")) _heartReasonIndex = (_heartReasonIndex + 1) % HeartReasons.Length;
-        GUILayout.Label("Note (required for Other)");
-        _heartNote = GUILayout.TextField(_heartNote, 200);
-        GUI.enabled = !_heartBusy;
-        if (GUILayout.Button("Deduct Hearts")) StartCoroutine(ChangeHearts(false));
-        if (GUILayout.Button("Restore Hearts")) StartCoroutine(ChangeHearts(true));
-        if (GUILayout.Button("View recent history")) StartCoroutine(LoadHeartHistory());
-        GUI.enabled = true;
-        GUILayout.Label(_heartFeedback);
-        GUILayout.TextArea(_heartHistory, GUILayout.Height(120));
-        GUILayout.EndArea();
+        if (classListContainer != null || _heartPanel != null || studentsListText == null) return;
+        var root = studentsListText.transform.root.GetComponentInChildren<Canvas>();
+        if (root == null) return;
+        _heartPanel = new GameObject("TeacherHeartsPanel", typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        _heartPanel.transform.SetParent(root.transform, false);
+        var rect = (RectTransform)_heartPanel.transform;
+        rect.anchorMin = new Vector2(0.04f, 0.08f);
+        rect.anchorMax = new Vector2(0.54f, 0.08f);
+        rect.pivot = new Vector2(0f, 0f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = new Vector2(0f, 0f);
+        var bg = _heartPanel.GetComponent<Image>();
+        bg.color = new Color(0.19f, 0.13f, 0.065f, 0.97f);
+        var layout = _heartPanel.GetComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(18, 18, 12, 12);
+        layout.spacing = 7;
+        layout.childControlHeight = true;
+        layout.childForceExpandHeight = false;
+        layout.childControlWidth = true;
+        layout.childForceExpandWidth = true;
+        var fitter = _heartPanel.GetComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        AddHeartText("MANAGE STUDENT HEARTS", 25, new Color(1f, 0.85f, 0.53f), 38);
+        _heartSelectedLabel = AddHeartText("Select a student", 19, Color.white, 32);
+        var nav = AddHeartRow("StudentNavigation");
+        AddHeartButton(nav, "PREVIOUS", () => SelectHeartStudent(-1));
+        AddHeartButton(nav, "NEXT", () => SelectHeartStudent(1));
+        AddHeartText("AMOUNT (1–50)", 17, new Color(1f, 0.85f, 0.53f), 26);
+        _heartAmountInput = AddHeartInput("1", 40);
+        _heartAmountInput.contentType = TMP_InputField.ContentType.IntegerNumber;
+        _heartAmountInput.onValueChanged.AddListener(value => _heartAmount = value);
+        AddHeartText("REASON", 17, new Color(1f, 0.85f, 0.53f), 26);
+        var reasonObj = new GameObject("Reason", typeof(RectTransform), typeof(Image), typeof(TMP_Dropdown), typeof(LayoutElement));
+        reasonObj.transform.SetParent(_heartPanel.transform, false);
+        reasonObj.GetComponent<Image>().color = new Color(0.31f, 0.23f, 0.13f);
+        reasonObj.GetComponent<LayoutElement>().preferredHeight = 44;
+        _heartReasonDropdown = reasonObj.GetComponent<TMP_Dropdown>();
+        // Use a standard TMP dropdown template copied from a live dropdown if available.
+        var existing = root.GetComponentsInChildren<TMP_Dropdown>(true).FirstOrDefault();
+        if (existing != null && existing.template != null)
+        {
+            var template = Instantiate(existing.template.gameObject, reasonObj.transform);
+            template.name = "Template";
+            template.SetActive(false);
+            _heartReasonDropdown.template = template.GetComponent<RectTransform>();
+            var caption = AddHeartTextTo(reasonObj.transform, "Late arrival", 18, Color.white);
+            _heartReasonDropdown.captionText = caption;
+            _heartReasonDropdown.itemText = template.GetComponentInChildren<TMP_Text>(true);
+            _heartReasonDropdown.AddOptions(new List<string> { "Late arrival", "Homework", "Disruption", "Other", "Recovery" });
+            _heartReasonDropdown.onValueChanged.AddListener(value => _heartReasonIndex = value);
+        }
+        else
+        {
+            Destroy(reasonObj);
+            var cycle = AddHeartButton(_heartPanel.transform, "Reason: Late arrival (tap to change)", () => {
+                _heartReasonIndex = (_heartReasonIndex + 1) % HeartReasons.Length;
+                if (_heartReasonCycleLabel != null) _heartReasonCycleLabel.text = "Reason: " + HeartReasons[_heartReasonIndex] + " (tap to change)";
+            });
+            _heartReasonCycleLabel = cycle.GetComponentInChildren<TMP_Text>();
+        }
+        AddHeartText("NOTE (required for Other)", 17, new Color(1f, 0.85f, 0.53f), 26);
+        _heartNoteInput = AddHeartInput("", 40);
+        _heartNoteInput.onValueChanged.AddListener(value => _heartNote = value);
+        var actions = AddHeartRow("HeartActions");
+        AddHeartButton(actions, "DEDUCT HEARTS", () => { if (!_heartBusy) StartCoroutine(ChangeHearts(false)); });
+        AddHeartButton(actions, "RESTORE HEARTS", () => { if (!_heartBusy) StartCoroutine(ChangeHearts(true)); });
+        AddHeartButton(_heartPanel.transform, "VIEW HEART HISTORY", () => { if (!_heartBusy) StartCoroutine(LoadHeartHistory()); });
+        _heartFeedbackLabel = AddHeartText("", 16, Color.white, 30);
+        _heartHistoryLabel = AddHeartText("", 15, Color.white, 55);
+        _heartPanel.SetActive(false);
+    }
+
+    private TMP_Text _heartReasonCycleLabel;
+
+    private Transform AddHeartRow(string name)
+    {
+        var row = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+        row.transform.SetParent(_heartPanel.transform, false);
+        row.GetComponent<LayoutElement>().preferredHeight = 43;
+        var group = row.GetComponent<HorizontalLayoutGroup>();
+        group.spacing = 8;
+        group.childControlWidth = true;
+        group.childForceExpandWidth = true;
+        group.childControlHeight = true;
+        group.childForceExpandHeight = true;
+        return row.transform;
+    }
+
+    private TMP_Text AddHeartText(string value, float size, Color color, float height)
+    {
+        var t = AddHeartTextTo(_heartPanel.transform, value, size, color);
+        t.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
+        return t;
+    }
+
+    private TMP_Text AddHeartTextTo(Transform parent, string value, float size, Color color)
+    {
+        var go = new GameObject("HeartLabel", typeof(RectTransform), typeof(TextMeshProUGUI));
+        go.transform.SetParent(parent, false);
+        var label = go.GetComponent<TextMeshProUGUI>();
+        label.text = value;
+        label.fontSize = size;
+        label.color = color;
+        label.enableWordWrapping = true;
+        return label;
+    }
+
+    private Button AddHeartButton(Transform parent, string caption, UnityEngine.Events.UnityAction click)
+    {
+        var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+        go.transform.SetParent(parent, false);
+        go.GetComponent<Image>().color = new Color(0.49f, 0.32f, 0.12f, 1f);
+        go.GetComponent<LayoutElement>().preferredHeight = 43;
+        var button = go.GetComponent<Button>();
+        button.onClick.AddListener(click);
+        var label = AddHeartTextTo(go.transform, caption, 17, Color.white);
+        label.alignment = TextAlignmentOptions.Center;
+        var labelRect = (RectTransform)label.transform;
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+        return button;
+    }
+
+    private TMP_InputField AddHeartInput(string initial, float height)
+    {
+        var go = new GameObject("HeartInput", typeof(RectTransform), typeof(Image), typeof(TMP_InputField), typeof(LayoutElement));
+        go.transform.SetParent(_heartPanel.transform, false);
+        go.GetComponent<Image>().color = new Color(0.11f, 0.08f, 0.045f);
+        go.GetComponent<LayoutElement>().preferredHeight = height;
+        var text = AddHeartTextTo(go.transform, initial, 19, Color.white);
+        var r = (RectTransform)text.transform;
+        r.anchorMin = Vector2.zero;
+        r.anchorMax = Vector2.one;
+        r.offsetMin = new Vector2(12, 4);
+        r.offsetMax = new Vector2(-12, -4);
+        var input = go.GetComponent<TMP_InputField>();
+        input.textViewport = (RectTransform)go.transform;
+        input.textComponent = (TextMeshProUGUI)text;
+        input.text = initial;
+        return input;
+    }
+
+    private void SelectHeartStudent(int direction)
+    {
+        if (_heartStudentUids.Count == 0) return;
+        _heartSelectedStudent = (_heartSelectedStudent + direction + _heartStudentUids.Count) % _heartStudentUids.Count;
+        RefreshHeartPanel();
+    }
+
+    private void RefreshHeartPanel()
+    {
+        if (_heartPanel == null) return;
+        _heartPanel.SetActive(_heartStudentUids.Count > 0);
+        if (_heartStudentUids.Count == 0) return;
+        _heartSelectedStudent = Mathf.Clamp(_heartSelectedStudent, 0, _heartStudentUids.Count - 1);
+        _heartSelectedLabel.text = "Student: " + _heartStudentNames[_heartSelectedStudent];
+        if (_heartFeedbackLabel != null) _heartFeedbackLabel.text = _heartFeedback;
+        if (_heartHistoryLabel != null) _heartHistoryLabel.text = _heartHistory;
     }
 
     private IEnumerator PostHeartCallable(string functionName, string json, System.Action<string, string> completed)
@@ -168,6 +314,7 @@ public class TeacherClassManager : MonoBehaviour
             JsonUtility.ToJson(payload), (response, failure) => { result = response; error = failure; }));
         _heartBusy = false;
         _heartFeedback = error == null ? "Heart balance updated. Refreshing roster..." : "Change failed: " + error;
+        RefreshHeartPanel();
         if (error == null && ClassSelection.CurrentClassId == classId)
             StartCoroutine(LoadSelectedClassDetailsRoutine());
     }
@@ -195,7 +342,7 @@ public class TeacherClassManager : MonoBehaviour
         yield return StartCoroutine(PostHeartCallable("getStudentHeartHistoryForTeacher", json,
             (value, failure) => { response = value; error = failure; }));
         _heartBusy = false;
-        if (error != null) { _heartHistory = "History unavailable: " + error; yield break; }
+        if (error != null) { _heartHistory = "History unavailable: " + error; RefreshHeartPanel(); yield break; }
         var parsed = JsonUtility.FromJson<HeartHistoryResponse>(response);
         var sb = new StringBuilder();
         if (parsed?.result?.entries != null)
@@ -204,6 +351,7 @@ public class TeacherClassManager : MonoBehaviour
                 sb.AppendLine(item.kind + " " + item.amount + " (" + item.reason + "): " + item.before + " -> " + item.after);
         }
         _heartHistory = sb.Length == 0 ? "No recent changes." : sb.ToString();
+        RefreshHeartPanel();
     }
 
     private FirebaseAuth auth;
@@ -233,6 +381,7 @@ public class TeacherClassManager : MonoBehaviour
     void Start()
     {
         ApplyCreateClassPanelPolish();
+        CreateHeartPanel();
 
         // Wire up buttons
         if (joinBtn) joinBtn.onClick.AddListener(JoinSelected);
@@ -730,6 +879,7 @@ public class TeacherClassManager : MonoBehaviour
         _heartStudentNames.Clear();
         _heartStudentNames.AddRange(memberNames);
         _heartSelectedStudent = 0;
+        RefreshHeartPanel();
         if (studentsListText)
         {
             if (memberNames.Count == 0)
