@@ -86,6 +86,25 @@ public class TeacherClassManager : MonoBehaviour
 
 
     private GameObject _heartPanel;
+    private bool _heartPanelOpen;
+
+    private void Update()
+    {
+        if (classListContainer != null || studentsListText == null || _heartStudentUids.Count == 0 || !Input.GetMouseButtonDown(0)) return;
+        var canvas = studentsListText.canvas;
+        if (canvas == null) return;
+        var camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+        int link = TMP_TextUtilities.FindIntersectingLink(studentsListText, Input.mousePosition, camera);
+        if (link < 0) return;
+        var linkInfo = studentsListText.textInfo.linkInfo[link];
+        string id = linkInfo.GetLinkID();
+        if (!id.StartsWith("heartStudent")) return;
+        if (!int.TryParse(id.Substring("heartStudent".Length), out int index) || index < 0 || index >= _heartStudentUids.Count) return;
+        bool wasSelected = _heartSelectedStudent == index;
+        _heartSelectedStudent = index;
+        _heartPanelOpen = !wasSelected || !_heartPanelOpen;
+        RefreshHeartPanel();
+    }
     private TMP_Text _heartSelectedLabel;
     private TMP_Text _heartFeedbackLabel;
     private TMP_Text _heartHistoryLabel;
@@ -99,13 +118,15 @@ public class TeacherClassManager : MonoBehaviour
         var root = studentsListText.transform.root.GetComponentInChildren<Canvas>();
         if (root == null) return;
         _heartPanel = new GameObject("TeacherHeartsPanel", typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
-        _heartPanel.transform.SetParent(root.transform, false);
+        // Anchor the controls to the roster, not to the screen or root Canvas.
+        _heartPanel.transform.SetParent(studentsListText.transform.parent, false);
         var rect = (RectTransform)_heartPanel.transform;
-        rect.anchorMin = new Vector2(0.04f, 0.08f);
-        rect.anchorMax = new Vector2(0.54f, 0.08f);
-        rect.pivot = new Vector2(0f, 0f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(0f, 0f);
+        var rosterRect = studentsListText.rectTransform;
+        rect.anchorMin = rosterRect.anchorMin;
+        rect.anchorMax = rosterRect.anchorMax;
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = rosterRect.anchoredPosition + new Vector2(0f, -70f);
+        rect.sizeDelta = new Vector2(Mathf.Min(570f, Mathf.Max(350f, rosterRect.rect.width)), 0f);
         var bg = _heartPanel.GetComponent<Image>();
         bg.color = new Color(0.19f, 0.13f, 0.065f, 0.97f);
         var layout = _heartPanel.GetComponent<VerticalLayoutGroup>();
@@ -118,6 +139,7 @@ public class TeacherClassManager : MonoBehaviour
         var fitter = _heartPanel.GetComponent<ContentSizeFitter>();
         fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         AddHeartText("MANAGE STUDENT HEARTS", 25, new Color(1f, 0.85f, 0.53f), 38);
+        AddHeartButton(_heartPanel.transform, "CLOSE", () => { _heartPanelOpen = false; RefreshHeartPanel(); });
         _heartSelectedLabel = AddHeartText("Select a student", 19, Color.white, 32);
         var nav = AddHeartRow("StudentNavigation");
         AddHeartButton(nav, "PREVIOUS", () => SelectHeartStudent(-1));
@@ -249,7 +271,7 @@ public class TeacherClassManager : MonoBehaviour
     private void RefreshHeartPanel()
     {
         if (_heartPanel == null) return;
-        _heartPanel.SetActive(_heartStudentUids.Count > 0);
+        _heartPanel.SetActive(_heartPanelOpen && _heartStudentUids.Count > 0);
         if (_heartStudentUids.Count == 0) return;
         _heartSelectedStudent = Mathf.Clamp(_heartSelectedStudent, 0, _heartStudentUids.Count - 1);
         _heartSelectedLabel.text = "Student: " + _heartStudentNames[_heartSelectedStudent];
@@ -879,6 +901,7 @@ public class TeacherClassManager : MonoBehaviour
         _heartStudentNames.Clear();
         _heartStudentNames.AddRange(memberNames);
         _heartSelectedStudent = 0;
+        _heartPanelOpen = false;
         RefreshHeartPanel();
         if (studentsListText)
         {
@@ -891,7 +914,7 @@ public class TeacherClassManager : MonoBehaviour
                 var sb = new StringBuilder();
                 for (int i = 0; i < memberNames.Count; i++)
                 {
-                    sb.Append(i + 1).Append(". ").Append(memberNames[i]).Append("  |  Hearts: loading...");
+                    sb.Append("<link=heartStudent").Append(i).Append("><u>").Append(i + 1).Append(". ").Append(memberNames[i]).Append("</u></link>  |  Hearts: loading...");
                     if (i < memberNames.Count - 1) sb.AppendLine();
                 }
                 studentsListText.text = sb.ToString();
@@ -1006,7 +1029,7 @@ public class TeacherClassManager : MonoBehaviour
         for (int i = 0; i < names.Count; i++)
         {
             if (i > 0) sb.AppendLine();
-            sb.Append(i + 1).Append(". ").Append(names[i]).Append("  |  Hearts: ")
+            sb.Append("<link=heartStudent").Append(i).Append("><u>").Append(i + 1).Append(". ").Append(names[i]).Append("</u></link>  |  Hearts: ")
                 .Append(balances == null ? "unavailable" : balances[i]);
         }
         studentsListText.text = sb.ToString();
