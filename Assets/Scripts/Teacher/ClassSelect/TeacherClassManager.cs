@@ -5,6 +5,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using UnityEngine.Networking;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -553,6 +554,7 @@ public class TeacherClassManager : MonoBehaviour
         }
 
         var memberNames = new List<string>();
+        var memberUids = new List<string>();
         foreach (var memberDoc in membersTask.Result.Documents)
         {
             string uid = memberDoc.Id;
@@ -563,6 +565,7 @@ public class TeacherClassManager : MonoBehaviour
             if (!string.IsNullOrEmpty(memberFull))
             {
                 memberNames.Add(memberFull);
+                memberUids.Add(uid);
                 continue;
             }
 
@@ -572,17 +575,20 @@ public class TeacherClassManager : MonoBehaviour
             if (userTask.IsFaulted || userTask.IsCanceled)
             {
                 memberNames.Add("Unknown Student");
+                memberUids.Add(uid);
                 continue;
             }
 
             if (!userTask.Result.Exists)
             {
                 memberNames.Add("Unknown Student");
+                memberUids.Add(uid);
                 continue;
             }
 
             string displayName = FormatDisplayName(userTask.Result, uid);
             memberNames.Add(displayName);
+            memberUids.Add(uid);
         }
 
         if (studentsListText)
@@ -596,12 +602,125 @@ public class TeacherClassManager : MonoBehaviour
                 var sb = new StringBuilder();
                 for (int i = 0; i < memberNames.Count; i++)
                 {
-                    sb.Append(i + 1).Append(". ").Append(memberNames[i]);
+                    sb.Append(i + 1).Append(". ").Append(memberNames[i]).Append("  |  Hearts: loading...");
                     if (i < memberNames.Count - 1) sb.AppendLine();
                 }
                 studentsListText.text = sb.ToString();
+                // Fetch each balance only through the teacher-authorized server function.
+                StartCoroutine(LoadHeartBalances(classId, memberUids, memberNames));
             }
         }
+    }
+
+    [System.Serializable]
+    private sealed class HeartRequest
+    {
+        public string classId;
+        public string studentUid;
+    }
+
+    [System.Serializable]
+    private sealed class HeartResult
+    {
+        public long hearts;
+    }
+
+    [System.Serializable]
+    private sealed class HeartResponse
+    {
+        public HeartResult result;
+    }
+
+    private IEnumerator LoadHeartBalances(string classId, List<string> studentUids, List<string> studentNames)
+    {
+        var signedInTeacher = auth.CurrentUser;
+        if (signedInTeacher == null)
+        {
+            RenderHeartRoster(studentNames, null);
+            yield break;
+        }
+
+        string teacherUid = signedInTeacher.UserId;
+        var tokenTask = signedInTeacher.TokenAsync(false);
+        yield return new WaitUntil(() => tokenTask.IsCompleted);
+        if (tokenTask.IsFaulted || tokenTask.IsCanceled ||
+            auth.CurrentUser?.UserId != teacherUid || ClassSelection.CurrentClassId != classId)
+        {
+            RenderHeartRoster(studentNames, null);
+            yield break;
+        }
+
+        var labels = new string[studentUids.Count];
+        for (int i = 0; i < labels.Length; i++) labels[i] = "loading...";
+        string token = tokenTask.Result;
+        const string endpoint = "https://northamerica-northeast1-" +
+            "PROJECT_ID.cloudfunctions.net/getStudentHeartsForTeacher";
+        // PROJECT_ID must be replaced by the Firebase project's actual ID
+        // before calling the function. Never show a fabricated balance.
+        string projectId = Firebase.FirebaseApp.DefaultInstance.Options.ProjectId;
+        if (string.IsNullOrWhiteSpace(projectId))
+        {
+            Debug.LogWarning("[TeacherHearts] Firebase project ID is unavailable.");
+            RenderHeartRoster(studentNames, null);
+            yield break;
+        }
+        string url = endpoint.Replace("PROJECT_ID", projectId);
+
+        for (int i = 0; i < studentUids.Count; i++)
+        {
+            if (auth.CurrentUser?.UserId != teacherUid || ClassSelection.CurrentClassId != classId)
+                yield break;
+
+            var payload = JsonUtility.ToJson(new HeartRequest { classId = classId, studentUid = studentUids[i] });
+            // Firebase HTTPS callable protocol expects JSON with a top-level data field.
+            var body = System.Text.Encoding.UTF8.GetBytes("{\"data\":" + payload + "}");
+            using (var request = new UnityWebRequest(url, "POST"))
+            {
+                request.uploadHandler = new UploadHandlerRaw(body);
+                request.downloadHandler = new DownloadHandlerBuffer();
+                request.SetRequestHeader("Content-Type", "application/json");
+                request.SetRequestHeader("Authorization", "Bearer " + token);
+                yield return request.SendWebRequest();
+
+                if (auth.CurrentUser?.UserId != teacherUid || ClassSelection.CurrentClassId != classId)
+                    yield break;
+
+                if (request.result == UnityWebRequest.Result.Success)
+                {
+                    try
+                    {
+                        var response = JsonUtility.FromJson<HeartResponse>(request.downloadHandler.text);
+                        if (response?.result == null || response.result.hearts < 0 || response.result.hearts > 50)
+                            throw new System.FormatException("Invalid Heart response.");
+                        labels[i] = response.result.hearts.ToString();
+                    }
+                    catch (System.Exception exception)
+                    {
+                        labels[i] = "unavailable";
+                        Debug.LogWarning("[TeacherHearts] Invalid response: " + exception.Message);
+                    }
+                }
+                else
+                {
+                    labels[i] = "unavailable";
+                    Debug.LogWarning("[TeacherHearts] Could not load Hearts: " + request.error);
+                }
+            }
+            RenderHeartRoster(studentNames, labels);
+        }
+    }
+
+    private void RenderHeartRoster(List<string> names, string[] balances)
+    {
+        if (studentsListText == null) return;
+        var sb = new StringBuilder();
+        for (int i = 0; i < names.Count; i++)
+        {
+            if (i > 0) sb.AppendLine();
+            sb.Append(i + 1).Append(". ").Append(names[i]).Append("  |  Hearts: ")
+                .Append(balances == null ? "unavailable" : balances[i]);
+        }
+        studentsListText.text = sb.ToString();
     }
 
     private string FormatDisplayName(DocumentSnapshot userDoc, string fallbackUid)
