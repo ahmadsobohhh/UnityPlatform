@@ -725,8 +725,18 @@ namespace ImagineQuest.Gameplay
 
         private void RemoveTargets(Raider foe)
         {
-            if (foe.TorsoTarget != null) { targets.Remove(foe.TorsoTarget); foe.TorsoTarget.enabled = false; }
-            if (foe.SkullTarget != null) { targets.Remove(foe.SkullTarget); foe.SkullTarget.enabled = false; }
+            if (foe.TorsoTarget != null)
+            {
+                targets.Remove(foe.TorsoTarget);
+                foe.TorsoTarget.enabled = false;
+            }
+
+            if (foe.SkullTarget != null)
+            {
+                targets.Remove(foe.SkullTarget);
+                foe.SkullTarget.enabled = false;
+            }
+
             if (aimedRaider == foe) aimedRaider = null;
         }
 
@@ -735,8 +745,10 @@ namespace ImagineQuest.Gameplay
             foreach (var foe in enemies)
             {
                 RemoveTargets(foe);
-                if (foe.Root != null) UnityEngine.Object.Destroy(foe.Root.gameObject);
+                if (foe.Root != null)
+                    UnityEngine.Object.Destroy(foe.Root.gameObject);
             }
+
             enemies.Clear();
             targets.Clear();
             aimedRaider = null;
