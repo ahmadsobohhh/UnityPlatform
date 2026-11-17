@@ -119,14 +119,9 @@ public class BlacksmithWorkshopPlayTests
         room = UnityEngine.Object.FindFirstObjectByType<BlacksmithRoomBootstrap>();
         Assert.That(room.GetComponent<BlacksmithQuestService>(), Is.Null, "The raid must not write assigned quest progress.");
         Assert.That(room.transform.Find("CINDER QUAY arrival"), Is.Not.Null);
-        var crew = room.transform.Find("Forge hands");
-        Assert.That(crew.childCount, Is.EqualTo(3));
-        var crewSpots = new Vector3[crew.childCount];
-        for (int i = 0; i < crewSpots.Length; i++) crewSpots[i] = crew.GetChild(i).position;
         yield return new WaitForSecondsRealtime(2.45f);
         Assert.That(room.transform.Find("CINDER QUAY arrival"), Is.Null);
-        for (int i = 0; i < crewSpots.Length; i++)
-            Assert.That(crew.GetChild(i).position, Is.EqualTo(crewSpots[i]), "Forge hands should work in place.");
+        Assert.That(room.transform.Find("Forge hands"), Is.Null);
         var imported = room.transform.Find("Cinder Quay — Blacksmith's Forge");
         Assert.That(imported, Is.Not.Null);
         var dressing = imported.Find("Tide Crypt forge dressing");
@@ -134,14 +129,19 @@ public class BlacksmithWorkshopPlayTests
         var forgeTile = dressing.Find("Crypt floor_tile_large").GetComponentInChildren<MeshRenderer>();
         var cryptTile = room.transform.Find("Crypt floor_tile_large").GetComponentInChildren<MeshRenderer>();
         Assert.That(forgeTile.sharedMaterial, Is.SameAs(cryptTile.sharedMaterial));
-        Assert.That(dressing.Find("Crypt table_long_decorated_A"), Is.Not.Null);
-        var pedestal = dressing.Find("Grounded anvil pedestal").GetComponentInChildren<MeshRenderer>().bounds;
+        Assert.That(dressing.Find("Smithing workbench"), Is.Not.Null);
+        var tableParts = dressing.Find("Anvil smithing table").GetComponentsInChildren<MeshRenderer>();
+        var anvilTable = tableParts[0].bounds;
+        foreach (var part in tableParts) anvilTable.Encapsulate(part.bounds);
         var anvilParts = System.Array.Find(imported.GetComponentsInChildren<Transform>(),
             part => part.name == "fi_vil_forge_anvil" || part.name == "Forge practice anvil").GetComponentsInChildren<MeshRenderer>();
         var anvil = anvilParts[0].bounds;
         foreach (var part in anvilParts) anvil.Encapsulate(part.bounds);
-        Assert.That(pedestal.min.y, Is.LessThanOrEqualTo(.02f));
-        Assert.That(pedestal.max.y, Is.GreaterThanOrEqualTo(anvil.min.y - .025f), "The stand must touch the anvil.");
+        Assert.That(anvil.min.x, Is.GreaterThan(1.65f), "The anvil should leave the center aisle clear.");
+        Assert.That(dressing.Find("Quench trough"), Is.Not.Null);
+        Assert.That(dressing.Find("Vise base"), Is.Not.Null);
+        Assert.That(anvilTable.min.y, Is.LessThanOrEqualTo(.02f));
+        Assert.That(anvilTable.max.y, Is.EqualTo(anvil.min.y).Within(.025f), "The tabletop must meet the anvil base.");
         int tiles = 0, candleStands = 0;
         foreach (Transform child in room.transform)
         {
@@ -173,6 +173,8 @@ public class BlacksmithWorkshopPlayTests
         {
             var enlargedApproach = new Vector3(approach[i].x * 1.25f, approach[i].y,
                 -5f + (approach[i].z + 5f) * 1.18f);
+            if (i == 0)
+                enlargedApproach = new Vector3(1.35f, .05f, spots[i].z - .55f);
             Call("PlaceRaidPlayer", enlargedApproach, 0f);
             view.rotation = Quaternion.LookRotation(spots[i] - view.position);
             Assert.That((int)room.GetType().GetMethod("NearbyStation", Private).Invoke(room, null), Is.EqualTo(i));

@@ -207,6 +207,9 @@ public static class StudentCharacterAssetTools
         AnimationClip Clip(string suffix)=>clips.Single(c=>c.name.EndsWith("|"+suffix,StringComparison.Ordinal));
         var tree=new BlendTree {name="Idle Walk Run",blendParameter="Speed",useAutomaticThresholds=false};
         AssetDatabase.AddObjectToAsset(tree,controller); tree.AddChild(Clip("Idle_Loop"),0); tree.AddChild(Clip("Walk_Loop"),1); tree.AddChild(Clip("Jog_Fwd_Loop"),2);
+        var motions = tree.children;
+        motions[2].timeScale = .88f;
+        tree.children = motions;
         var machine=controller.layers[0].stateMachine; var locomotion=machine.AddState("On deck"); locomotion.motion=tree; machine.defaultState=locomotion;
         var airborne=machine.AddState("Airborne"); airborne.motion=Clip("Jump_Loop");
         var jump=locomotion.AddTransition(airborne);jump.hasExitTime=false;jump.duration=.12f;jump.AddCondition(AnimatorConditionMode.IfNot,0,"isGrounded");

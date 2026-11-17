@@ -13,6 +13,7 @@ namespace ImagineQuest.Gameplay
         private readonly List<Vector3> vertices = new List<Vector3>(256);
         private Mesh sample;
         private Vector3 restingLocalPosition;
+        private float groundLift;
 
         public void Configure(Transform root, CharacterController capsule)
         {
@@ -33,7 +34,11 @@ namespace ImagineQuest.Gameplay
             if (supportRoot == null || visuals == null || sample == null) return;
             // Reset the last correction before evaluating this frame's animated pose.
             transform.localPosition = restingLocalPosition;
-            if (!grounded) return;
+            if (!grounded)
+            {
+                groundLift = 0f;
+                return;
+            }
             var lowest = float.PositiveInfinity;
             foreach (var renderer in visuals)
             {
@@ -43,8 +48,10 @@ namespace ImagineQuest.Gameplay
                 foreach (var vertex in vertices)
                     lowest = Mathf.Min(lowest, renderer.transform.TransformPoint(vertex).y);
             }
-            if (!float.IsInfinity(lowest))
-                transform.position += Vector3.up * Mathf.Max(0f, supportRoot.position.y - lowest);
+            // Clear the deck immediately, then ease the correction down as the foot lifts.
+            var requiredLift = float.IsInfinity(lowest) ? 0f : Mathf.Max(0f, supportRoot.position.y - lowest);
+            groundLift = Mathf.Max(requiredLift, Mathf.MoveTowards(groundLift, requiredLift, .9f * Time.deltaTime));
+            transform.position += Vector3.up * groundLift;
         }
 
         private void OnDestroy()

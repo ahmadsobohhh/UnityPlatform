@@ -26,6 +26,12 @@ namespace ImagineQuest.Gameplay
     {
         private const string QuestTitle = "QUEST ARENA  •  THE RIDDLE OF THE CELESTIAL CLOCK";
         private const int RequiredSealsBeforeFinale = 3;
+        private static readonly Color ArenaSoot = new Color(.105f, .075f, .055f, .98f);
+        private static readonly Color ArenaBrass = new Color(.76f, .53f, .26f);
+        private static readonly Color ArenaLeather = new Color(.27f, .16f, .095f);
+        private static readonly Color ArenaCream = new Color(.94f, .93f, .85f);
+        private static readonly Color ArenaGold = new Color(1f, .73f, .32f);
+        private static readonly Color ArenaHaze = new Color(.065f, .105f, .16f);
 
         [Header("Ship hub")]
         [SerializeField] private bool arenaOnly;
@@ -51,7 +57,8 @@ namespace ImagineQuest.Gameplay
         [SerializeField] private GameObject treasureChestPrefab;
         [SerializeField] private Avatar pirateHumanoidAvatar;
         [SerializeField] private RuntimeAnimatorController pirateLocomotionController;
-        [SerializeField] private Material arenaSkybox;
+        [SerializeField] private UnityEngine.Rendering.RenderPipelineAsset arenaPipeline;
+        private UnityEngine.Rendering.RenderPipelineAsset previousPipeline;
         [SerializeField] private Material arenaWater;
         [SerializeField] private Material interactableOutline;
         [SerializeField] private AudioClip arenaMusic;
@@ -144,6 +151,12 @@ namespace ImagineQuest.Gameplay
                     new GameObject("Audio Manager").AddComponent<AudioManager>();
                 AudioManager.Instance.PlayMusic(arenaMusic, 0.55f);
             }
+        }
+
+        private void OnDestroy()
+        {
+            if (arenaPipeline != null && QualitySettings.renderPipeline == arenaPipeline)
+                QualitySettings.renderPipeline = previousPipeline;
         }
 
         private void OnEnable() => StudentAvatarIdentity.Changed+=ApplyStudentAppearance;
@@ -313,15 +326,15 @@ namespace ImagineQuest.Gameplay
 
         private void ConfigureAtmosphere()
         {
-            if (arenaSkybox != null)
-                RenderSettings.skybox = arenaSkybox;
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.3f, 0.38f, 0.55f);
-            RenderSettings.ambientEquatorColor = new Color(0.28f, 0.23f, 0.20f);
-            RenderSettings.ambientGroundColor = new Color(0.10f, 0.13f, 0.18f);
+            previousPipeline = QualitySettings.renderPipeline;
+            if (arenaPipeline != null)
+                QualitySettings.renderPipeline = arenaPipeline;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(.30f, .25f, .22f);
             RenderSettings.fog = true;
-            RenderSettings.fogColor = new Color(0.19f, 0.18f, 0.26f);
-            RenderSettings.fogDensity = 0.006f;
+            RenderSettings.fogMode = FogMode.Exponential;
+            RenderSettings.fogColor = ArenaHaze;
+            RenderSettings.fogDensity = .009f;
         }
 
         private void BuildWorld()
@@ -344,7 +357,8 @@ namespace ImagineQuest.Gameplay
             var moonLight = moonLightObject.AddComponent<Light>();
             moonLight.type = LightType.Directional;
             moonLight.color = new Color(0.55f, 0.7f, 1f);
-            moonLight.intensity = 1.2f;
+            moonLight.intensity = .45f;
+            moonLight.shadows = LightShadows.Soft;
             moonLightObject.transform.rotation = Quaternion.Euler(48f, -32f, 0f);
 
             var moon = CreatePrimitive("Celestial Moon", PrimitiveType.Sphere, new Vector3(-18f, 22f, 37f),
@@ -355,7 +369,7 @@ namespace ImagineQuest.Gameplay
             var glow = moonGlow.AddComponent<Light>();
             glow.type = LightType.Point;
             glow.range = 42f;
-            glow.intensity = 5.5f;
+            glow.intensity = .65f;
             glow.color = new Color(0.28f, 0.48f, 1f);
         }
 
@@ -364,6 +378,16 @@ namespace ImagineQuest.Gameplay
             var oceanMaterial = arenaWater != null ? arenaWater : CreateMaterial(new Color(0.015f, 0.11f, 0.28f));
             var ocean = CreatePrimitive("Astral Ocean", PrimitiveType.Plane, new Vector3(0f, 0.2f, 4f),
                 new Vector3(60f, 1f, 60f), oceanMaterial);
+
+            if (arenaWater != null)
+            {
+                var colors = new MaterialPropertyBlock();
+                colors.SetColor("_Color", new Color(.025f, .085f, .10f));
+                colors.SetVector("_HorizonTint", QualitySettings.activeColorSpace == ColorSpace.Linear ? ArenaHaze.linear : ArenaHaze);
+                colors.SetVector("_ReflectionTint", new Vector4(.035f, .06f, .085f, 1f));
+                colors.SetFloat("_HazeDensity", .009f);
+                ocean.GetComponent<Renderer>().SetPropertyBlock(colors);
+            }
 
             if (arenaWater == null)
                 ocean.AddComponent<CelestialOceanMotion>().Configure(0.04f, 0.48f);
@@ -504,19 +528,36 @@ namespace ImagineQuest.Gameplay
             CreateLantern(DeckPosition(2.5f, 7.8f));
         }
 
-        private static void CreateLantern(Vector3 position)
+        private void CreateLantern(Vector3 position)
         {
             var post = CreatePrimitive("Aurora Lantern Post", PrimitiveType.Cylinder, position + Vector3.up * 0.62f,
                 new Vector3(0.09f, 0.62f, 0.09f), CreateMaterial(new Color(0.11f, 0.055f, 0.025f)));
-            var lantern = CreatePrimitive("Aurora Lantern", PrimitiveType.Sphere, position + Vector3.up * 1.15f,
-                Vector3.one * 0.22f, CreateMaterial(new Color(1f, 0.56f, 0.18f), true));
+            var flamePosition = position + Vector3.up * 1.24f;
+            var iron = CreateMaterial(new Color(.095f, .085f, .075f));
+            var frame = CreatePrimitive("Iron lantern base", PrimitiveType.Cylinder,
+                flamePosition + Vector3.down * .13f, new Vector3(.29f, .033f, .29f), iron);
+            frame.transform.SetParent(post.transform, true);
+            var cap = CreatePrimitive("Iron lantern cap", PrimitiveType.Cylinder,
+                flamePosition + Vector3.up * .15f, new Vector3(.29f, .035f, .29f), iron);
+            cap.transform.SetParent(frame.transform, true);
+            foreach (var corner in new[] { new Vector3(-1, 0, -1), new Vector3(-1, 0, 1),
+                new Vector3(1, 0, -1), new Vector3(1, 0, 1) })
+            {
+                var bar = CreatePrimitive("Iron lantern bar", PrimitiveType.Cube,
+                    flamePosition + corner * .088f, new Vector3(.028f, .26f, .028f), iron);
+                bar.transform.SetParent(frame.transform, true);
+            }
+            var lantern = CreatePrimitive("Aurora Lantern", PrimitiveType.Sphere,
+                flamePosition,
+                new Vector3(.14f, .21f, .14f),
+                CreateMaterial(new Color(1f, .56f, .18f), true));
             lantern.AddComponent<CelestialPulse>().Configure(0.12f, 1.8f);
             var lightObject = new GameObject("Lantern Light");
             lightObject.transform.position = lantern.transform.position;
             var light = lightObject.AddComponent<Light>();
             light.type = LightType.Point;
-            light.range = 5f;
-            light.intensity = 1.45f;
+            light.range = 7f;
+            light.intensity = 5f;
             light.color = new Color(1f, 0.55f, 0.22f);
             lightObject.AddComponent<AuroraLanternFlicker>();
         }
@@ -558,8 +599,8 @@ namespace ImagineQuest.Gameplay
             cameraObject.transform.SetParent(cameraPivot.transform, false);
             cameraObject.transform.localPosition = new Vector3(0f, 0f, -1.25f);
             var camera = cameraObject.AddComponent<Camera>();
-            camera.clearFlags = CameraClearFlags.Skybox;
-            camera.backgroundColor = new Color(0.015f, 0.035f, 0.11f);
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = ArenaHaze;
             camera.nearClipPlane = 0.05f;
             camera.farClipPlane = 125f;
             cameraObject.AddComponent<AudioListener>();
@@ -1275,50 +1316,55 @@ namespace ImagineQuest.Gameplay
         {
             if (arenaOnly)
             {
-                var arenaName = CreateText("Arena Name", parent, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                    new Vector2(30f, -28f), new Vector2(460f, 42f), 27f, TextAlignmentOptions.Left,
-                    new Color(1f, 0.88f, 0.60f));
-                arenaName.text = "THE AURORA  •  QUEST ARENA";
+                var heading = CreateArenaCard("Arena Heading", parent, Vector2.up, new Vector2(340f, 82f),
+                    new Vector2(194f, -65f));
+                heading.GetComponent<Image>().raycastTarget = false;
+                var arenaName = CreateText("Arena Name", heading.transform, Vector2.up, Vector2.up,
+                    new Vector2(20f, -11f), new Vector2(290f, 23f), 17f, TextAlignmentOptions.Left, ArenaGold);
+                arenaName.text = "THE AURORA";
+                var arenaTitle = CreateText("Arena Title", heading.transform, Vector2.up, Vector2.up,
+                    new Vector2(20f, -35f), new Vector2(290f, 33f), 29f, TextAlignmentOptions.Left, ArenaCream);
+                arenaTitle.text = "Quest Arena";
+                arenaTitle.fontStyle = FontStyles.Bold;
                 interactionText = CreateText("Interaction Prompt", parent, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                    new Vector2(0f, 65f), new Vector2(820f, 42f), 23f, TextAlignmentOptions.Center,
-                    new Color(1f, 0.92f, 0.66f));
+                    new Vector2(0f, 65f), new Vector2(820f, 42f), 23f, TextAlignmentOptions.Center, ArenaGold);
                 interactionText.gameObject.SetActive(false);
                 return;
             }
-            var topStrip = CreatePanel("Top Story Strip", parent, new Vector2(0.5f, 1f), new Vector2(1640f, 108f),
-                new Vector2(0f, -26f), new Color(0.012f, 0.027f, 0.08f, 0.9f), 16);
+            var topStrip = CreateArenaCard("Top Story Strip", parent, new Vector2(0.5f, 1f), new Vector2(1640f, 108f),
+                new Vector2(0f, -78f));
             var title = CreateText("Quest Title", topStrip.transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(38f, -20f), new Vector2(940f, 38f), 29f, TextAlignmentOptions.Left, new Color(1f, 0.82f, 0.36f));
+                new Vector2(38f, -20f), new Vector2(940f, 38f), 29f, TextAlignmentOptions.Left, ArenaGold);
             title.fontStyle = FontStyles.Bold;
             title.text = QuestTitle;
             var subtitle = CreateText("Quest Subtitle", topStrip.transform, new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(38f, 18f), new Vector2(970f, 28f), 17f, TextAlignmentOptions.Left, new Color(0.75f, 0.86f, 1f));
+                new Vector2(38f, 18f), new Vector2(970f, 28f), 17f, TextAlignmentOptions.Left, ArenaCream);
             subtitle.text = "Aboard the Aurora  •  Read the note, solve the seal, chart the stars";
 
             sealText = CreateText("Seal Counter", topStrip.transform, new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-36f, -20f), new Vector2(310f, 34f), 23f, TextAlignmentOptions.Right, new Color(0.96f, 0.92f, 0.68f));
+                new Vector2(-36f, -20f), new Vector2(310f, 34f), 23f, TextAlignmentOptions.Right, ArenaGold);
             xpText = CreateText("Provisional XP", topStrip.transform, new Vector2(1f, 0f), new Vector2(1f, 0f),
-                new Vector2(-36f, 18f), new Vector2(310f, 28f), 17f, TextAlignmentOptions.Right, new Color(0.6f, 0.86f, 1f));
+                new Vector2(-36f, 18f), new Vector2(310f, 28f), 17f, TextAlignmentOptions.Right, ArenaGold);
 
-            var objectiveCard = CreatePanel("Objective Card", parent, new Vector2(0f, 0f), new Vector2(545f, 132f),
-                new Vector2(34f, 34f), new Color(0.014f, 0.04f, 0.12f, 0.92f), 12);
+            var objectiveCard = CreateArenaCard("Objective Card", parent, new Vector2(0f, 0f), new Vector2(545f, 132f),
+                new Vector2(34f, 34f));
             var objectiveHeader = CreateText("Objective Header", objectiveCard.transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(22f, -18f), new Vector2(500f, 24f), 15f, TextAlignmentOptions.Left, new Color(0.55f, 0.83f, 1f));
+                new Vector2(22f, -18f), new Vector2(500f, 24f), 15f, TextAlignmentOptions.Left, ArenaGold);
             objectiveHeader.text = "CURRENT COURSE";
             objectiveText = CreateText("Objective", objectiveCard.transform, new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(22f, 18f), new Vector2(500f, 68f), 21f, TextAlignmentOptions.Left, new Color(1f, 0.94f, 0.8f));
+                new Vector2(22f, 18f), new Vector2(500f, 68f), 21f, TextAlignmentOptions.Left, ArenaCream);
             objectiveText.textWrappingMode = TextWrappingModes.Normal;
 
             interactionText = CreateText("Interaction Prompt", parent, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 92f), new Vector2(820f, 42f), 23f, TextAlignmentOptions.Center, new Color(1f, 0.92f, 0.66f));
+                new Vector2(0f, 92f), new Vector2(820f, 42f), 23f, TextAlignmentOptions.Center, ArenaGold);
             interactionText.fontStyle = FontStyles.Bold;
             interactionText.gameObject.SetActive(false);
 
             var journalButton = CreateButton("Journal Button", parent, "J  JOURNAL", new Vector2(1f, 0f), new Vector2(1f, 0f),
-                new Vector2(-34f, 42f), new Vector2(230f, 50f), new Color(0.12f, 0.3f, 0.52f));
+                new Vector2(-34f, 42f), new Vector2(230f, 50f), ArenaLeather);
             journalButton.onClick.AddListener(OpenJournal);
             var pauseButton = CreateButton("Pause Button", parent, "MENU", new Vector2(1f, 0f), new Vector2(1f, 0f),
-                new Vector2(-34f, 104f), new Vector2(230f, 42f), new Color(0.08f, 0.14f, 0.28f));
+                new Vector2(-34f, 104f), new Vector2(230f, 42f), ArenaLeather);
             pauseButton.onClick.AddListener(TogglePause);
 
             UpdateHud();
@@ -1326,31 +1372,32 @@ namespace ImagineQuest.Gameplay
 
         private void BuildQuestPicker(Transform parent)
         {
-            questPickerPanel = CreateFullOverlay("Quest Selection", parent, new Color(0.005f, 0.012f, 0.025f, 0.72f));
-            var card = CreatePanel("Quest Chart", questPickerPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(860f, 440f), Vector2.zero, new Color(0.055f, 0.04f, 0.025f, 0.98f), 12);
-            var title = CreateText("Quest Picker Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -54f), new Vector2(730f, 48f), 32f, TextAlignmentOptions.Center,
-                new Color(1f, 0.85f, 0.50f));
-            title.text = "CHOOSE A QUEST";
-            var demoTitle = CreateText("Dummy Quest Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -122f), new Vector2(710f, 40f), 27f, TextAlignmentOptions.Center,
-                new Color(1f, 0.85f, 0.5f));
+            questPickerPanel = CreateFullOverlay("Quest Selection", parent, new Color(.035f, .025f, .02f, .68f));
+            var card = CreateArenaCard("Quest Chart", questPickerPanel.transform, new Vector2(.5f, .5f),
+                new Vector2(720f, 470f), Vector2.zero);
+            var top = new Vector2(.5f, 1f);
+            var title = CreateText("Quest Picker Title", card.transform, top, top,
+                new Vector2(0f, -30f), new Vector2(624f, 44f), 32f, TextAlignmentOptions.Center, ArenaCream);
+            title.text = "Choose a quest";
+            title.fontStyle = FontStyles.Bold;
+
+            var quay = CreatePanel("Cinder Quay", card.transform, top, new Vector2(624f, 180f),
+                new Vector2(0f, -182f), new Color(.15f, .106f, .073f), 0f);
+            var demoTitle = CreateText("Cinder Quay Title", quay.transform, top, top,
+                new Vector2(0f, -16f), new Vector2(560f, 32f), 25f, TextAlignmentOptions.Center, ArenaGold);
             demoTitle.text = "CINDER QUAY";
-            var demoCopy = CreateText("Dummy Quest Description", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -172f), new Vector2(710f, 60f), 20f, TextAlignmentOptions.Center,
-                new Color(0.97f, 0.93f, 0.83f));
+            var demoCopy = CreateText("Cinder Quay Description", quay.transform, top, top,
+                new Vector2(0f, -52f), new Vector2(560f, 30f), 20f, TextAlignmentOptions.Center, ArenaCream);
             demoCopy.text = "Forge a blade. Explore the Tide Crypt.";
-            var demoPlay = CreateButton("Play Cinder Quay", card.transform, "ENTER THE FORGE",
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-128f, -238f),
-                new Vector2(244f, 54f), new Color(0.4f, 0.25f, 0.075f));
+            var demoPlay = CreateButton("Play Cinder Quay", quay.transform, "ENTER THE FORGE", top, top,
+                new Vector2(-144f, -106f), new Vector2(264f, 50f), new Color(.40f, .25f, .075f));
             demoPlay.onClick.AddListener(BlacksmithRoomBootstrap.LaunchRaidPractice);
-            var preview = CreateButton("Watch chart preview", card.transform, "WATCH PREVIEW",
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(128f, -238f),
-                new Vector2(224f, 54f), new Color(0.14f, 0.10f, 0.06f));
+            var preview = CreateButton("Watch chart preview", quay.transform, "WATCH PREVIEW", top, top,
+                new Vector2(144f, -106f), new Vector2(264f, 50f), ArenaLeather);
             preview.onClick.AddListener(PlayDummyQuest);
+
             var workshop = CreateButton("Play assigned workshop", card.transform, "THE AURORA'S REPAIR  /  ASSIGNED WORKSHOP",
-                new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -296), new Vector2(650, 40), new Color(.10f, .27f, .25f));
+                top, top, new Vector2(0f, -294f), new Vector2(624f, 62f), ArenaLeather);
             if (!ImagineQuest.Student.StudentCloudConfig.Enabled)
                 workshop.GetComponentInChildren<TMP_Text>().text = "THE AURORA'S REPAIR  /  LOCAL PRACTICE";
             workshop.onClick.AddListener(() => {
@@ -1358,8 +1405,8 @@ namespace ImagineQuest.Gameplay
                 WorkshopAssignmentLauncher.Launch(message => OpenArenaPanel("WORKSHOP", message));
             });
             var back = CreateButton("Close Quest Selection", card.transform, "RETURN TO SHIP",
-                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 48f),
-                new Vector2(350f, 48f), new Color(0.14f, 0.10f, 0.06f));
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 30f),
+                new Vector2(280f, 46f), new Color(.15f, .106f, .073f));
             back.onClick.AddListener(CloseJournal);
             questPickerPanel.SetActive(false);
         }
@@ -1384,125 +1431,136 @@ namespace ImagineQuest.Gameplay
 
         private void BuildBriefing(Transform parent)
         {
-            briefingPanel = CreateFullOverlay("Briefing Overlay", parent, new Color(0.005f, 0.012f, 0.04f, 0.88f));
-            var card = CreatePanel("Briefing Card", briefingPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(1040f, 570f),
-                Vector2.zero, new Color(0.018f, 0.045f, 0.13f, 0.98f), 24);
+            briefingPanel = CreateFullOverlay("Briefing Overlay", parent, new Color(.035f, .025f, .02f, 0.88f));
+            var card = CreateArenaCard("Briefing Card", briefingPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(1040f, 570f),
+                Vector2.zero);
             var eyebrow = CreateText("Briefing Eyebrow", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -52f), new Vector2(860f, 34f), 18f, TextAlignmentOptions.Center, new Color(0.55f, 0.84f, 1f));
+                new Vector2(0f, -52f), new Vector2(860f, 34f), 18f, TextAlignmentOptions.Center, ArenaGold);
             eyebrow.text = "QUEST BRIEFING  •  AURORA'S NIGHT WATCH";
             briefingSpeakerText = CreateText("Speaker", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -112f), new Vector2(860f, 42f), 32f, TextAlignmentOptions.Center, new Color(1f, 0.8f, 0.32f));
+                new Vector2(0f, -112f), new Vector2(860f, 42f), 32f, TextAlignmentOptions.Center, ArenaGold);
             briefingSpeakerText.fontStyle = FontStyles.Bold;
             briefingBodyText = CreateText("Briefing Copy", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 12f), new Vector2(820f, 205f), 31f, TextAlignmentOptions.Center, new Color(0.95f, 0.97f, 1f));
+                new Vector2(0f, 12f), new Vector2(820f, 205f), 31f, TextAlignmentOptions.Center, ArenaCream);
             briefingBodyText.textWrappingMode = TextWrappingModes.Normal;
             briefingSpeakerText.text = "CAPTAIN ESME";
             briefingBodyText.text = "The Celestial Clock has fallen silent. Prepare the Aurora for its next learning voyage.";
             briefingStepText = CreateText("Briefing Step", card.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 132f), new Vector2(350f, 28f), 17f, TextAlignmentOptions.Center, new Color(0.58f, 0.7f, 0.9f));
+                new Vector2(0f, 132f), new Vector2(350f, 28f), 17f, TextAlignmentOptions.Center, ArenaGold);
             briefingPrimaryButton = CreateButton("Briefing Primary", card.transform, "CONTINUE", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 55f), new Vector2(400f, 58f), new Color(0.14f, 0.45f, 0.72f));
+                new Vector2(0f, 55f), new Vector2(400f, 58f), ArenaLeather);
             briefingPrimaryButton.onClick.AddListener(AdvanceBriefing);
             var skip = CreateButton("Skip Briefing", card.transform, "SKIP TO DECK", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, -17f), new Vector2(240f, 34f), new Color(0.07f, 0.11f, 0.22f));
+                new Vector2(0f, -17f), new Vector2(240f, 34f), ArenaLeather);
             skip.onClick.AddListener(BeginExploration);
         }
 
         private void BuildLessonPanel(Transform parent)
         {
-            lessonPanel = CreateFullOverlay("Lesson Overlay", parent, new Color(0.002f, 0.008f, 0.028f, 0.76f));
-            var card = CreatePanel("Lesson Card", lessonPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(1100f, 715f),
-                Vector2.zero, new Color(0.02f, 0.05f, 0.14f, 0.99f), 22);
+            lessonPanel = CreateFullOverlay("Lesson Overlay", parent, new Color(.035f, .025f, .02f, 0.76f));
+            var card = CreateArenaCard("Lesson Card", lessonPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(1100f, 715f),
+                Vector2.zero);
             lessonEyebrowText = CreateText("Lesson Eyebrow", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -39f), new Vector2(920f, 28f), 17f, TextAlignmentOptions.Center, new Color(0.48f, 0.8f, 1f));
+                new Vector2(0f, -39f), new Vector2(920f, 28f), 17f, TextAlignmentOptions.Center, ArenaGold);
             lessonTitleText = CreateText("Lesson Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -87f), new Vector2(960f, 46f), 30f, TextAlignmentOptions.Center, new Color(1f, 0.82f, 0.35f));
+                new Vector2(0f, -87f), new Vector2(960f, 46f), 30f, TextAlignmentOptions.Center, ArenaGold);
             lessonTitleText.fontStyle = FontStyles.Bold;
             lessonBodyText = CreateText("Lesson Body", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -155f), new Vector2(890f, 175f), 25f, TextAlignmentOptions.Center, new Color(0.96f, 0.97f, 1f));
+                new Vector2(0f, -155f), new Vector2(890f, 175f), 25f, TextAlignmentOptions.Center, ArenaCream);
             lessonBodyText.textWrappingMode = TextWrappingModes.Normal;
             lessonFeedbackText = CreateText("Lesson Feedback", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -324f), new Vector2(880f, 42f), 20f, TextAlignmentOptions.Center, new Color(0.98f, 0.78f, 0.38f));
+                new Vector2(0f, -324f), new Vector2(880f, 42f), 20f, TextAlignmentOptions.Center, ArenaGold);
             lessonFeedbackText.textWrappingMode = TextWrappingModes.Normal;
 
             for (var i = 0; i < 3; i++)
             {
                 var answer = CreateButton("Answer " + (i + 1), card.transform, "", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                    new Vector2(0f, -58f - i * 70f), new Vector2(760f, 55f), new Color(0.11f, 0.3f, 0.52f));
+                    new Vector2(0f, -58f - i * 70f), new Vector2(760f, 55f), ArenaLeather);
                 var capturedIndex = i;
                 answer.onClick.AddListener(() => AnswerSelected(capturedIndex));
                 answerButtons.Add(answer);
             }
 
             lessonPrimaryButton = CreateButton("Lesson Primary", card.transform, "START PRACTICE", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(-215f, 42f), new Vector2(370f, 56f), new Color(0.13f, 0.46f, 0.72f));
+                new Vector2(-215f, 42f), new Vector2(370f, 56f), ArenaLeather);
             lessonSecondaryButton = CreateButton("Lesson Secondary", card.transform, "RETURN TO DECK", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(215f, 42f), new Vector2(370f, 56f), new Color(0.08f, 0.14f, 0.27f));
+                new Vector2(215f, 42f), new Vector2(370f, 56f), ArenaLeather);
             lessonPanel.SetActive(false);
         }
 
         private void BuildJournalPanel(Transform parent)
         {
-            journalPanel = CreateFullOverlay("Navigator Journal", parent, new Color(0.002f, 0.009f, 0.03f, 0.78f));
-            var card = CreatePanel("Journal Card", journalPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(900f, 640f),
-                Vector2.zero, new Color(0.025f, 0.06f, 0.15f, 0.99f), 20);
+            journalPanel = CreateFullOverlay("Navigator Journal", parent, new Color(.035f, .025f, .02f, 0.78f));
+            var card = CreateArenaCard("Journal Card", journalPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(900f, 640f),
+                Vector2.zero);
             journalTitleText = CreateText("Journal Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -48f), new Vector2(760f, 38f), 30f, TextAlignmentOptions.Center, new Color(1f, 0.82f, 0.34f));
+                new Vector2(0f, -48f), new Vector2(760f, 38f), 30f, TextAlignmentOptions.Center, ArenaGold);
             journalTitleText.fontStyle = FontStyles.Bold;
             journalTitleText.text = "NAVIGATOR'S JOURNAL";
             journalText = CreateText("Journal Copy", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 0f), new Vector2(750f, 400f), 22f, TextAlignmentOptions.TopLeft, new Color(0.94f, 0.97f, 1f));
+                new Vector2(0f, 0f), new Vector2(750f, 400f), 22f, TextAlignmentOptions.TopLeft, ArenaCream);
             journalText.textWrappingMode = TextWrappingModes.Normal;
             var close = CreateButton("Close Journal", card.transform, arenaOnly ? "RETURN TO SHIP" : "CLOSE JOURNAL", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 42f), new Vector2(320f, 52f), new Color(0.12f, 0.36f, 0.6f));
+                new Vector2(0f, 42f), new Vector2(320f, 52f), ArenaLeather);
             close.onClick.AddListener(CloseJournal);
             close.GetComponent<RectTransform>().anchoredPosition = new Vector2(-180, 42);
             var recap = CreateButton("Open personal recap", card.transform, "PERSONAL RECAP", new Vector2(.5f, 0), new Vector2(.5f, 0),
-                new Vector2(180, 42), new Vector2(320, 52), new Color(.12f, .27f, .29f));
+                new Vector2(180, 42), new Vector2(320, 52), ArenaLeather);
             recap.onClick.AddListener(() => personalStatus.OpenRecap());
             journalPanel.SetActive(false);
         }
 
+        private static GameObject CreateArenaCard(string name, Transform parent, Vector2 anchor, Vector2 size, Vector2 position)
+        {
+            var card = CreatePanel(name, parent, anchor, size, position, ArenaSoot, 0f);
+            var edge = CreatePanel("Brass trim", card.transform, new Vector2(.5f, 1f),
+                new Vector2(size.x, 3f), new Vector2(0f, -1.5f), ArenaBrass, 0f);
+            edge.GetComponent<Image>().raycastTarget = false;
+            return card;
+        }
+
         private void BuildPausePanel(Transform parent)
         {
-            pausePanel = CreateFullOverlay("Pause Overlay", parent, new Color(0.002f, 0.008f, 0.028f, 0.84f));
-            var card = CreatePanel("Pause Card", pausePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(620f, 390f),
-                Vector2.zero, new Color(0.02f, 0.055f, 0.15f, 0.99f), 20);
+            pausePanel = CreateFullOverlay("Pause Overlay", parent, new Color(.035f, .025f, .02f, .38f));
+            var card = CreateArenaCard("Pause Card", pausePanel.transform, new Vector2(.5f, .5f),
+                new Vector2(620f, 390f), Vector2.zero);
             var title = CreateText("Pause Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -72f), new Vector2(500f, 42f), 32f, TextAlignmentOptions.Center, new Color(1f, 0.82f, 0.34f));
+                new Vector2(0f, -72f), new Vector2(500f, 42f), 32f, TextAlignmentOptions.Center,
+                ArenaCream);
             title.fontStyle = FontStyles.Bold;
-            title.text = "PAUSED";
+            title.text = arenaOnly ? "Take a breather" : "PAUSED";
             var note = CreateText("Pause Note", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 10f), new Vector2(480f, 82f), 21f, TextAlignmentOptions.Center, new Color(0.9f, 0.95f, 1f));
+                new Vector2(0f, 10f), new Vector2(480f, 82f), 21f, TextAlignmentOptions.Center,
+                ArenaCream);
             note.text = arenaOnly ? "Take a break, or return to your class. Choose a quest at the ship's chart table."
                 : "Take a break, or return to the ship to choose another quest.";
             note.textWrappingMode = TextWrappingModes.Normal;
             var resume = CreateButton("Resume", card.transform, "RETURN TO DECK", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 98f), new Vector2(360f, 52f), new Color(0.12f, 0.43f, 0.7f));
+                new Vector2(0f, 98f), new Vector2(360f, 52f), ArenaLeather);
             resume.onClick.AddListener(TogglePause);
             var leave = CreateButton("Leave Quest", card.transform, arenaOnly ? "RETURN TO CLASS" : "RETURN TO SHIP", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 32f), new Vector2(260f, 38f), new Color(0.16f, 0.08f, 0.12f));
+                new Vector2(0f, 32f), new Vector2(260f, 38f), ArenaLeather);
             leave.onClick.AddListener(ReturnToStudentHub);
             pausePanel.SetActive(false);
         }
 
         private void BuildCompletionPanel(Transform parent)
         {
-            completionPanel = CreateFullOverlay("Quest Complete Overlay", parent, new Color(0.005f, 0.012f, 0.04f, 0.82f));
-            var card = CreatePanel("Quest Complete Card", completionPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(1000f, 590f),
-                Vector2.zero, new Color(0.03f, 0.075f, 0.17f, 0.99f), 25);
+            completionPanel = CreateFullOverlay("Quest Complete Overlay", parent, new Color(.035f, .025f, .02f, 0.82f));
+            var card = CreateArenaCard("Quest Complete Card", completionPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(1000f, 590f),
+                Vector2.zero);
             var title = CreateText("Completion Title", card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -66f), new Vector2(880f, 46f), 35f, TextAlignmentOptions.Center, new Color(1f, 0.82f, 0.34f));
+                new Vector2(0f, -66f), new Vector2(880f, 46f), 35f, TextAlignmentOptions.Center, ArenaGold);
             title.fontStyle = FontStyles.Bold;
             title.text = "THE CLOCK IS SINGING AGAIN";
             completionSummaryText = CreateText("Completion Summary", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 16f), new Vector2(820f, 220f), 25f, TextAlignmentOptions.Center, new Color(0.94f, 0.97f, 1f));
+                new Vector2(0f, 16f), new Vector2(820f, 220f), 25f, TextAlignmentOptions.Center, ArenaCream);
             completionSummaryText.textWrappingMode = TextWrappingModes.Normal;
             var hub = CreateButton("Completion Hub", card.transform, "RETURN TO SHIP", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 82f), new Vector2(420f, 56f), new Color(0.12f, 0.46f, 0.72f));
+                new Vector2(0f, 82f), new Vector2(420f, 56f), ArenaLeather);
             hub.onClick.AddListener(ReturnToStudentHub);
             var explore = CreateButton("Completion Explore", card.transform, "EXPLORE THE DECK", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 16f), new Vector2(280f, 36f), new Color(0.07f, 0.13f, 0.25f));
+                new Vector2(0f, 16f), new Vector2(280f, 36f), ArenaLeather);
             explore.onClick.AddListener(CloseCompletionPanel);
             completionPanel.SetActive(false);
         }
@@ -1673,8 +1731,8 @@ namespace ImagineQuest.Gameplay
             lessonFeedbackText.text = "When you are ready, use the practice prompt. You can return to this note any time.";
             lessonFeedbackText.color = new Color(0.98f, 0.78f, 0.38f);
             SetAnswersVisible(false);
-            ConfigureLessonButton(lessonPrimaryButton, "START PRACTICE", BeginPractice, new Color(0.13f, 0.46f, 0.72f));
-            ConfigureLessonButton(lessonSecondaryButton, "RETURN TO DECK", CloseLesson, new Color(0.08f, 0.14f, 0.27f));
+            ConfigureLessonButton(lessonPrimaryButton, "START PRACTICE", BeginPractice, ArenaLeather);
+            ConfigureLessonButton(lessonSecondaryButton, "RETURN TO DECK", CloseLesson, ArenaLeather);
         }
 
         private void BeginPractice()
@@ -1693,8 +1751,8 @@ namespace ImagineQuest.Gameplay
                 answerButtons[i].GetComponentInChildren<TMP_Text>().text = activeStation.Answers[i];
                 answerButtons[i].interactable = true;
             }
-            ConfigureLessonButton(lessonPrimaryButton, "READ TEACHING NOTE", ShowTeachingNote, new Color(0.08f, 0.22f, 0.4f));
-            ConfigureLessonButton(lessonSecondaryButton, "RETURN TO DECK", CloseLesson, new Color(0.08f, 0.14f, 0.27f));
+            ConfigureLessonButton(lessonPrimaryButton, "READ TEACHING NOTE", ShowTeachingNote, ArenaLeather);
+            ConfigureLessonButton(lessonSecondaryButton, "RETURN TO DECK", CloseLesson, ArenaLeather);
         }
 
         private void AnswerSelected(int selectedIndex)
@@ -1739,8 +1797,8 @@ namespace ImagineQuest.Gameplay
                 : "Your journal has been updated. Find the next glowing seal when you are ready.";
             lessonFeedbackText.color = new Color(0.6f, 1f, 0.75f);
             SetAnswersVisible(false);
-            ConfigureLessonButton(lessonPrimaryButton, "RETURN TO DECK", CloseLesson, new Color(0.13f, 0.46f, 0.72f));
-            ConfigureLessonButton(lessonSecondaryButton, "OPEN JOURNAL", OpenJournalFromLesson, new Color(0.08f, 0.22f, 0.4f));
+            ConfigureLessonButton(lessonPrimaryButton, "RETURN TO DECK", CloseLesson, ArenaLeather);
+            ConfigureLessonButton(lessonSecondaryButton, "OPEN JOURNAL", OpenJournalFromLesson, ArenaLeather);
             UpdateHud();
         }
 
@@ -2279,6 +2337,7 @@ namespace ImagineQuest.Gameplay
     /// <summary>Third-person ship controller with orbit camera and reusable interaction targeting.</summary>
     public sealed class CelestialClockPlayerController : MonoBehaviour
     {
+        private const float SprintMultiplier = 1.75f;
         private readonly HashSet<int> animatorParameters = new HashSet<int>();
         private CelestialClockQuestBootstrap quest;
         private CharacterController characterController;
@@ -2380,7 +2439,7 @@ namespace ImagineQuest.Gameplay
             var direction = (cameraForward * move.y + cameraRight * move.x).normalized;
             var hasMovementInput = direction.sqrMagnitude > 0.01f;
             var sprinting = canReadInput && hasMovementInput && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
-            var targetSpeed = movementSpeed * (sprinting ? 1.75f : 1f);
+            var targetSpeed = movementSpeed * (sprinting ? SprintMultiplier : 1f);
             var desiredVelocity = direction * targetSpeed;
             var velocityChangeRate = characterController.isGrounded ? (hasMovementInput ? 5.2f : 7.5f)
                 : (hasMovementInput ? 2.8f : 0.7f);
@@ -2429,7 +2488,7 @@ namespace ImagineQuest.Gameplay
 
             if (!canReadInput)
             {
-                UpdateAnimation(0f, false);
+                UpdateAnimation(0f);
                 return;
             }
 
@@ -2453,7 +2512,7 @@ namespace ImagineQuest.Gameplay
             if (Keyboard.current.eKey.wasPressedThisFrame && nearbyInteraction != null)
                 nearbyInteraction.Interact();
 
-            UpdateAnimation(lateralSpeed, sprinting);
+            UpdateAnimation(lateralSpeed);
         }
 
         private void LateUpdate()
@@ -2505,7 +2564,7 @@ namespace ImagineQuest.Gameplay
                 characterController.Move(Vector3.down * gap);
         }
 
-        private void UpdateAnimation(float lateralSpeed, bool sprinting)
+        private void UpdateAnimation(float lateralSpeed)
         {
             if (animator == null)
                 return;
@@ -2514,8 +2573,7 @@ namespace ImagineQuest.Gameplay
             var normalizedSpeed = movementSpeed <= 0f || !moving ? 0f : lateralSpeed / movementSpeed;
             // Idle, Walk and Run are three different clips in the blend tree. Speed
             // 1 selects walking and speed 2 selects running once sprint velocity builds.
-            var blend = normalizedSpeed <= 1f ? normalizedSpeed : 1f + (normalizedSpeed - 1f) / 0.75f;
-            animator.speed = 1f;
+            var blend = normalizedSpeed <= 1f ? normalizedSpeed : 1f + (normalizedSpeed - 1f) / (SprintMultiplier - 1f);
             SetAnimatorFloat("Speed", Mathf.Clamp(blend, 0f, 2f));
             SetAnimatorFloat("inputMagnitude", normalizedSpeed);
             SetAnimatorBool("isGrounded", characterController.isGrounded && verticalVelocity <= 0f);
