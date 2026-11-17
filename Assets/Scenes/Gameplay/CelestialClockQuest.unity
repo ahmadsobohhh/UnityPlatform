@@ -161,7 +161,7 @@ MonoBehaviour:
   treasureChestPrefab: {fileID: 1671758998919492, guid: 82fc0e4611497ae46a3f38db39d20eec, type: 3}
   pirateHumanoidAvatar: {fileID: 9000000, guid: 067eed6340abfa94383b955a0cb27fad, type: 3}
   pirateLocomotionController: {fileID: 9100000, guid: 563aa7254d1b4f279fcd01d869679e80, type: 2}
-  arenaSkybox: {fileID: 2100000, guid: 50817f43cdb44a1589e07847d4854ded, type: 2}
+  arenaPipeline: {fileID: 11400000, guid: d30bc7fd41f946d89e6dd5ef2217dd4b, type: 2}
   arenaWater: {fileID: 2100000, guid: 3440f18d4a204a5daec9c0c6dc409337, type: 2}
   interactableOutline: {fileID: 2100000, guid: e5e91b3fc1a941acb233792b813cd83b, type: 2}
   arenaMusic: {fileID: 8300000, guid: 1a384874ceccb1144af8aa7390635982, type: 3}
