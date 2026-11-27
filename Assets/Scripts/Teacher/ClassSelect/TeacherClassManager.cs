@@ -74,19 +74,32 @@ public class TeacherClassManager : MonoBehaviour
     private readonly List<string> standingStudentIds = new List<string>();
     private string standingRosterClassId;
 
-    private void Update()
+    private void WireStandingRoster()
     {
-        if (classListContainer != null || studentsListText == null ||
-            standingRosterClassId != ClassSelection.CurrentClassId || !Input.GetMouseButtonDown(0)) return;
-        var canvas = studentsListText.canvas;
-        if (canvas == null) return;
-        var camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
-        int link = TMP_TextUtilities.FindIntersectingLink(studentsListText, Input.mousePosition, camera);
-        if (link < 0) return;
-        string id = studentsListText.textInfo.linkInfo[link].GetLinkID();
-        if (!int.TryParse(id, out int index) || index < 0 || index >= standingStudentIds.Count) return;
-        var panel = FindObjectOfType<ImagineQuest.Gameplay.TeacherStandingPanel>();
-        if (panel != null) panel.OpenForStudent(standingStudentIds[index]);
+        if (studentsListText == null) return;
+        studentsListText.raycastTarget = true;
+        var trigger = studentsListText.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+        if (trigger == null) trigger = studentsListText.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+        var entry = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerClick };
+        entry.callback.AddListener(data =>
+        {
+            var pointer = data as UnityEngine.EventSystems.PointerEventData;
+            if (pointer == null || standingRosterClassId != ClassSelection.CurrentClassId) return;
+            studentsListText.ForceMeshUpdate();
+            int link = TMP_TextUtilities.FindIntersectingLink(studentsListText, pointer.position, pointer.pressEventCamera);
+            if (link < 0) return;
+            string id = studentsListText.textInfo.linkInfo[link].GetLinkID();
+            if (!int.TryParse(id, out int index) || index < 0 || index >= standingStudentIds.Count) return;
+            var panel = FindObjectOfType<ImagineQuest.Gameplay.TeacherStandingPanel>();
+            if (panel == null)
+            {
+                var canvas = FindSceneCanvas();
+                if (canvas == null) { Debug.LogError("Cannot open Heart controls: no scene canvas."); return; }
+                panel = canvas.gameObject.AddComponent<ImagineQuest.Gameplay.TeacherStandingPanel>();
+            }
+            panel.OpenForStudent(standingStudentIds[index]);
+        });
+        trigger.triggers.Add(entry);
     }
 
     private FirebaseAuth auth;
@@ -136,6 +149,7 @@ public class TeacherClassManager : MonoBehaviour
         else
         {
             ApplyClassDetailPolish();
+            WireStandingRoster();
             EnsureBackButtonWiring();
             StartCoroutine(LoadSelectedClassDetailsRoutine());
         }

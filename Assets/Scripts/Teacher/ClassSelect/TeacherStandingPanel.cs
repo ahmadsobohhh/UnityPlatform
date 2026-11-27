@@ -33,7 +33,7 @@ namespace ImagineQuest.Gameplay
             var parent = QuestLobbyUi.FindSceneRect("StudentListPanel");
             StatusUi.Button("Open student standing", parent != null ? parent : transform, "HEARTS & PROGRESS",
                 .65f, .025f, .96f, .105f, Open);
-            Build();
+            if (overlay == null) Build();
         }
         private void Build()
         {
@@ -83,7 +83,8 @@ namespace ImagineQuest.Gameplay
 
         public async void OpenForStudent(string studentId)
         {
-            if (busy || overlay == null) return;
+            if (busy) return;
+            if (overlay == null) Build();
             overlay.gameObject.SetActive(true); overlay.SetAsLastSibling();
             classId = ClassSelection.CurrentClassId;
             if (string.IsNullOrWhiteSpace(classId)) classId = PlayerPrefs.GetString("SelectedClassId", "");
