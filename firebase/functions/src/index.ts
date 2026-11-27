@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {setGlobalOptions} from "firebase-functions/v2";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
+import {XP_PER_CRYSTAL} from "./studentStatus.js";
 export {ensureStudentStatus, adjustStudentHearts, getClassStudentStatus, setWorkshopAssignment, blacksmithQuest} from "./studentStatus.js";
 
 admin.initializeApp();
@@ -601,6 +602,7 @@ export const recordQuestEvent = onCall(async (request): Promise<QuestEventResult
         throw new HttpsError("failed-precondition", "Ask your teacher to restore Hearts before earning more XP.");
       transaction.set(walletRef, {
         xp: FieldValue.increment(awardedXp),
+        crystals: FieldValue.increment(Math.floor(awardedXp / XP_PER_CRYSTAL)),
         lastMutationId: uniqueEventId,
         updatedAt: now,
       }, {merge: true});
@@ -612,12 +614,13 @@ export const recordQuestEvent = onCall(async (request): Promise<QuestEventResult
         eventId,
         rewardType: "xp",
         amount: awardedXp,
+        crystalsAwarded: Math.floor(awardedXp / XP_PER_CRYSTAL),
         serverRecordedAt: now,
       });
       transaction.set(db.collection("studentActivity").doc(uid).collection("entries").doc(uniqueEventId), {
         title: eventType === "quest-completed" ? "Quest completed" : "Challenge mastered",
         detail: typeof assignment.title === "string" ? assignment.title : "Class quest",
-        kind: "xp", deltaXp: awardedXp, deltaHearts: 0, occurredAt: now,
+        kind: "xp", deltaXp: awardedXp, deltaCrystals: Math.floor(awardedXp / XP_PER_CRYSTAL), deltaHearts: 0, occurredAt: now,
       });
     }
 
