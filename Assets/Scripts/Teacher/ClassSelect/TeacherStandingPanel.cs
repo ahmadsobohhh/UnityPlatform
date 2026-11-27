@@ -38,7 +38,7 @@ namespace ImagineQuest.Gameplay
         private void Build()
         {
             overlay = StatusUi.Panel("Teacher standing", transform, 0, 0, 1, 1, new Color(.008f, .015f, .025f, .94f), true);
-            var card = StatusUi.Panel("Standing card", overlay, .09f, .08f, .91f, .92f, StatusUi.Ink);
+            var card = StatusUi.Panel("Standing card", overlay, .045f, .045f, .955f, .955f, StatusUi.Ink);
             StatusUi.Panel("Accent", card, 0, .995f, 1, 1, StatusUi.Gold);
             StatusUi.Label("Eyebrow", card, "YOUR CLASS  /  STUDENT STANDING", .035f, .925f, .77f, .98f, 14, StatusUi.Gold);
             StatusUi.Label("Title", card, "Hearts & progress", .035f, .84f, .78f, .925f, 35).fontStyle = FontStyles.Bold;
@@ -79,13 +79,16 @@ namespace ImagineQuest.Gameplay
             overlay.gameObject.SetActive(false);
         }
         private bool Current(int expected) => this != null && version == expected && FirebaseAuth.DefaultInstance.CurrentUser?.UserId == owner;
-        private async void Open()
+        private void Open() => OpenForStudent(null);
+
+        public async void OpenForStudent(string studentId)
         {
+            if (busy || overlay == null) return;
             overlay.gameObject.SetActive(true); overlay.SetAsLastSibling();
             classId = ClassSelection.CurrentClassId;
             if (string.IsNullOrWhiteSpace(classId)) classId = PlayerPrefs.GetString("SelectedClassId", "");
             owner = FirebaseAuth.DefaultInstance.CurrentUser?.UserId;
-            int expected = ++version; students.Clear(); loaded = false; selected = null; page = 0; RenderRoster(); RenderChange();
+            int expected = ++version; students.Clear(); loaded = false; selected = null; page = 0; heading.text = "Select a student"; totals.text = "Loading roster..."; RenderRoster(); RenderChange();
             assignmentButton.interactable = false;
             try
             {
@@ -112,15 +115,27 @@ namespace ImagineQuest.Gameplay
                 {
                     RenderAssignment();
                     status.text = students.Count == 0 ? "No students have joined this class yet." : "Select a student to review this device's local standing.";
+                    SelectRequested(studentId);
                     return;
                 }
                 var assignment = await room.Reference.Collection("assignments").Document("blacksmith-workshop").GetSnapshotAsync(Source.Server);
                 if (!Current(expected)) return;
                 workshopOpen = assignment.Exists && assignment.GetValue<string>("state") == "open"; RenderAssignment();
                 status.text = students.Count == 0 ? "No students have joined this class yet." : "Select a student to review their saved standing.";
+                SelectRequested(studentId);
             }
             catch (Exception ex) { if (Current(expected)) status.text = ex.Message; }
         }
+        private void SelectRequested(string studentId)
+        {
+            if (string.IsNullOrEmpty(studentId)) return;
+            int index = students.FindIndex(student => student.id == studentId);
+            if (index < 0) { status.text = "Student is not in this class."; return; }
+            page = index / 6;
+            RenderRoster();
+            Select(index);
+        }
+
         private void RenderRoster()
         {
             int pages = Math.Max(1, (students.Count + 5) / 6); page = Mathf.Clamp(page, 0, pages - 1);

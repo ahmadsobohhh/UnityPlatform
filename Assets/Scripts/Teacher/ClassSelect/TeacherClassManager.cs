@@ -71,6 +71,24 @@ public class TeacherClassManager : MonoBehaviour
     [Header("Font")]
     [SerializeField] private TMP_FontAsset cardFont;
 
+    private readonly List<string> standingStudentIds = new List<string>();
+    private string standingRosterClassId;
+
+    private void Update()
+    {
+        if (classListContainer != null || studentsListText == null ||
+            standingRosterClassId != ClassSelection.CurrentClassId || !Input.GetMouseButtonDown(0)) return;
+        var canvas = studentsListText.canvas;
+        if (canvas == null) return;
+        var camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+        int link = TMP_TextUtilities.FindIntersectingLink(studentsListText, Input.mousePosition, camera);
+        if (link < 0) return;
+        string id = studentsListText.textInfo.linkInfo[link].GetLinkID();
+        if (!int.TryParse(id, out int index) || index < 0 || index >= standingStudentIds.Count) return;
+        var panel = FindObjectOfType<ImagineQuest.Gameplay.TeacherStandingPanel>();
+        if (panel != null) panel.OpenForStudent(standingStudentIds[index]);
+    }
+
     private FirebaseAuth auth;
     private FirebaseFirestore db;
 
@@ -293,6 +311,9 @@ public class TeacherClassManager : MonoBehaviour
             rect.anchoredPosition = Vector2.zero;
             rect.sizeDelta = Vector2.zero;
             studentsListText.fontSize = 28f;
+            studentsListText.enableAutoSizing = true;
+            studentsListText.fontSizeMin = 16f;
+            studentsListText.fontSizeMax = 28f;
             studentsListText.fontStyle = FontStyles.Normal;
             studentsListText.alignment = TextAlignmentOptions.TopLeft;
             studentsListText.color = new Color(1f, 0.96f, 0.84f, 0.96f);
@@ -553,9 +574,12 @@ public class TeacherClassManager : MonoBehaviour
         }
 
         var memberNames = new List<string>();
+        var memberIds = new List<string>();
         foreach (var memberDoc in membersTask.Result.Documents)
         {
             string uid = memberDoc.Id;
+            if (uid == auth.CurrentUser?.UserId) continue;
+            memberIds.Add(uid);
 
             string memberFirst = memberDoc.ContainsField("firstName") ? memberDoc.GetValue<string>("firstName") : "";
             string memberLast = memberDoc.ContainsField("lastName") ? memberDoc.GetValue<string>("lastName") : "";
@@ -585,6 +609,10 @@ public class TeacherClassManager : MonoBehaviour
             memberNames.Add(displayName);
         }
 
+        if (classId != ClassSelection.CurrentClassId) yield break;
+        standingStudentIds.Clear();
+        standingStudentIds.AddRange(memberIds);
+        standingRosterClassId = classId;
         if (studentsListText)
         {
             if (memberNames.Count == 0)
@@ -596,7 +624,7 @@ public class TeacherClassManager : MonoBehaviour
                 var sb = new StringBuilder();
                 for (int i = 0; i < memberNames.Count; i++)
                 {
-                    sb.Append(i + 1).Append(". ").Append(memberNames[i]);
+                    sb.Append("<link=").Append(i).Append("><u>").Append(i + 1).Append(". ").Append(memberNames[i].Replace("<", "‹").Replace(">", "›")).Append("</u></link>");
                     if (i < memberNames.Count - 1) sb.AppendLine();
                 }
                 studentsListText.text = sb.ToString();
