@@ -37,6 +37,8 @@ function receipt(...parts: string[]): string {
 }
 const now = () => FieldValue.serverTimestamp();
 
+export const XP_PER_CRYSTAL = 5;
+
 export const ensureStudentStatus = onCall(options, async (request) => {
   const student = uid(request);
   return db().runTransaction(async (tx) => {
@@ -174,6 +176,9 @@ export const blacksmithQuest = onCall(options, async (request) => {
         if (!turnedIn) { turnedIn = true; awardedXp = 100; }
       }
       const balance = number(wallet.data()?.xp) + awardedXp;
+      const crystalsAwarded = Math.floor(awardedXp / XP_PER_CRYSTAL);
+      const crystalBalance = number(wallet.data()?.crystals) + crystalsAwarded;
+      if (!Number.isSafeInteger(crystalBalance)) throw new HttpsError("out-of-range", "Crystal balance needs administrator review.");
       if (!Number.isSafeInteger(balance)) throw new HttpsError("out-of-range", "XP balance needs administrator review.");
       verifiedXp += awardedXp;
       tx.set(progressRef, {questDefinitionId: WORKSHOP, contentVersion: "1", lessonMask, completedMask, turnedIn, verifiedXp,
@@ -182,11 +187,11 @@ export const blacksmithQuest = onCall(options, async (request) => {
       if (!standing.exists) tx.create(standingRef, {hearts: STARTING_HEARTS, powerEpoch: 0, updatedAt: now()});
       if (awardedXp > 0) {
         const key = receipt(student, classId, assignmentId, eventId);
-        tx.set(walletRef, {xp: balance, ...(!wallet.exists ? {level: 1, crystals: 0, gold: 0, epoch: 0} : {}), lastMutationId: key, updatedAt: now()}, {merge: true});
-        tx.create(db().doc(`walletLedger/${key}`), {uid: student, classId, assignmentId, eventId, amount: awardedXp, rewardType: "xp", serverRecordedAt: now()});
+        tx.set(walletRef, {xp: balance, crystals: crystalBalance, ...(!wallet.exists ? {level: 1, gold: 0, epoch: 0} : {}), lastMutationId: key, updatedAt: now()}, {merge: true});
+        tx.create(db().doc(`walletLedger/${key}`), {uid: student, classId, assignmentId, eventId, amount: awardedXp, crystalsAwarded, rewardType: "xp", serverRecordedAt: now()});
         tx.create(db().doc(`studentActivity/${student}/entries/${key}`), {
           kind: "xp", title: action === "complete" ? "Repair kit delivered" : ["Anvil craft mastered", "Fasteners counted", "Forge craft mastered"][station as number],
-          detail: "The Aurora's Repair", deltaXp: awardedXp, deltaHearts: 0, occurredAt: now(),
+          detail: "The Aurora's Repair", deltaXp: awardedXp, deltaCrystals: crystalsAwarded, deltaHearts: 0, occurredAt: now(),
         });
       }
     }

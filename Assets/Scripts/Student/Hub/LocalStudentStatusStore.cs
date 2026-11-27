@@ -20,7 +20,7 @@ namespace ImagineQuest.Student
     {
         public int schemaVersion = 1;
         public string ownerId;
-        public long xp, epoch;
+        public long xp, epoch, crystals;
         public int hearts = 50;
         public List<string> receipts = new List<string>();
         public List<LocalStatusActivity> activity = new List<LocalStatusActivity>();
@@ -35,6 +35,7 @@ namespace ImagineQuest.Student
     /// <summary>Device-only progress. These files are never uploaded as a Firebase wallet.</summary>
     public sealed class LocalStudentStatusStore
     {
+        public const int XpPerCrystal = 5;
         private static readonly object Gate = new object();
         private readonly string directory;
         public LocalStudentStatusStore(string directory) { this.directory = directory; }
@@ -58,7 +59,7 @@ namespace ImagineQuest.Student
             LocalStudentStatus saved;
             try { saved = JsonUtility.FromJson<LocalStudentStatus>(File.ReadAllText(path)); }
             catch (Exception ex) { throw new InvalidDataException("Your local save could not be opened. The original file is preserved.", ex); }
-            if (saved == null || saved.schemaVersion != 1 || saved.ownerId != owner || saved.xp < 0 || saved.epoch < 0 ||
+            if (saved == null || saved.schemaVersion != 1 || saved.ownerId != owner || saved.xp < 0 || saved.crystals < 0 || saved.epoch < 0 ||
                 saved.hearts < 0 || saved.hearts > 50 || saved.receipts == null || saved.activity == null ||
                 saved.activity.Any(item => item == null || item.unixSeconds < 0 || item.unixSeconds > 253402300799L))
                 throw new InvalidDataException("Your local save needs review. The original file is preserved.");
@@ -77,6 +78,7 @@ namespace ImagineQuest.Student
                     string key = "reward/" + reward.Receipt;
                     if (saved.receipts.Contains(key)) continue;
                     saved.xp = checked(saved.xp + reward.Xp); awarded += reward.Xp;
+                    saved.crystals = checked(saved.crystals + reward.Xp / XpPerCrystal);
                     saved.receipts.Add(key);
                     AddActivity(saved, reward.Title, reward.Detail, reward.Xp, 0);
                 }
@@ -97,7 +99,7 @@ namespace ImagineQuest.Student
                 if (after < 0 || after > 50) throw new InvalidOperationException("Hearts must stay between 0 and 50.");
                 bool reset = saved.hearts > 0 && after == 0; long previousXp = saved.xp;
                 saved.hearts = after; saved.receipts.Add(key);
-                if (reset) { saved.xp = 0; saved.epoch++; }
+                if (reset) { saved.xp = 0; saved.crystals = 0; saved.epoch++; }
                 AddActivity(saved, reset ? "A fresh start" : delta > 0 ? "Hearts restored" : "Classroom standing updated",
                     reason.Trim(), reset ? -previousXp : 0, delta);
                 Write(saved); return saved;

@@ -239,7 +239,7 @@ namespace ImagineQuest.Student
         {
             if (Snapshot != null && Snapshot.Epoch != saved.epoch) SessionXp = 0;
             Snapshot = new StudentStatusSnapshot(new Dictionary<string, object> {
-                {"xp", saved.xp}, {"level", 1L}, {"epoch", saved.epoch}, {"crystals", 0L}, {"gold", 0L}
+                {"xp", saved.xp}, {"level", 1L}, {"epoch", saved.epoch}, {"crystals", saved.crystals}, {"gold", 0L}
             }, new Dictionary<string, object> {{"hearts", (long)saved.hearts}}, false);
             Activity.Clear();
             foreach (var item in saved.activity)
