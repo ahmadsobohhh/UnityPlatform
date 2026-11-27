@@ -72,12 +72,6 @@ namespace ImagineQuest.Gameplay
                 Border(new Vector2Int(1, 0), Vector3.right, 90);
                 if (cell.y != 0) Border(new Vector2Int(0, -1), Vector3.forward, 0);
                 Border(new Vector2Int(0, 1), Vector3.back, 0);
-                if (cell.y % 2 == 1 && cell.x == 0)
-                {
-                    CryptCandleStand(centre + new Vector3(-1.75f, 0, 1.2f), 90);
-                    CryptCandleStand(centre + new Vector3(1.75f, 0, -1.3f), -90);
-                }
-
                 void Border(Vector2Int adjacent, Vector3 direction, float yaw)
                 {
                     if (footprint.Contains(cell + adjacent)) return;
@@ -86,6 +80,10 @@ namespace ImagineQuest.Gameplay
                     wall.localScale = new Vector3(1, ceiling / 4, 1);
                     CryptSolid("Crypt wall", edge + Vector3.up * (ceiling / 2),
                         yaw == 0 ? new Vector3(4.03f, ceiling, .66f) : new Vector3(.66f, ceiling, 4.03f));
+                    // Pair fixtures along the side walls, leaving the fighting floor clear.
+                    if (adjacent.x != 0 && cell.y % 2 == 1)
+                        Torch(edge - direction * .34f + Vector3.up * 2.15f,
+                            Quaternion.LookRotation(-direction).eulerAngles.y);
                 }
             }
 
@@ -119,7 +117,6 @@ namespace ImagineQuest.Gameplay
                     CryptModel("pillar_decorated", p, 0).localScale = new Vector3(.78f, height / 4, .78f);
                     CryptSolid("Ancient pier", p + Vector3.up * (height / 2), new Vector3(1.3f, height, 1.3f));
                     CryptModel("banner_patternA_red", new Vector3(sign * 5.28f, 0, z - .2f), sign * -90);
-                    CryptCandleStand(p + new Vector3(-sign * 1.06f, 0, .49f), sign * 30);
                 }
 
             CryptModel("chest_gold", new Vector3(0, 0, -58.1f), 0);
@@ -131,7 +128,6 @@ namespace ImagineQuest.Gameplay
             AddCryptCache("Drowned captain's chest", new Vector3(11.1f, 0, -49.6f), 48, 55, 20);
             CryptCandleStand(new Vector3(-2.15f, 0, -58.0f), 30);
             CryptCandleStand(new Vector3(2.15f, 0, -58.0f), -30);
-            Lamp("Crypt entrance light", new Vector3(0, 2.8f, -8.25f), new Color(.51f, .65f, 1), 4.8f, 9).shadows = LightShadows.None;
             ResetCrypt();
         }
 
@@ -160,7 +156,6 @@ namespace ImagineQuest.Gameplay
             candles.position += Vector3.up * (support.max.y - .012f - ForgeBounds(candles).min.y);
             candles.SetParent(stand, true);
             var light = Lamp("Crypt candlelight", at + Vector3.up * .38f, new Color(1, .66f, .34f), 4.1f, 6.6f);
-            light.shadows = LightShadows.None;
             light.transform.SetParent(stand, true);
         }
 
@@ -192,10 +187,11 @@ namespace ImagineQuest.Gameplay
         private void Torch(Vector3 p, float yaw, Transform parent = null)
         {
             var torch = CryptModel("torch_mounted", p, yaw, parent: parent);
-            Decor("Torch ember", PrimitiveType.Sphere, p + Vector3.up * .48f,
+            // The torch bowl projects out from its wall mount in local forward.
+            var flame = torch.TransformPoint(new Vector3(0, .38f, .29f));
+            Decor("Torch ember", PrimitiveType.Sphere, flame,
                 new Vector3(.09f, .19f, .09f), cryptGold).SetParent(torch, true);
-            var lamp = Lamp("Amber torch", p + Vector3.up * .46f, new Color(1, .62f, .30f), 4.8f, 6.8f);
-            lamp.shadows = LightShadows.None;
+            var lamp = Lamp("Amber torch", flame + torch.forward * .08f, new Color(1, .62f, .30f), 3.2f, 7f);
             lamp.transform.SetParent(torch, true);
         }
 

@@ -142,10 +142,21 @@ public class BlacksmithWorkshopPlayTests
         Assert.That(dressing.Find("Vise base"), Is.Not.Null);
         Assert.That(anvilTable.min.y, Is.LessThanOrEqualTo(.02f));
         Assert.That(anvilTable.max.y, Is.EqualTo(anvil.min.y).Within(.025f), "The tabletop must meet the anvil base.");
-        int tiles = 0, candleStands = 0;
+        int tiles = 0, candleStands = 0, wallTorches = 0;
         foreach (Transform child in room.transform)
         {
             if (child.name == "Crypt floor") tiles++;
+            if (child.name == "Crypt torch_mounted")
+            {
+                wallTorches++;
+                var light = child.GetComponentInChildren<Light>();
+                var flame = child.Find("Torch ember");
+                Assert.That(Vector3.Distance(light.transform.position, flame.position), Is.LessThan(.12f));
+                Assert.That(light.shadows, Is.EqualTo(LightShadows.Soft));
+                Assert.That(Physics.Raycast(child.position + child.forward * .15f, -child.forward,
+                    out var wall, .6f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore), Is.True);
+                Assert.That(wall.collider.name, Is.EqualTo("Crypt wall"));
+            }
             if (child.name != "Grounded crypt candle stand") continue;
             candleStands++;
             Bounds support = child.GetComponentInChildren<MeshRenderer>().bounds;
@@ -154,7 +165,9 @@ public class BlacksmithWorkshopPlayTests
             Assert.That(candles.min.y, Is.EqualTo(support.max.y - .012f).Within(.025f));
         }
         Assert.That(tiles, Is.GreaterThanOrEqualTo(50));
-        Assert.That(candleStands, Is.GreaterThanOrEqualTo(20));
+        Assert.That(candleStands, Is.EqualTo(6), "Keep candle stands beside treasure, away from the fighting floor.");
+        Assert.That(wallTorches, Is.GreaterThanOrEqualTo(10));
+        Assert.That(room.transform.Find("Crypt entrance light"), Is.Null);
         if (Field("authoredForgePrefab") != null)
         {
             Assert.That(imported.localScale.x, Is.GreaterThan(1f));
@@ -280,6 +293,34 @@ public class BlacksmithWorkshopPlayTests
                     if (reached) break;
                 }
                 Assert.IsTrue(reached, "There must be an unobstructed approach to " + root.name);
+                // A miss at windup can become a hit at impact, including at the legs.
+                view.rotation = Quaternion.LookRotation(Vector3.up);
+                captureStrike.Invoke(combat, null);
+                Assert.That(combatType.GetField("aimedRaider", Private).GetValue(combat), Is.Null);
+                view.rotation = Quaternion.LookRotation(root.position + Vector3.up * .4f - view.position);
+                resolveStrike.Invoke(combat, null);
+                Assert.That((int)foe.GetType().GetField("Health").GetValue(foe), Is.EqualTo(health - trial.Damage));
+                health -= trial.Damage;
+                view.rotation = Quaternion.LookRotation(torsoTarget.bounds.center - view.position);
+                // Even with melee aim tolerance, a solid obstacle must stop the strike.
+                var obstruction = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                obstruction.transform.position = Vector3.Lerp(view.position, torsoTarget.bounds.center, .5f);
+                obstruction.transform.localScale = new Vector3(.8f, 2f, .8f);
+                resolveStrike.Invoke(combat, null);
+                Assert.That((int)foe.GetType().GetField("Health").GetValue(foe), Is.EqualTo(health));
+                obstruction.GetComponent<Collider>().enabled = false;
+                UnityEngine.Object.Destroy(obstruction);
+                Vector3 nearEdge = torsoTarget.bounds.center + view.right * (((CapsuleCollider)torsoTarget).radius + .1f);
+                view.rotation = Quaternion.LookRotation(nearEdge - view.position);
+                Assert.That(torsoTarget.Raycast(new Ray(view.position, view.forward), out _, 2.05f), Is.False);
+                captureStrike.Invoke(combat, null);
+                Assert.That(combatType.GetField("aimedRaider", Private).GetValue(combat), Is.SameAs(foe),
+                    "A sword-width near miss should still connect.");
+                view.rotation = Quaternion.LookRotation(Vector3.up);
+                resolveStrike.Invoke(combat, null);
+                Assert.That((int)foe.GetType().GetField("Health").GetValue(foe), Is.EqualTo(health),
+                    "Turning away before impact must cancel the hit.");
+                view.rotation = Quaternion.LookRotation(torsoTarget.bounds.center - view.position);
                 for (int hit = 0; hit < Mathf.CeilToInt(health / (float)trial.Damage); hit++)
                 {
                     captureStrike.Invoke(combat, null);

@@ -10,6 +10,7 @@ namespace ImagineQuest.Gameplay
     {
         public const int MaxHealth = 100;
         private const float SwingDuration = .55f, StrikeReach = 2.05f, RecoveryTime = .52f;
+        private const float StrikeRadius = .18f;
         public int Health { get; private set; } = MaxHealth;
         public int Wave { get; private set; }
         public int Remaining => enemies.Count;
@@ -143,7 +144,6 @@ namespace ImagineQuest.Gameplay
             {
                 swing = SwingDuration;
                 strikePending = true;
-                CaptureStrike();
                 reverseSwing = !reverseSwing;
                 effects.Play(RaidCue.Swing);
             }
@@ -185,12 +185,22 @@ namespace ImagineQuest.Gameplay
 
         private Raider TargetAlong(Vector3 direction, out Vector3 point)
         {
+            // Prefer the reticle target, then allow for the width of a sword swing.
+            var target = CastStrike(direction, 0, out point);
+            return target ?? CastStrike(direction, StrikeRadius, out point);
+        }
+
+        private Raider CastStrike(Vector3 direction, float radius, out Vector3 point)
+        {
             var origin = camera.position;
             float nearest = StrikeReach;
             Raider selected = null;
             point = default;
-            int count = Physics.RaycastNonAlloc(origin, direction, strikeHits, StrikeReach,
-                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide);
+            int count = radius == 0
+                ? Physics.RaycastNonAlloc(origin, direction, strikeHits, StrikeReach,
+                    Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide)
+                : Physics.SphereCastNonAlloc(origin, radius, direction, strikeHits, StrikeReach - radius,
+                    Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide);
             if (count == strikeHits.Length) return null;
             for (int i = 0; i < count; i++)
             {
@@ -208,21 +218,17 @@ namespace ImagineQuest.Gameplay
         private void CaptureStrike()
         {
             Physics.SyncTransforms();
-            aimedRaider = TargetAlong(camera.forward, out var point);
-            if (aimedRaider != null)
-                aimedContact = aimedRaider.Body.InverseTransformPoint(point);
+            aimedRaider = TargetAlong(camera.forward, out aimedContact);
         }
 
         private void ResolveStrike()
         {
+            // Resolve against the current pose at impact so moving into a swing counts.
+            CaptureStrike();
             var foe = aimedRaider;
             aimedRaider = null;
             if (foe == null || foe.Health <= 0 || foe.Rise > 0) return;
-            Physics.SyncTransforms();
-            Vector3 aim = foe.Body.TransformPoint(aimedContact) - camera.position;
-            if (aim.sqrMagnitude < .001f || Vector3.Dot(camera.forward, aim.normalized) < .82f ||
-                TargetAlong(aim.normalized, out var contact) != foe) return;
-            Strike(foe, contact);
+            Strike(foe, aimedContact);
         }
 
         private void Strike(Raider foe, Vector3 contact)
@@ -618,14 +624,14 @@ namespace ImagineQuest.Gameplay
             body.localPosition = Vector3.down * .57f;
             foe.Body = body;
             var torso = body.gameObject.AddComponent<CapsuleCollider>();
-            torso.center = new Vector3(0, .99f, .018f);
-            torso.radius = kind == RaiderKind.Warder ? .245f : .205f;
-            torso.height = .92f;
+            torso.center = new Vector3(0, .83f, .018f);
+            torso.radius = kind == RaiderKind.Warder ? .28f : .24f;
+            torso.height = 1.6f;
             torso.isTrigger = true;
             foe.TorsoTarget = torso;
             var skull = foe.Head.gameObject.AddComponent<SphereCollider>();
             skull.center = new Vector3(0, .049f, .02f);
-            skull.radius = .16f;
+            skull.radius = .19f;
             skull.isTrigger = true;
             foe.SkullTarget = skull;
             targets.Add(torso, foe);
