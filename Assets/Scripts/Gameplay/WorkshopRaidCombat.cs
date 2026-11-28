@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 namespace ImagineQuest.Gameplay
 {
@@ -43,7 +44,9 @@ namespace ImagineQuest.Gameplay
         private sealed class Raider
         {
             public Transform Root, LeftLeg, RightLeg, LeftShin, RightShin, SwordArm, FreeArm, Head, Flash, Body;
-            public int Health;
+            public int Health, MaximumHealth;
+            public Transform HealthBar;
+            public RectTransform HealthFill;
             public RaiderKind Kind;
             public Vector3 AttackHeading;
             public Collider TorsoTarget, SkullTarget;
@@ -244,7 +247,8 @@ namespace ImagineQuest.Gameplay
             effects.Burst(RaidCue.Bone, contact, camera.right);
             hitPause = .045f;
             recoil = .85f;
-            foe.Health -= damage;
+            foe.Health = Mathf.Max(0, foe.Health - damage);
+            foe.HealthFill.anchorMax = new Vector2((float)foe.Health / foe.MaximumHealth, 1f);
             foe.WindingUp = false;
             foe.AttackPending = false;
             foe.Recovery = 0;
@@ -264,6 +268,7 @@ namespace ImagineQuest.Gameplay
             Vector3 direction = distance > .01f ? delta / distance : Vector3.forward;
             var heading = foe.WindingUp || foe.Recovery > 0 ? foe.AttackHeading : direction;
             foe.Root.rotation = Quaternion.RotateTowards(foe.Root.rotation, Quaternion.LookRotation(heading), dt * 490);
+            foe.HealthBar.rotation = camera.rotation;
             foe.Timer -= dt;
             foe.Stagger -= dt;
             if (foe.Rise > 0)
@@ -637,7 +642,51 @@ namespace ImagineQuest.Gameplay
             targets.Add(torso, foe);
             targets.Add(skull, foe);
             effects.Burst(RaidCue.Wave, at + Vector3.up * .14f, Vector3.up, false);
+            foe.MaximumHealth = foe.Health;
+            BuildEnemyHealthBar(foe);
             enemies.Add(foe);
+        }
+
+        private void BuildEnemyHealthBar(Raider foe)
+        {
+            var bar = new GameObject("Skeleton health bar", typeof(RectTransform), typeof(Canvas));
+            bar.transform.SetParent(foe.Root, false);
+            bar.transform.localPosition = Vector3.up * 2.14f;
+            bar.transform.localScale = Vector3.one * .01f;
+            bar.transform.rotation = camera.rotation;
+            var canvas = bar.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = camera.GetComponent<Camera>();
+            bar.GetComponent<RectTransform>().sizeDelta = new Vector2(76f, 10f);
+            foe.HealthBar = bar.transform;
+
+            var border = new GameObject("Brass border", typeof(RectTransform), typeof(Image));
+            border.transform.SetParent(bar.transform, false);
+            var borderRect = border.GetComponent<RectTransform>();
+            borderRect.anchorMin = Vector2.zero;
+            borderRect.anchorMax = Vector2.one;
+            borderRect.offsetMin = borderRect.offsetMax = Vector2.zero;
+            border.GetComponent<Image>().color = new Color(.65f, .44f, .20f);
+            border.GetComponent<Image>().raycastTarget = false;
+
+            var track = new GameObject("Health track", typeof(RectTransform), typeof(Image));
+            track.transform.SetParent(border.transform, false);
+            var trackRect = track.GetComponent<RectTransform>();
+            trackRect.anchorMin = Vector2.zero;
+            trackRect.anchorMax = Vector2.one;
+            trackRect.offsetMin = Vector2.one * 1.5f;
+            trackRect.offsetMax = Vector2.one * -1.5f;
+            track.GetComponent<Image>().color = new Color(.055f, .035f, .025f);
+            track.GetComponent<Image>().raycastTarget = false;
+
+            var fill = new GameObject("Remaining health", typeof(RectTransform), typeof(Image));
+            fill.transform.SetParent(track.transform, false);
+            foe.HealthFill = fill.GetComponent<RectTransform>();
+            foe.HealthFill.anchorMin = Vector2.zero;
+            foe.HealthFill.anchorMax = Vector2.one;
+            foe.HealthFill.offsetMin = foe.HealthFill.offsetMax = Vector2.zero;
+            fill.GetComponent<Image>().color = new Color(.78f, .18f, .12f);
+            fill.GetComponent<Image>().raycastTarget = false;
         }
 
         private void Rib(Transform root, Vector3 a, Vector3 b)

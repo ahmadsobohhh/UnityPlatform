@@ -99,15 +99,19 @@ namespace ImagineQuest.Gameplay
             raidGate.SetActive(false);
             cryptSealGate = CryptArch(-13f);
             cryptVaultGate = CryptArch(-29f);
+            BuildSealGalleryPaintings();
+            // Frame the seal doorway with a matching pair, clear of the rune switches.
+            foreach (float side in new[] { -1f, 1f })
+                CryptCandleStand(new Vector3(side * 1.75f, 0f, -12.05f), 0f);
             for (int i = 0; i < 3; i++)
             {
                 AddSwitch(new Vector3(-3.5f + i * 3.5f, 0, -11.6f), i, false);
-                AddSwitch(new Vector3(-5f + i * 1.7f, 0, -27.25f), i, true);
+                AddSwitch(new Vector3((i - 1) * 1.5f, 0, -27.25f), i, true);
             }
             WorldLabel("Seal inscription", "ANCHOR  /  MOON  /  FLAME", new Vector3(0, 2.8f, -12.55f),
-                new Vector2(390, 50), 24, Gold, false, 0);
-            WorldLabel("Vault inscription", "OFFER  2 × 3", new Vector3(-3.4f, 2.35f, -28.55f),
-                new Vector2(300, 49), 28, Gold, false, 0);
+                new Vector2(390, 50), 24, Gold, true);
+            WorldLabel("Vault inscription", "What is 2 × 3?", new Vector3(0f, 2.35f, -27.25f),
+                new Vector2(740, 110), 42, Cream, true);
 
             foreach (float z in new[] { -20f, -25f, -39f, -44f, -49f, -54f })
                 foreach (int sign in new[] { -1, 1 })
@@ -128,7 +132,106 @@ namespace ImagineQuest.Gameplay
             AddCryptCache("Drowned captain's chest", new Vector3(11.1f, 0, -49.6f), 48, 55, 20);
             CryptCandleStand(new Vector3(-2.15f, 0, -58.0f), 30);
             CryptCandleStand(new Vector3(2.15f, 0, -58.0f), -30);
+            DressPirateHall();
             ResetCrypt();
+        }
+
+        private void BuildSealGalleryPaintings()
+        {
+            AddCryptPainting(new Vector3(-2.65f, 2.05f, -12.36f), 0, 0f);
+            AddCryptPainting(new Vector3(2.65f, 2.05f, -12.36f), 1, 0f);
+        }
+
+        private void AddCryptPainting(Vector3 center, int i, float yaw)
+        {
+            var artwork = Resources.Load<Texture2D>("TideCrypt/SealGalleryPaintings");
+            if (artwork == null) return;
+            var oak = Surface(new Color(.17f, .085f, .045f));
+            var brass = Surface(new Color(.62f, .40f, .16f), .45f);
+            var frame = new GameObject(i == 0 ? "Moonrise ship painting" : "Lighthouse painting").transform;
+            frame.SetParent(transform, false);
+            var paint = Surface(Color.white);
+            paint.mainTexture = artwork;
+            paint.mainTextureScale = new Vector2(.5f, 1f);
+            paint.mainTextureOffset = new Vector2(i * .5f, 0f);
+            paint.SetFloat("_Smoothness", .05f);
+
+            var canvas = new Mesh { name = "Crypt portrait canvas" };
+            canvas.vertices = new[] { new Vector3(-.51f, -.70f, 0f), new Vector3(.51f, -.70f, 0f),
+                new Vector3(-.51f, .70f, 0f), new Vector3(.51f, .70f, 0f) };
+            canvas.uv = new[] { Vector2.zero, Vector2.right, Vector2.up, Vector2.one };
+            canvas.triangles = new[] { 0, 1, 2, 2, 1, 3 };
+            canvas.RecalculateNormals();
+            canvas.RecalculateBounds();
+            meshes.Add(canvas);
+            var panel = new GameObject("Painted canvas", typeof(MeshFilter), typeof(MeshRenderer));
+            panel.transform.SetParent(frame, false);
+            panel.transform.position = center + Vector3.forward * .06f;
+            panel.GetComponent<MeshFilter>().sharedMesh = canvas;
+            panel.GetComponent<MeshRenderer>().sharedMaterial = paint;
+
+            FramePiece("Oak backing", Vector3.zero, new Vector3(1.25f, 1.64f, .10f), oak);
+            foreach (float side in new[] { -1f, 1f })
+            {
+                FramePiece("Oak frame side", new Vector3(side * .58f, 0f, .09f), new Vector3(.14f, 1.64f, .12f), oak);
+                FramePiece("Oak frame end", new Vector3(0f, side * .75f, .09f), new Vector3(1.10f, .14f, .12f), oak);
+                FramePiece("Brass inner side", new Vector3(side * .52f, 0f, .105f), new Vector3(.022f, 1.40f, .025f), brass);
+                FramePiece("Brass inner end", new Vector3(0f, side * .70f, .105f), new Vector3(1.06f, .022f, .025f), brass);
+            }
+
+            void FramePiece(string label, Vector3 offset, Vector3 size, Material finish)
+            {
+                Decor(label, PrimitiveType.Cube, center + offset, size, finish).SetParent(frame, true);
+            }
+            frame.RotateAround(center, Vector3.up, yaw);
+        }
+
+        private void DressPirateHall()
+        {
+            var oak = Surface(new Color(.25f, .14f, .075f));
+            var iron = Surface(new Color(.12f, .14f, .16f), .4f);
+            var parchment = Surface(new Color(.68f, .54f, .33f));
+            foreach (int side in new[] { -1, 1 })
+            {
+                // Use the outer walls for furnishings, leaving the pillars and combat lane open.
+                float x = side * 8.85f;
+                var table = new Vector3(x, 0f, -22.6f);
+                Furnishing("Captain's chart table", table + Vector3.up * .91f, new Vector3(1.10f, .16f, 2.35f), oak);
+                foreach (float dx in new[] { -.40f, .40f })
+                    foreach (float dz in new[] { -.96f, .96f })
+                        Furnishing("Chart table leg", table + new Vector3(dx, .43f, dz), new Vector3(.14f, .86f, .14f), oak);
+                CryptSolid("Chart table support", table + Vector3.up * .49f, new Vector3(1.10f, .98f, 2.35f));
+                var chart = table + new Vector3(0f, 1.002f, 0f);
+                Furnishing("Navigation chart", chart, new Vector3(.76f, .012f, 1.30f), parchment);
+                for (int route = 0; route < 3; route++)
+                {
+                    var line = Furnishing("Chart route", chart + new Vector3((route - 1) * .17f, .009f, 0f),
+                        new Vector3(.012f, .004f, .86f), iron);
+                    line.Rotate(0f, (route - 1) * 18f, 0f);
+                }
+                var compass = Decor("Chart compass", PrimitiveType.Cylinder, table + new Vector3(0f, 1.02f, .84f),
+                    new Vector3(.19f, .025f, .19f), cryptGold);
+                compass.rotation = Quaternion.identity;
+                Supply("barrel_small", new Vector3(side * 9f, 0f, -18.2f), .9f);
+                Supply("barrel_small", new Vector3(side * 8.1f, 0f, -18.2f), .9f);
+                Supply("crates_stacked", new Vector3(side * 8.8f, 0f, -26.7f), .72f);
+                foreach (float z in new[] { -21.2f, -24.5f })
+                {
+                    AddCryptPainting(new Vector3(side * 9.36f, 2.65f, z), side < 0 ? 0 : 1, side < 0 ? 90f : -90f);
+                }
+            }
+
+            void Supply(string model, Vector3 position, float scale)
+            {
+                var prop = CryptModel(model, position, 0f, scale);
+                var bounds = ForgeBounds(prop);
+                CryptSolid("Pirate supply support", bounds.center, bounds.size);
+            }
+
+            Transform Furnishing(string name, Vector3 position, Vector3 size, Material finish)
+            {
+                return Decor(name, PrimitiveType.Cube, position, size, finish);
+            }
         }
 
         private void AddCryptCache(string name, Vector3 p, int gold, int xp, int healing)
@@ -136,7 +239,7 @@ namespace ImagineQuest.Gameplay
             CryptModel("chest_gold", p, 0, .79f);
             var lid = CryptModel("chest_gold_lid", p, 0, .79f);
             WorldLabel("Cache name", name, p + Vector3.up * 1.44f, new Vector2(285, 40), 19, Gold, true);
-            CryptCandleStand(p + new Vector3(.88f, 0, -.30f), -25);
+            if (p.z < -29f) CryptCandleStand(p + new Vector3(.88f, 0, -.30f), -25);
             CryptSolid(name + " body", p + Vector3.up * .29f, new Vector3(1.15f, .58f, .85f));
             cryptLoot.Add(new CryptLoot { Lid = lid, Name = name, Gold = gold, Xp = xp, Healing = healing });
         }
@@ -180,7 +283,7 @@ namespace ImagineQuest.Gameplay
             seal.SetParent(model, true);
             CryptSolid("Rune switch base", p + Vector3.up * .32f, new Vector3(.37f, .64f, .33f));
             var label = WorldLabel("Crypt seal", vault ? (value * 2 + 4).ToString() : SealNames[value], p + Vector3.up * 1f,
-                new Vector2(200, 42), 23, Gold, true);
+                new Vector2(vault ? 240 : 200, vault ? 66 : 42), vault ? 32 : 23, Gold, true);
             cryptSwitches.Add(new CryptSwitch { Model = model, Label = label, Value = value, IsVault = vault });
         }
 

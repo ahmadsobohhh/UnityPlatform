@@ -33,6 +33,9 @@ namespace ImagineQuest.Gameplay
         private void Awake()
         {
             raidPractice = launchRaidPractice || QuestSession.Instance == null || QuestSession.Instance.QuestId != BlacksmithQuestContent.Id;
+#if UNITY_EDITOR
+            raidPractice |= UnityEditor.SessionState.GetBool("ImagineQuest.CryptPreview", false);
+#endif
             launchRaidPractice = false;
             Time.timeScale = 1f;
             previousPipeline = QualitySettings.renderPipeline;

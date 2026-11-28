@@ -14,6 +14,13 @@ public static class BlacksmithWorkshopTools
     {
         Api = ScriptableObject.CreateInstance<TestRunnerApi>();
         Api.RegisterCallbacks(new Results());
+        EditorApplication.playModeStateChanged += state =>
+        {
+            if (state != PlayModeStateChange.EnteredPlayMode ||
+                !SessionState.GetBool("ImagineQuest.CryptPreview", false)) return;
+            SessionState.EraseBool("ImagineQuest.CryptPreview");
+            UnityEngine.Object.FindFirstObjectByType<ImagineQuest.Gameplay.BlacksmithRoomBootstrap>()?.PreviewCryptInEditor();
+        };
     }
     [MenuItem("Imagine Quest/Blacksmith/Run Workshop Checks")]
     public static void RunChecks()
@@ -57,6 +64,20 @@ public static class BlacksmithWorkshopTools
         OpenWorkshop();
         if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "BlacksmithRoom")
             EditorApplication.isPlaying = true;
+    }
+
+    [MenuItem("Imagine Quest/Blacksmith/Play Crypt Preview")]
+    public static void PlayCryptPreview()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            UnityEngine.Object.FindFirstObjectByType<ImagineQuest.Gameplay.BlacksmithRoomBootstrap>()?.PreviewCryptInEditor();
+            return;
+        }
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+        EditorSceneManager.OpenScene("Assets/Scenes/Gameplay/BlacksmithRoom.unity");
+        SessionState.SetBool("ImagineQuest.CryptPreview", true);
+        EditorApplication.isPlaying = true;
     }
 
     // Command-line preview build; the normal application build settings remain unchanged.

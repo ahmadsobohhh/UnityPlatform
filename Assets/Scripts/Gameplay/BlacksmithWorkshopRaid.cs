@@ -47,6 +47,25 @@ namespace ImagineQuest.Gameplay
             SceneTransition.LoadScene("BlacksmithRoom");
         }
 
+#if UNITY_EDITOR
+        public void PreviewCryptInEditor()
+        {
+            if (!raidPractice) return;
+            StopAllCoroutines();
+            var arrival = transform.Find("CINDER QUAY arrival");
+            if (arrival != null) Destroy(arrival.gameObject);
+            arrivingAtForge = false;
+            view.localPosition = new Vector3(0f, 1.65f, 0f);
+            bladeForged = true;
+            raidDoor.SetActive(false);
+            raidHammer.gameObject.SetActive(false);
+            raidCombat.Equip(bladeTrial.Damage);
+            ShowModal(null);
+            PlaceRaidPlayer(YardStart, 180f);
+            StartRaid();
+        }
+#endif
+
         private void BuildRaidInterface()
         {
             if (EventSystem.current == null)
@@ -75,6 +94,33 @@ namespace ImagineQuest.Gameplay
             Text(hud, "Controls", new Vector2(.5f, 0), new Vector2(0, 25), new Vector2(850, 23), 16, Cream, TextAlignmentOptions.Center).text =
                 "WASD  Move     •     E  Use     •     LMB  Strike     •     RMB  Guard     •     Esc  Pause";
             Text(hud, "Reticle", new Vector2(.5f, .5f), Vector2.zero, new Vector2(20, 20), 18, Cream, TextAlignmentOptions.Center).text = "+";
+
+            forgeIntroduction = BuildBramGuide("Forge your legend!",
+                "Visit all three stations and give each question your best shot. " +
+                "Every correct answer makes your sword stronger. What mighty blade will you create?",
+                "Enter the workshop");
+            sealIntroduction = BuildBramGuide("Let’s crack the code!",
+                "These symbols hold the secret to the next room. Look for the clue, work out the order, " +
+                "and show this old crypt how clever you are!", "Let’s solve it!");
+            combatIntroduction = BuildBramGuide("Time to test your blade!",
+                "You forged it—now give it a swing! Defeat the skeleton crew, guard against their attacks, " +
+                "and explore the hall for treasure.", "I’m ready!");
+            vaultIntroduction = BuildBramGuide("You’ve rattled the skeleton crew!",
+                "Great sword work, adventurer! Another sealed door awaits. " +
+                "Read the question, work out the answer, and choose the matching number to open the vault.",
+                "Let’s crack it!");
+            secondCombatIntroduction = BuildBramGuide("The next crew is waiting!",
+                "You cracked the vault puzzle! More rattling rivals are ahead. Keep moving, " +
+                "guard against their attacks, and put your sword to work. The treasure is getting closer!",
+                "Onward, adventurer!");
+            battleVictoryIntroduction = BuildBramGuide("You’ve beaten the skeleton crew!",
+                "Brilliant work, adventurer! Your sharp thinking and sword skills have carried you through. " +
+                "Follow the passage ahead to find the Tidekeeper’s treasure.",
+                "To the treasure!");
+            relicIntroduction = BuildBramGuide("The Tidekeeper awaits!",
+                "You’ve reached the final treasure room! Walk up to the golden chest, " +
+                "look at it, and press E to claim the Tidekeeper. You’ve earned this moment!",
+                "Let’s claim it!");
 
             raidQuestion = RaidCard("Smith's notes", new Vector2(650, 408), out var card);
             raidQuestionText = Label(card, "", 32, 30, 586, 77, 27, Cream);
@@ -116,6 +162,35 @@ namespace ImagineQuest.Gameplay
             StartCoroutine(ArriveAtForge());
         }
 
+        private GameObject BuildBramGuide(string heading, string copy, string buttonText)
+        {
+            var overlay = RaidCard("Bram guide", new Vector2(760, 330), out var introduction);
+            var portrait = new GameObject("Bram guide portrait", typeof(RectTransform), typeof(RawImage), typeof(Outline));
+            portrait.transform.SetParent(introduction, false);
+            var portraitRect = portrait.GetComponent<RectTransform>();
+            portraitRect.anchorMin = portraitRect.anchorMax = Vector2.up;
+            portraitRect.pivot = Vector2.up;
+            portraitRect.anchoredPosition = new Vector2(32, -40);
+            portraitRect.sizeDelta = new Vector2(128, 128);
+            var portraitImage = portrait.GetComponent<RawImage>();
+            portraitImage.texture = Resources.Load<Texture2D>("TideCrypt/BramGuidePortrait");
+            portraitImage.raycastTarget = false;
+            portrait.GetComponent<Outline>().effectColor = Brass;
+            portrait.GetComponent<Outline>().effectDistance = new Vector2(2, -2);
+            Label(introduction, "BRAM • YOUR BLACKSMITH GUIDE", 192, 32, 536, 28, 17, Gold);
+            Label(introduction, heading, 192, 72, 536, 44, 30, Cream);
+            var explanation = Label(introduction, copy, 192, 128, 536, 114, 23, Cream);
+            explanation.textWrappingMode = TextWrappingModes.Normal;
+            RaidButton(introduction, buttonText, 192, 260, 536, () => ShowModal(null));
+
+            return overlay;
+        }
+
+        private GameObject forgeIntroduction, sealIntroduction, combatIntroduction, vaultIntroduction;
+        private GameObject secondCombatIntroduction, swordReveal;
+        private GameObject battleVictoryIntroduction, relicIntroduction;
+        private bool combatGuideShown, vaultGuideShown, secondCombatGuideShown, relicGuideShown;
+
         private IEnumerator ArriveAtForge()
         {
             arrivingAtForge = true;
@@ -130,6 +205,7 @@ namespace ImagineQuest.Gameplay
             }, handoff);
             pitch = 0;
             arrivingAtForge = false;
+            ShowModal(forgeIntroduction);
         }
 
         private void BuildRaidDeparture()
@@ -227,16 +303,46 @@ namespace ImagineQuest.Gameplay
 
             MoveWorkshopPlayer(key);
             AnimateRaidHammer(Time.deltaTime);
+            if (modal != null) return;
             if (player.transform.position.y < -3) PlaceRaidPlayer(inRaid ? YardStart : raidIndoorSpawn, inRaid ? 180 : 0);
             if (!inRaid && bladeForged && player.transform.position.z < -7) StartRaid();
+            if (modal != null) return;
             if (inRaid)
             {
+                if (!combatGuideShown && cryptFirstOpen && player.transform.position.z < -17f)
+                {
+                    combatGuideShown = true;
+                    ShowModal(combatIntroduction);
+                    return;
+                }
+                if (!vaultGuideShown && raidCombat.Wave == 1 && raidCombat.Remaining == 0 &&
+                    !cryptSecondOpen && player.transform.position.z < -25f)
+                {
+                    vaultGuideShown = true;
+                    ShowModal(vaultIntroduction);
+                    return;
+                }
+                if (!secondCombatGuideShown && cryptSecondOpen && player.transform.position.z < -37f)
+                {
+                    secondCombatGuideShown = true;
+                    ShowModal(secondCombatIntroduction);
+                    return;
+                }
                 StepClosingShutter(Time.deltaTime);
                 int previousHealth = raidCombat.Health;
                 if (!cryptCleared && raidCombat.Tick(Time.deltaTime, Mouse.current))
                 {
                     if (raidCombat.Health <= 0) { ShowRaidResult(false); return; }
                     cryptCleared = true;
+                    UpdateRaidHud();
+                    ShowModal(battleVictoryIntroduction);
+                    return;
+                }
+                if (cryptCleared && !relicGuideShown && player.transform.position.z < -53f)
+                {
+                    relicGuideShown = true;
+                    ShowModal(relicIntroduction);
+                    return;
                 }
                 if (cryptCleared) raidCombat.UpdateHeldBlade(Time.deltaTime);
                 UpdateCryptInteraction(key);
@@ -274,6 +380,11 @@ namespace ImagineQuest.Gameplay
         {
             if (!bladeTrial.Complete || bladeForged) return;
             bladeForged = true;
+            swordReveal = BuildBramGuide("Your " + bladeTrial.BladeName + " is ready!",
+                "You got " + bladeTrial.Correct + " out of 3 questions correct and forged the " +
+                bladeTrial.BladeName + "! Your sword deals " + bladeTrial.Damage +
+                " damage with each hit. Take your new blade into the crypt—adventure awaits!",
+                "Let’s explore!");
             raidDoor.SetActive(false);
             raidCombat.Equip(bladeTrial.Damage);
             hammerTime = 0;
@@ -291,6 +402,7 @@ namespace ImagineQuest.Gameplay
             if (hammerTime >= .88f)
             {
                 raidHammer.gameObject.SetActive(false);
+                if (swordReveal != null && !inRaid) ShowModal(swordReveal);
                 return;
             }
             const float beatLength = .44f;
@@ -331,8 +443,10 @@ namespace ImagineQuest.Gameplay
             raidGate.transform.position = shutterRest + Vector3.up * 2.7f;
             raidGate.SetActive(true);
             raidCombat.Begin(bladeTrial.Damage);
+            combatGuideShown = vaultGuideShown = secondCombatGuideShown = relicGuideShown = false;
             prompt.text = "";
             UpdateRaidHud();
+            ShowModal(sealIntroduction);
         }
 
         private void StepClosingShutter(float dt)
@@ -360,7 +474,6 @@ namespace ImagineQuest.Gameplay
         {
             PlaceRaidPlayer(YardStart, 180);
             StartRaid();
-            ShowModal(null);
         }
 
         private void PlaceRaidPlayer(Vector3 position, float yaw)
